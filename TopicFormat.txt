@@ -1,0 +1,23 @@
+
+MQTT uses a topic string to identify a resource (intentionally loose term) a client wants to 
+access or provide. A standard URI structured "slash path" gives a good way to represent a
+topic hierarchy so many systems employ some variation of one.
+
+Since topic structure and naming conventions impact how this implementation determines who 
+gets what messages and what code gets run by it, following a fairly rigid topic definition 
+format ends up being critical.
+
+ example:    ESB/Client/ModApi.GameEvent/E/20E9AD182A2D
+
+             ESB/     identifies this as an Empyrion Service Bus message
+      <sourceid>/     the type/class of the service ... basically an APPID
+     <subjectid>/     the subject of the message (user topic string as dot path)
+      <msgclass>/     Q=question, R=response, E=event, I=information, X=exception 
+      <clientid>      a unique session identifier (currently the last 12 of a guid)
+
+A publisher subscribes to Questions that it issues a Response to that provide information
+or confirms a request was satisfied. Events that occur may be issued as a result of async
+events in the publisher. When errors occur eXceptions are raised.
+
+The ESB uses the Application.Mode (Client, DedicatedServer, PlayfieldServer) as the sourceid 
+for these services.
