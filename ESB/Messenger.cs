@@ -7,13 +7,16 @@ using MQTTnet;
 using MQTTnet.Client;
 using Newtonsoft.Json.Linq;
 using System.Reflection;
-using ESBGameMod;
 
 namespace ESBMessaging
 {
+    public abstract class BaseContextData
+    {
+        public Messenger Messenger { get; set; }
+    }
     public class Messenger
     {
-        private ContextData _ctx;
+        private BaseContextData _ctx;
         private string _applicationId;
         private string _clientId;
         private MqttFactory _mqttFactory;
@@ -27,7 +30,7 @@ namespace ESBMessaging
         }
 
         // build client and connect to broker
-        public async Task ConnectAsync(ContextData ctx, string applicationId, string withTcpServer = "localhost")
+        public async Task ConnectAsync(BaseContextData ctx, string applicationId, string withTcpServer = "localhost")
         {
             _ctx = ctx;
             _applicationId = applicationId;
@@ -37,7 +40,6 @@ namespace ESBMessaging
                     .WithTcpServer(withTcpServer)
                     .Build();
             _mqttClient = _mqttFactory.CreateMqttClient();
-            //_mqttClient.ApplicationMessageReceivedAsync += (e) => ProcessMessageAsync(ctx, e);
             _mqttClient.ApplicationMessageReceivedAsync += ProcessMessageAsync;
             await _mqttClient.ConnectAsync(mqttClientOptions, CancellationToken.None);
             JObject json = new JObject(new JProperty("WithTcpServer", withTcpServer));
@@ -144,9 +146,12 @@ namespace ESBMessaging
         {
             var topic = e.ApplicationMessage.Topic;
             var payload = "";   // kludge to enforce string encoding with no nulls
-            if (e.ApplicationMessage.Payload != null)
+            if (e.ApplicationMessage.PayloadSegment != null)
             {
-                payload = Encoding.Default.GetString(e.ApplicationMessage.Payload); // change byte array to string
+                var payloadSegment = e.ApplicationMessage.PayloadSegment;
+                var payloadArray = new byte[payloadSegment.Count];
+                Array.Copy(payloadSegment.Array, payloadSegment.Offset, payloadArray, 0, payloadSegment.Count);
+                payload = Encoding.Default.GetString(payloadArray);     // change byte array to string
             }
 
             // echo everything we get (debug output)

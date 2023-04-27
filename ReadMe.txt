@@ -18,6 +18,10 @@ Empyrion - Galactic Survival, by Eleon Game Studios.
 
                                    * * *
 
+WORK IN PROGRESS .. this is a framework for mod development based on a publish/subscribe
+model; as is it doesn't add any serious functionality to the game from a players point
+of view.
+
 Getting Started:
 
 1. You'll need a local MQTT broker, assuming it's Mosquitto and it's on your path start
@@ -30,12 +34,14 @@ everything is working the message should show up in the first window. If it isn'
 not go to space yet- figure out what's wrong and fix it.
 
 3. Once that's working then create an /ESB directory under the Content/Mods folder in the
-game directory. Put the ESB dll, the associated _Info.yaml file, and the MQTTnet, 
-Newtonsoft.Json and YamlDotNet dll files in as well.
+game and/or dedicated server directory. Put the ESB dll, the associated _Info.yaml file, 
+and the MQTTnet, Newtonsoft.Json and YamlDotNet dll files in as well.
 
-4. If you open the game and enter an existing save you should see a whole lot of messages
+4. Create a /Plugins directory as a child of /ESB .. move ESB.ModApi.dll here.
+
+5. If you open the game and enter an existing save you should see a whole lot of messages
 in the subscription window and their arrival will coincide with stuff you're doing in
-the game. These events can be used to drive multiple subscribing services and the game only 
+the game. These events can be sent to multiple subscribing services and the game only 
 needed to publish them once.
 
 Example Services:

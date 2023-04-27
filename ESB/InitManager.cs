@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.IO;
 using Eleon.Modding;
 using Newtonsoft.Json.Linq;
@@ -6,9 +7,8 @@ using YamlDotNet.RepresentationModel;
 
 namespace ESBGameMod
 {
-    public class BusManager
+    public class InitManager
     {
-
         public async void Initialize(ContextData ctx)
         {
             // read yaml config file (which needs to exist to get this far)
@@ -17,6 +17,12 @@ namespace ESBGameMod
             var yaml = new YamlStream();
             yaml.Load(reader);
             var rootNode = (YamlMappingNode)yaml.Documents[0].RootNode;
+
+            // TODO: get interface cache initial allocation .. cost for n+1 is alloc of double size buffer and copy, hardcode for now
+            var playfieldListEntries = 5;
+            var entityListEntries = 100;
+            ctx.LoadedPlayfield = new List<KeyValuePair<string, IPlayfield>>(playfieldListEntries);
+            ctx.LoadedEntity = new List<KeyValuePair<int, IEntity>>(entityListEntries);
 
             // subscribe to topics specified in ESB_Info
             var subscribeToTopics = ctx.ModApi.Application.Mode.ToString() + "Subscribe";

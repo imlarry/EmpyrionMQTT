@@ -3,23 +3,29 @@ using System.Collections.Generic;
 using Eleon;
 using Eleon.Modding;
 using ESBMessaging;
-using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
 // EmpyrionMQTT .. mod for MQTT integration with Empyrion Galactic Survival
 
 namespace ESBGameMod
 {
-    // context for this instance of mod
-    public class ContextData
+    // context extensions for a mod
+    public class ContextData : BaseContextData
     {
+        public InitManager InitManager { get; set; }
         public IModApi ModApi { get; set; }
         public ModGameAPI ModLegacy { get; set; }
-        public Messenger Messenger { get; set; }
-        public BusManager BusManager { get; set; }
-        public Dictionary<string, IPlayfield> LoadedPlayfield { get; set; }
-        public Dictionary<int, IEntity> LoadedEntity { get; set; }
+        public List<KeyValuePair<string, IPlayfield>> LoadedPlayfield { get; set; }
+        public List<KeyValuePair<int, IEntity>> LoadedEntity { get; set; }
     }
+/*
+     
+FETCH example
+
+var akuaPlayfield = LoadedPlayfield.FirstOrDefault(pf => pf.Key == "Akua").Value;
+
+*/
+
     public class EmpyrionServiceBus : IMod, ModInterface
     {
         public ContextData CTX { get; set; } = new ContextData();
@@ -29,9 +35,7 @@ namespace ESBGameMod
         {
             CTX.ModApi = modApi;
             CTX.Messenger = new Messenger();
-            CTX.BusManager = new BusManager();
-            CTX.LoadedPlayfield = new Dictionary<string, IPlayfield>();
-            CTX.LoadedEntity = new Dictionary<int, IEntity>();
+            CTX.InitManager = new InitManager();
             modApi.Log("ESB starting");
 
             // create mqtt client and open a channel to broker
@@ -39,7 +43,7 @@ namespace ESBGameMod
             await CTX.Messenger.ConnectAsync(CTX, applicationId, "localhost");
 
             // initialize subscriptions & dll plugins
-            CTX.BusManager.Initialize(CTX);            
+            CTX.InitManager.Initialize(CTX);            
 
             // enable event handlers
             EnableEventHandlers(CTX.ModApi);
@@ -189,7 +193,7 @@ namespace ESBGameMod
 
         async void OnPlayfieldLoadedHandler(IPlayfield playfield)
         {
-            CTX.LoadedPlayfield.Add(playfield.Name, playfield); 
+            CTX.LoadedPlayfield.Add(new KeyValuePair<string, IPlayfield>(playfield.Name, playfield));   //CTX.LoadedPlayfield.Add(playfield.Name, playfield);
             playfield.OnEntityLoaded += OnEntityLoaded;
             playfield.OnEntityUnloaded += OnEntityUnloaded;
             JObject json = new JObject(
@@ -206,7 +210,7 @@ namespace ESBGameMod
 
         async void OnPlayfieldUnloadingHandler(IPlayfield playfield)
         {
-            CTX.LoadedPlayfield.Remove(playfield.Name);
+            CTX.LoadedPlayfield.RemoveAll(x => x.Key == playfield.Name);    //CTX.LoadedPlayfield.Remove(playfield.Name);
             playfield.OnEntityLoaded -= OnEntityLoaded;
             playfield.OnEntityUnloaded -= OnEntityUnloaded;
             JObject json = new JObject(new JProperty("Name", playfield.Name));
@@ -215,7 +219,7 @@ namespace ESBGameMod
 
         async void OnEntityLoaded(IEntity entity)
         {
-            CTX.LoadedEntity.Add(entity.Id, entity);
+            CTX.LoadedEntity.Add(new KeyValuePair<int, IEntity>(entity.Id, entity));    //CTX.LoadedEntity.Add(entity.Id, entity);
             JObject json = new JObject(
                     new JProperty("Id", entity.Id),
                     new JProperty("Name", entity.Name),
@@ -236,7 +240,7 @@ namespace ESBGameMod
 
         async void OnEntityUnloaded(IEntity entity)
         {
-            CTX.LoadedEntity.Remove(entity.Id);
+            CTX.LoadedEntity.RemoveAll(x => x.Key == entity.Id);    //CTX.LoadedEntity.Remove(entity.Id);
             JObject json = new JObject(
                     new JProperty("Id", entity.Id),
                     new JProperty("Name", entity.Name),
