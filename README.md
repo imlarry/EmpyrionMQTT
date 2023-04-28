@@ -1,4 +1,4 @@
-# ESB
+# ESB - Empyrion Service Bus
 
 #### ESB is a messaging bus that implements the publish/subscribe pattern for use with Empyrion - Galactic Survival, by Eleon Game Studios.
 <br>
@@ -19,14 +19,14 @@ GNU General Public License for more details.
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 
-### <p style="text-align: center;font-style: italic">WORK IN PROGRESS</p>
+### <p style="text-align: center;font-style: italic">* * * WORK IN PROGRESS * * *</p>
 
-This is a framework for mod development using a publish/subscribe model that allows the 
-execution of code outside the context of the game which enables a distributed sharable
-cross-platform multi-language services development model. The current rev is not all that
-out-of-the-box useful as a player or game admin mod. 
+This is a *framework* for mod development using a publish/subscribe model to allow the 
+execution of code outside the context of the game. While the code here is all C# services
+can be developed and deployed in any language and across any OS that supports MQTT.
 
-My pace is plodding and I am in the crawl before you walk phase, if you see things worth doing 
+The current rev is not all that out-of-the-box useful as a player or game admin mod. My pace 
+is **plodding** and I am in the crawl before you walk phase. If you see things worth doing 
 that you know how to do please feel free to jump in with a pull request or fork as you see fit.
 
 For a good open source broker it's really hard to beat [Eclipse Mosquitto](https://mosquitto.org/). Any examples 
@@ -144,5 +144,7 @@ the server that has the entity loaded will move it and it will stay where it was
 
 ## Example Services:
 
-Two working examples of console services are included; a data logger that uses SQLite to log GameEvent and PlayfieldEvent messages
-and the start of a sound manager using the NAudio lib that plays an irritating noise when you open a constructor.
+Two examples of external console applications that interface with the service bus are included:
+
+- data logger (Console.Datalog) that uses SQLite to log Application.GameEvent and Playfield.EntityLoaded messages.
+- sound manager (Console.SoundMan) uses the NAudio lib to play an irritating noise when you open a constructor.
