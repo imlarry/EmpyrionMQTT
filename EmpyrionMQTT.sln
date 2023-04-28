@@ -5,13 +5,6 @@ VisualStudioVersion = 17.5.33516.290
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ESB", "ESB\ESB.csproj", "{E2635A92-F80B-49ED-8EFB-899DECF14DFF}"
 EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Docs", "Docs", "{51ED3B37-2CA8-40C7-B72B-6C71F85FF731}"
-	ProjectSection(SolutionItems) = preProject
-		License.txt = License.txt
-		ReadMe.txt = ReadMe.txt
-		TopicFormat.txt = TopicFormat.txt
-	EndProjectSection
-EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ESB.ModApi", "ESB.ModApi\ESB.ModApi.csproj", "{A3C62CC7-17B5-4DEA-B3A4-8FE646E268BB}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ESB.Gatetech", "ESB.Gatetech\ESB.Gatetech.csproj", "{C3EEAE0E-6A70-42D1-AD53-36E934B1F11B}"
@@ -24,7 +17,9 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Console.SoundMan", "Console
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{46965BBB-53DB-4BA4-A6E2-DCAAC1BD4279}"
 	ProjectSection(SolutionItems) = preProject
+		License.txt = License.txt
 		README.md = README.md
+		TopicFormat.txt = TopicFormat.txt
 	EndProjectSection
 EndProject
 Global
