@@ -4,11 +4,11 @@
   <PropertyGroup>
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
-    <ProjectGuid>{C3EEAE0E-6A70-42D1-AD53-36E934B1F11B}</ProjectGuid>
+    <ProjectGuid>{3D39D663-F591-4D7C-A185-C5084F4426BD}</ProjectGuid>
     <OutputType>Library</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
-    <RootNamespace>ESB.Gatetech</RootNamespace>
-    <AssemblyName>ESB.Gatetech</AssemblyName>
+    <RootNamespace>ESBMessaging</RootNamespace>
+    <AssemblyName>ESBMessaging</AssemblyName>
     <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <Deterministic>true</Deterministic>
@@ -31,42 +31,27 @@
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="FlexionAmplifier.cs" />
-    <Compile Include="Properties\AssemblyInfo.cs" />
-  </ItemGroup>
-  <ItemGroup>
-    <Reference Include="Mif">
-      <HintPath>..\..\..\..\..\..\SteamRoot\steamapps\common\Empyrion - Galactic Survival\Client\Empyrion_Data\Managed\Mif.dll</HintPath>
-    </Reference>
-    <Reference Include="ModApi">
-      <HintPath>..\..\..\..\..\..\SteamRoot\steamapps\common\Empyrion - Galactic Survival\Client\Empyrion_Data\Managed\ModApi.dll</HintPath>
+    <Reference Include="MQTTnet, Version=4.2.0.706, Culture=neutral, PublicKeyToken=fdb7629f2e364a63, processorArchitecture=MSIL">
+      <HintPath>..\packages\MQTTnet.4.2.0.706\lib\net461\MQTTnet.dll</HintPath>
     </Reference>
     <Reference Include="Newtonsoft.Json, Version=13.0.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed, processorArchitecture=MSIL">
       <HintPath>..\packages\Newtonsoft.Json.13.0.3\lib\net45\Newtonsoft.Json.dll</HintPath>
     </Reference>
-    <Reference Include="UnityEngine.CoreModule">
-      <HintPath>..\..\..\..\..\..\SteamRoot\steamapps\common\Empyrion - Galactic Survival\Client\Empyrion_Data\Managed\UnityEngine.CoreModule.dll</HintPath>
-    </Reference>
+    <Reference Include="System" />
+    <Reference Include="System.Core" />
+    <Reference Include="System.Xml.Linq" />
+    <Reference Include="System.Data.DataSetExtensions" />
+    <Reference Include="Microsoft.CSharp" />
+    <Reference Include="System.Data" />
+    <Reference Include="System.Net.Http" />
+    <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\ESBMessaging\ESBMessaging.csproj">
-      <Project>{3d39d663-f591-4d7c-a185-c5084f4426bd}</Project>
-      <Name>ESBMessaging</Name>
-    </ProjectReference>
-    <ProjectReference Include="..\ESB\ESB.csproj">
-      <Project>{e2635a92-f80b-49ed-8efb-899decf14dff}</Project>
-      <Name>ESB</Name>
-    </ProjectReference>
+    <Compile Include="Messenger.cs" />
+    <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
-  <PropertyGroup>
-    <PostBuildEvent>rem basic client/single player/coop
-xcopy.exe /D /Y "$(ProjectDir)$(OutDir)ESB.Gatetech.dll" "C:\SteamRoot\steamapps\common\Empyrion - Galactic Survival\Content\Mods\ESB\Plugins\*.*"
-rem dedicated server
-xcopy.exe /D /Y "$(ProjectDir)$(OutDir)ESB.Gatetech.dll" "C:\SteamRoot\steamapps\common\Empyrion - Dedicated Server\Content\Mods\ESB\Plugins\*.*"
-</PostBuildEvent>
-  </PropertyGroup>
 </Project>

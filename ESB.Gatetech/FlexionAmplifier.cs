@@ -1,7 +1,5 @@
 ﻿using System;
-using Eleon.Modding;
 using Newtonsoft.Json.Linq;
-using UnityEngine;
 using ESBGameMod;
 
 namespace Gatetech

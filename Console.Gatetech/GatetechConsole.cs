@@ -1,8 +1,12 @@
-﻿using ESBGameMod;
-using ESBMessaging;
+﻿using ESBMessaging;
 using Newtonsoft.Json.Linq;
 
 namespace Gatetech;
+
+// since the Logger uses a SQL connection in all handler routines so we derive an extended context for it
+public class GTConsoleSpecificContext : BaseContextData
+{
+}
 
 internal class GTConsole
 {
@@ -15,7 +19,7 @@ internal class GTConsole
 
         // create messenger and configure
         Messenger esb = new();
-        ContextData ctx = new();
+        GTConsoleSpecificContext ctx = new();
         esb.ConnectAsync(ctx,"GatetechConsole", "localhost").Wait();
         var gatetechConsole = new GTConsole();
         //esb.RegisterLocalMethod("Gatetech.GTConsole.DetectGateMessaging", gatetechConsole.DetectGateMessaging);

@@ -38,6 +38,10 @@
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\ESBMessaging\ESBMessaging.csproj">
+      <Project>{3d39d663-f591-4d7c-a185-c5084f4426bd}</Project>
+      <Name>ESBMessaging</Name>
+    </ProjectReference>
     <ProjectReference Include="..\ESB\ESB.csproj">
       <Project>{e2635a92-f80b-49ed-8efb-899decf14dff}</Project>
       <Name>ESB</Name>
@@ -64,12 +68,14 @@
   <PropertyGroup>
     <PostBuildEvent>rem basic client/single player/coop
 xcopy.exe /D /Y "$(ProjectDir)$(OutDir)ESB.dll" "C:\SteamRoot\steamapps\common\Empyrion - Galactic Survival\Content\Mods\ESB\*.*"
+xcopy.exe /D /Y "$(ProjectDir)$(OutDir)ESBMessaging.dll" "C:\SteamRoot\steamapps\common\Empyrion - Galactic Survival\Content\Mods\ESB\*.*"
 xcopy.exe /D /Y "$(ProjectDir)$(OutDir)ESB_Info.yaml" "C:\SteamRoot\steamapps\common\Empyrion - Galactic Survival\Content\Mods\ESB\*.*"
 xcopy.exe /D /Y "$(ProjectDir)$(OutDir)MQTTnet.dll" "C:\SteamRoot\steamapps\common\Empyrion - Galactic Survival\Content\Mods\ESB\*.*"
 xcopy.exe /D /Y "$(ProjectDir)$(OutDir)Newtonsoft.Json.dll" "C:\SteamRoot\steamapps\common\Empyrion - Galactic Survival\Content\Mods\ESB\*.*"
 xcopy.exe /D /Y "$(ProjectDir)$(OutDir)YamlDotNet.dll" "C:\SteamRoot\steamapps\common\Empyrion - Galactic Survival\Content\Mods\ESB\*.*"
 xcopy.exe /D /Y "$(ProjectDir)$(OutDir)ESB.ModApi.dll" "C:\SteamRoot\steamapps\common\Empyrion - Galactic Survival\Content\Mods\ESB\Plugins\*.*"
 rem dedicated server
+xcopy.exe /D /Y "$(ProjectDir)$(OutDir)ESBMessaging.dll" "C:\SteamRoot\steamapps\common\Empyrion - Galactic Survival\Content\Mods\ESB\*.*"
 xcopy.exe /D /Y "$(ProjectDir)$(OutDir)ESB.dll" "C:\SteamRoot\steamapps\common\Empyrion - Dedicated Server\Content\Mods\ESB\*.*"
 xcopy.exe /D /Y "$(ProjectDir)$(OutDir)ESB_Info.yaml" "C:\SteamRoot\steamapps\common\Empyrion - Dedicated Server\Content\Mods\ESB\*.*"
 xcopy.exe /D /Y "$(ProjectDir)$(OutDir)MQTTnet.dll" "C:\SteamRoot\steamapps\common\Empyrion - Dedicated Server\Content\Mods\ESB\*.*"

@@ -40,37 +40,37 @@ namespace ModApi
             }
         }
 
+        void DialogActionHandler(int buttonIdx, string linkId, string inputContent, int playerId, int customValue)
+        {
+            _ = _ctx.Messenger.SendAsync("ModApi.Application.ShowDialog/X", "Button:" + buttonIdx.ToString());
+        }
+
         public async void ShowDialog(string topic, string payload)
-        // TODO: this one is causing a stack dump from inside the try/catch ... moving on
+        // TODO: this one is causing a stack dump from inside the try/catch ... no idea why
         {
             try
             {
+                string[] bt = { "dog", "cat", "duck" };
                 var config = new DialogConfig
                 {
                     TitleText = "TitleText: Your Title Here",
-                    BodyText = "BodyText: This is a test of the emergency broadcast system."
+                    BodyText = "BodyText: This is a test of the emergency broadcast system.",
+                    //CloseOnLinkClick = true,
+                    ButtonTexts = bt,
+                    //ButtonIdxForEsc = 0,
+                    //ButtonIdxForEnter = 1,
+                    //MaxChars = 30,
+                    //Placeholder = "Placeholder",
+                    //InitialContent = "InitialContent"
                 };
-                //config.CloseOnLinkClick = true;
-                string[] bt = { "esc", "enter" };
-                config.ButtonTexts = bt;
-                //config.ButtonIdxForEsc = 0;
-                //config.ButtonIdxForEnter = 1;
-                //config.MaxChars = 30;
-                //config.Placeholder = "Placeholder";
-                //config.InitialContent = "InitialContent";
                 var handler = new DialogActionHandler(DialogActionHandler);
                 var displayed = _ctx.ModApi.GUI.ShowDialog(config, handler, 0);
-                // TODO: return displayed boolean
+                await _ctx.Messenger.SendAsync(_ctx.Messenger.RespondTo(topic, "R"), "Displayed: " + displayed.ToString());
             }
             catch (Exception ex)
             {
                 await _ctx.Messenger.SendAsync(_ctx.Messenger.RespondTo(topic, "X"), ex.Message);
             }
-        }
-
-        private async void DialogActionHandler(int buttonIdx, string linkId, string inputContent, int playerId, int customValue)
-        {
-            await _ctx.Messenger.SendAsync("ModApi.Gui.DialogActionHandler/X", "test");  // json.ToString(Newtonsoft.Json.Formatting.None));
         }
 
         public async void IsWorldVisible(string topic, string payload)

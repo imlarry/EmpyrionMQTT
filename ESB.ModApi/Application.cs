@@ -134,11 +134,32 @@ namespace ModApi
             }
         }
 
+        async void DialogActionHandler(int buttonIdx, string linkId, string inputContent, int playerId, int customValue)
+        {
+            await _ctx.Messenger.SendAsync("ModApi.Application.ShowDialogBox/X", "Button:" + buttonIdx.ToString());  // json.ToString(Newtonsoft.Json.Formatting.None));
+        }
         public async void ShowDialogBox(string topic, string payload)
         {
             try
             {
-                await _ctx.Messenger.SendAsync(_ctx.Messenger.RespondTo(topic, "R"), "stub");
+                var playerId = 1040;
+                string[] bt = { "dog", "cat", "duck" };
+                var config = new DialogConfig
+                {
+                    TitleText = "TitleText: Your Title Here",
+                    BodyText = "BodyText: This is a test of the emergency broadcast system.",
+                    //CloseOnLinkClick = true,
+                    ButtonTexts = bt,
+                    //ButtonIdxForEsc = 0,
+                    //ButtonIdxForEnter = 1,
+                    //MaxChars = 30,
+                    //Placeholder = "Placeholder",
+                    //InitialContent = "InitialContent"
+                };
+                var handler = new DialogActionHandler(DialogActionHandler);
+                var displayed = _ctx.ModApi.Application.ShowDialogBox(playerId, config, handler, 0);
+                // hard coded: always returning "false" even though the playerId being passed is the entity id of the client's player
+                await _ctx.Messenger.SendAsync(_ctx.Messenger.RespondTo(topic, "R"), "Displayed: " + displayed.ToString());
             }
             catch (Exception ex)
             {

@@ -63,7 +63,6 @@
   <ItemGroup>
     <Compile Include="ESB.cs" />
     <Compile Include="InitManager.cs" />
-    <Compile Include="Messenger.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>
@@ -72,6 +71,12 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
     <None Include="packages.config" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\ESBMessaging\ESBMessaging.csproj">
+      <Project>{3d39d663-f591-4d7c-a185-c5084f4426bd}</Project>
+      <Name>ESBMessaging</Name>
+    </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <Target Name="EnsureNuGetPackageBuildImports" BeforeTargets="PrepareForBuild">

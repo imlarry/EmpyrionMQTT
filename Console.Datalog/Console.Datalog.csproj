@@ -13,7 +13,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\ESB\ESB.csproj" />
+    <ProjectReference Include="..\ESBMessaging\ESBMessaging.csproj" />
   </ItemGroup>
 
 </Project>

@@ -22,7 +22,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 ### <p style="text-align: center;font-style: italic">* * * WORK IN PROGRESS * * *</p>
 
 This is a *framework* for mod development using a publish/subscribe model to allow the 
-execution of code outside the context of the game. While the code here is all C# services
+execution of code outside the context of the game. While the code here is all C#, service clients
 can be developed and deployed in any language and across any OS that supports MQTT.
 
 The current rev is not all that out-of-the-box useful as a player or game admin mod. My pace 
@@ -44,16 +44,17 @@ to this broker to come to this window along with their message payloads.
 everything is working the message "HelloWorld" with the topic "Hello" should appear in the first window. 
 If it doesn't, you cannot go to space yet- figure out what's wrong and fix it.
 
-1. Once that's working then create an /ESB directory under the Content/Mods folder in the
+1. Once that's working, create an /ESB directory under the Content/Mods folder in the
 game and/or dedicated server directory. 
 
-1. Build the application and copy ESB.dll, ESB_Info.yaml, MQTTnet.dll, Newtonsoft.Json.dll and YamlDotNet.dll into the /ESB directory.
+1. Build the application and copy ESB.dll, ESB_Info.yaml, MQTTnet.dll, Newtonsoft.Json.dll and YamlDotNet.dll 
+into the /ESB directory.
 
 1. Create a /Plugins directory as a child of /ESB and copy ESB.ModApi.dll here.
 
 1. If you open the game and enter an existing save you should see a whole lot of messages
 in the subscription window and their arrival will coincide with stuff you're doing in
-the game. These events can be sent to multiple subscribing services and the game only 
+the game. These events can be sent to multiple subscribing client services and the game only 
 needed to publish them once.
 
 ## What does it do?
@@ -66,8 +67,7 @@ subscribes to messages on topics that potentially interest it as defined in the 
 These topics and JSON structured data associated with them create a text driven API you can 
 externally request information from or, to the extent allowed by the underlying mod APIs
 and other service process, use to modify data and behavior in an active instance of the 
-game. This combination allows external logic to orchestrate changes involving data from multiple 
-publishers.
+game. 
 
 By combining data from different sources in this abstract view, the publish/subscribe
 pattern enables loosely coupled communication between components or services. This allows 
@@ -91,8 +91,8 @@ configuration for such a topology is currently out of scope.
 ## What is MQTT?
 
 MQTT was originally "MQ series Telemetry Transport" or "Message Queuing Telemetry Transport", and is a protocol 
-originally use in the gas industry for monitoring pipelines. It is designed as an ultralight protocol with limited
-store/forward capabilites for communication with intermittant connected devices.
+originally use in the gas industry for monitoring pipelines. It is a lightweight protocol with limited
+store/forward capabilites for communication with potentially intermittantly connected devices.
 
 Today it is widely used for distributed system logging and orchestration as well as edge computing interfaces with
 Internet of Things sorts of devices; if you've always wanted a light to blink in the real world when
@@ -126,7 +126,7 @@ for these services.
 ## Plugins
 
 The basic messaging library supports loading dynamic linked libraries (DLLs) as plugins. This lets people easily
-add routines needed by a service without modifying the basic framework. The ESB.ModApi.dll is an example of such a plugin
+add routines needed by a service without modifying the basic framework. The ESB.ModApi.dll is a demo example of such a plugin
 and implements a number of the basic api calls which can be triggered by sending JSON messages 
 using `mosquitto_pub -t "<topicString>" -m "<JSON payload>"` calls from the command line. 
 

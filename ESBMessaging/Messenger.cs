@@ -8,7 +8,7 @@ using MQTTnet.Client;
 using Newtonsoft.Json.Linq;
 using System.Reflection;
 
-namespace ESBMessagingOld
+namespace ESBMessaging
 {
     public abstract class BaseContextData
     {
@@ -60,7 +60,7 @@ namespace ESBMessagingOld
             var mqttSubscribeOptions = _mqttFactory.CreateSubscribeOptionsBuilder()
                     .WithTopicFilter(f => { f.WithTopic(topic); })
                     .Build();
-            if (topicHandler != null) 
+            if (topicHandler != null)
             {
                 string[] values = topic.Split('/');
                 if (!_methods.ContainsKey(values[2]))
