@@ -8,32 +8,39 @@ public class GTConsoleSpecificContext : BaseContextData
 {
 }
 
-internal class GTConsole
+public class GTConsole
 {
+    public GTConsoleSpecificContext CTX { get; set; } = new GTConsoleSpecificContext();
 
+    readonly Messenger esb = new();
     static void Main(string[] args)
     {
         Console.WriteLine("GatetechConsole: MQTT bus listener that coordinates control of the Flexion Amplifier gate network");
         Console.WriteLine();
         if (args.Length != 0) { Console.WriteLine("...no support for params or switches yet"); }
 
-        // create messenger and configure
-        Messenger esb = new();
-        GTConsoleSpecificContext ctx = new();
-        esb.ConnectAsync(ctx,"GatetechConsole", "localhost").Wait();
-        var gatetechConsole = new GTConsole();
-        //esb.RegisterLocalMethod("Gatetech.GTConsole.DetectGateMessaging", gatetechConsole.DetectGateMessaging);
-        esb.Subscribe("ESB/Gatetech/Gatetech.GTConsole.DetectGateMessaging/R", gatetechConsole.DetectGateMessaging).Wait();
-        esb.SendAsync("ESB/Gatetech/AvailableTopics/I", esb.AvailableTopics()).Wait(); 
+        // create the non-static class
+        GTConsole console = new();
+        console.Init();
 
         // console loops while the logger works in background
         while (true)
         {
             Console.Write("Gatetech> ");
             string? cmd = Console.ReadLine()?.Trim();
-            Console.WriteLine("...no support for a console CLI yet");
-            // TODO: command "EXIT" to cleanup and close .. others?
+            if (cmd != null && cmd.ToLower() == "exit") { return; }
+            Console.WriteLine("the only command right now is 'exit'");
         }
+    }
+
+    async void Init()
+    {
+        // create messenger and configure
+        await esb.ConnectAsync(CTX, "Gatetech", "localhost");
+
+        // subscribe to events we want to respond to
+        await esb.Subscribe("ESB/Gatetech/Gatetech.GTConsole.DetectGateMessaging/R", DetectGateMessaging);
+        await esb.SendAsync("ESB/Gatetech/AvailableTopics/I", esb.AvailableTopics());
     }
 
     // ************************ subscription handler tasks ************************
@@ -45,9 +52,7 @@ internal class GTConsole
         // parse messages and classify
         //JObject args = JObject.Parse(payload);
 
-        //await esb.SendAsync(esb.RespondTo(topic, "X"), "In DetectGateMessaging");
-
-        return; 
+        await esb.SendAsync(esb.RespondTo(topic, "X"), "In DetectGateMessaging");
     }
 
 }

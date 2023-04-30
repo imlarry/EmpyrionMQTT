@@ -134,31 +134,34 @@ namespace ModApi
             }
         }
 
-        async void DialogActionHandler(int buttonIdx, string linkId, string inputContent, int playerId, int customValue)
+        void DialogActionHandler(int buttonIdx, string linkId, string inputContent, int playerId, int customValue)
         {
-            await _ctx.Messenger.SendAsync("ModApi.Application.ShowDialogBox/X", "Button:" + buttonIdx.ToString());  // json.ToString(Newtonsoft.Json.Formatting.None));
+            //_ = _ctx.Messenger.SendAsync("ModApi.Application.ShowDialogBox/X", "Button:" + buttonIdx.ToString());
+            _ctx.ModApi.Log("entering ShowDialogBox actionRoutine");
         }
         public async void ShowDialogBox(string topic, string payload)
         {
             try
             {
+                _ctx.ModApi.Log("entering ShowDialogBox");
                 var playerId = 1040;
+                var playerData = _ctx.ModApi.Application.GetPlayerDataFor(playerId);
+                string json = JsonConvert.SerializeObject(playerData);
+                await _ctx.Messenger.SendAsync(_ctx.Messenger.RespondTo(topic, "R"), json);
                 string[] bt = { "dog", "cat", "duck" };
-                var config = new DialogConfig
+                var config = new DialogConfig() // the parens here forces calling the constructor (which probably populates stuff behind the curtain!)
                 {
-                    TitleText = "TitleText: Your Title Here",
-                    BodyText = "BodyText: This is a test of the emergency broadcast system.",
-                    //CloseOnLinkClick = true,
-                    ButtonTexts = bt,
+                    TitleText = "TitleText - Your Title Here",
+                    BodyText = "BodyText - This is a test of the emergency broadcast system (with buttons)",
+                    ButtonTexts = bt
                     //ButtonIdxForEsc = 0,
                     //ButtonIdxForEnter = 1,
+                    //CloseOnLinkClick = true,
                     //MaxChars = 30,
                     //Placeholder = "Placeholder",
                     //InitialContent = "InitialContent"
                 };
-                var handler = new DialogActionHandler(DialogActionHandler);
-                var displayed = _ctx.ModApi.Application.ShowDialogBox(playerId, config, handler, 0);
-                // hard coded: always returning "false" even though the playerId being passed is the entity id of the client's player
+                var displayed = _ctx.ModApi.Application.ShowDialogBox(playerId, config, DialogActionHandler, 0);
                 await _ctx.Messenger.SendAsync(_ctx.Messenger.RespondTo(topic, "R"), "Displayed: " + displayed.ToString());
             }
             catch (Exception ex)
