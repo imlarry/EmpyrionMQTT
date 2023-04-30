@@ -87,4 +87,16 @@
     <Error Condition="!Exists('..\packages\EntityFramework.6.4.4\build\EntityFramework.targets')" Text="$([System.String]::Format('$(ErrorText)', '..\packages\EntityFramework.6.4.4\build\EntityFramework.targets'))" />
   </Target>
   <Import Project="..\packages\EntityFramework.6.4.4\build\EntityFramework.targets" Condition="Exists('..\packages\EntityFramework.6.4.4\build\EntityFramework.targets')" />
+  <PropertyGroup>
+    <PostBuildEvent>xcopy.exe /D /Y "$(ProjectDir)$(OutDir)ESB.dll" "C:\SteamRoot\steamapps\common\Empyrion - Galactic Survival\Content\Mods\ESB\*.*"
+xcopy.exe /D /Y "$(ProjectDir)$(OutDir)ESB_Info.yaml" "C:\SteamRoot\steamapps\common\Empyrion - Galactic Survival\Content\Mods\ESB\*.*"
+xcopy.exe /D /Y "$(ProjectDir)$(OutDir)MQTTnet.dll" "C:\SteamRoot\steamapps\common\Empyrion - Galactic Survival\Content\Mods\ESB\*.*"
+xcopy.exe /D /Y "$(ProjectDir)$(OutDir)Newtonsoft.Json.dll" "C:\SteamRoot\steamapps\common\Empyrion - Galactic Survival\Content\Mods\ESB\*.*"
+xcopy.exe /D /Y "$(ProjectDir)$(OutDir)YamlDotNet.dll" "C:\SteamRoot\steamapps\common\Empyrion - Galactic Survival\Content\Mods\ESB\*.*"
+xcopy.exe /D /Y "$(ProjectDir)$(OutDir)ESB.dll" "C:\SteamRoot\steamapps\common\Empyrion - Dedicated Server\Content\Mods\ESB\*.*"
+xcopy.exe /D /Y "$(ProjectDir)$(OutDir)ESB_Info.yaml" "C:\SteamRoot\steamapps\common\Empyrion - Dedicated Server\Content\Mods\ESB\*.*"
+xcopy.exe /D /Y "$(ProjectDir)$(OutDir)MQTTnet.dll" "C:\SteamRoot\steamapps\common\Empyrion - Dedicated Server\Content\Mods\ESB\*.*"
+xcopy.exe /D /Y "$(ProjectDir)$(OutDir)Newtonsoft.Json.dll" "C:\SteamRoot\steamapps\common\Empyrion - Dedicated Server\Content\Mods\ESB\*.*"
+xcopy.exe /D /Y "$(ProjectDir)$(OutDir)YamlDotNet.dll" "C:\SteamRoot\steamapps\common\Empyrion - Dedicated Server\Content\Mods\ESB\*.*"</PostBuildEvent>
+  </PropertyGroup>
 </Project>

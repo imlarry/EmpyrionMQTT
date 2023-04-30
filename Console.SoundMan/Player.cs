@@ -38,16 +38,16 @@ public class SoundManPlayer
         await buslistener.ConnectAsync(CTX, "SoundMan", "localhost");
 
         // subscribe to events that trigger the player
-        await buslistener.Subscribe("ESB/Client/ModApi.GameEvent.xxx/E", PlayEventSound);
+        await buslistener.Subscribe("ESB/Client/ModApi.GameEvent.WindowOpened/E", PlayEventSound);
     }
 
     // ************************ subscription handler tasks ************************
 
     // this routine ties a single GameEvent message to playing a sound
-    static void PlayEventSound(string topic, string payload)
+    async void PlayEventSound(string topic, string payload)
     {
-        string filePath;
-        filePath = "notarealfile.mp3";
+        await buslistener.SendAsync("inSoundManPlayer", "");
+        string? filePath = null;
 
         // grab Type and Arg1
         JObject GameEvent = JObject.Parse(payload);
@@ -55,10 +55,11 @@ public class SoundManPlayer
         var type = (GameEvent.GetValue("Type") ?? "").ToString();
         var arg1 = (GameEvent.GetValue("Arg1") ?? "").ToString();
 
-        if ((type == "WindowOpened") && (arg1 == "RecursiveConstructor")) filePath = "Media/printer-typewriter-error-139711.mp3";
+        if ((type == "WindowOpened") && (arg1 == "RecursiveConstructor")) filePath = "SampleMedia/Cash-counter-machine-sound-effect.mp3";
 
         if (filePath != null)
         {
+            await buslistener.SendAsync("inSoundManPlayer.PlayingSound", filePath);
             using var fileReader = new AudioFileReader(filePath);
             using var outputDevice = new WaveOutEvent();
             outputDevice.Init(fileReader);

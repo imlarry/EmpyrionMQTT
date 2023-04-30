@@ -125,8 +125,8 @@ var akuaPlayfield = LoadedPlayfield.FirstOrDefault(pf => pf.Key == "Akua").Value
 
         async void GameEventHandler(GameEventType type, object arg1 = null, object arg2 = null, object arg3 = null, object arg4 = null, object arg5 = null)
         {
-            if (type == GameEventType.WindowClosed || type == GameEventType.WindowOpened || type == GameEventType.InventoryContains 
-                || type == GameEventType.InventoryContainsCountOfItem || type == GameEventType.HoldingItem || type == GameEventType.PlayerStatChanged) { return; }  // temp reduction in noise
+            //if (type == GameEventType.WindowClosed || type == GameEventType.WindowOpened || type == GameEventType.InventoryContains 
+            //    || type == GameEventType.InventoryContainsCountOfItem || type == GameEventType.HoldingItem || type == GameEventType.PlayerStatChanged) { return; }  // temp reduction in noise
             try
             {
                 if (arg1 != null) arg1 = arg1.ToString();

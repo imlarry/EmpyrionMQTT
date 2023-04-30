@@ -16,4 +16,17 @@
     <ProjectReference Include="..\ESBMessaging\ESBMessaging.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Update="SampleMedia\Cash-counter-machine-sound-effect.mp3">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+    <None Update="SampleMedia\Read.txt">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+  <Target Name="PostBuild" AfterTargets="PostBuildEvent">
+    <Exec Command="xcopy.exe /D /Y &quot;$(ProjectDir)$(OutDir)*.*&quot; &quot;C:\SteamRoot\steamapps\common\Empyrion - Galactic Survival\Content\Mods\ESB\SampleTools\SoundMan\*.*&quot;" />
+  </Target>
+
 </Project>

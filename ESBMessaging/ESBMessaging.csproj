@@ -54,4 +54,8 @@
     <None Include="packages.config" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+  <PropertyGroup>
+    <PostBuildEvent>xcopy.exe /D /Y "$(ProjectDir)$(OutDir)ESBMessaging.dll" "C:\SteamRoot\steamapps\common\Empyrion - Galactic Survival\Content\Mods\ESB\*.*"
+xcopy.exe /D /Y "$(ProjectDir)$(OutDir)ESBMessaging.dll" "C:\SteamRoot\steamapps\common\Empyrion - Dedicated Server\Content\Mods\ESB\*.*"</PostBuildEvent>
+  </PropertyGroup>
 </Project>

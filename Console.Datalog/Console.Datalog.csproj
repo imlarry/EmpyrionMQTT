@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
@@ -15,5 +15,9 @@
   <ItemGroup>
     <ProjectReference Include="..\ESBMessaging\ESBMessaging.csproj" />
   </ItemGroup>
+
+  <Target Name="PostBuild" AfterTargets="PostBuildEvent">
+    <Exec Command="xcopy.exe /D /Y &quot;$(ProjectDir)$(OutDir)*.*&quot; &quot;C:\SteamRoot\steamapps\common\Empyrion - Galactic Survival\Content\Mods\ESB\SampleTools\Datalog\*.*&quot;&#xD;&#xA;xcopy.exe /D /Y &quot;$(ProjectDir)$(OutDir)\runtimes\win-x64\native\*.*&quot; &quot;C:\SteamRoot\steamapps\common\Empyrion - Galactic Survival\Content\Mods\ESB\SampleTools\Datalog\*.*&quot;" />
+  </Target>
 
 </Project>
