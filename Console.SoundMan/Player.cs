@@ -1,6 +1,6 @@
 ﻿using ESBMessaging;
-using Newtonsoft.Json.Linq;
 using NAudio.Wave;
+using Newtonsoft.Json.Linq;
 
 namespace ESBlog;
 
@@ -20,6 +20,7 @@ public class SoundManPlayer
 
         // create the non-static SoundManPlayer class
         SoundManPlayer soundManPlayer = new();
+
         soundManPlayer.Init();
 
         // console loops while the logger works in background
@@ -35,10 +36,14 @@ public class SoundManPlayer
     async void Init()
     {
         // create messenger and configure
-        await buslistener.ConnectAsync(CTX, "SoundMan", "localhost");
+        if (buslistener == null) return;
+        await buslistener.ConnectAsync(CTX, "SoundMan", "localhost");       // THIS LINE TRIGGERS ERROR .. WHY?
 
         // subscribe to events that trigger the player
-        await buslistener.Subscribe("ESB/Client/ModApi.GameEvent.WindowOpened/E", PlayEventSound);
+        //await buslistener.Subscribe("ESB/Client/ModApi.GameEvent.WindowOpened/E", PlayEventSound);
+
+        await buslistener.Subscribe("ESB/SoundMan/#/Q", Wildcard);
+
     }
 
     // ************************ subscription handler tasks ************************
@@ -59,7 +64,6 @@ public class SoundManPlayer
 
         if (filePath != null)
         {
-            await buslistener.SendAsync("inSoundManPlayer.PlayingSound", filePath);
             using var fileReader = new AudioFileReader(filePath);
             using var outputDevice = new WaveOutEvent();
             outputDevice.Init(fileReader);
@@ -69,6 +73,21 @@ public class SoundManPlayer
                 System.Threading.Thread.Sleep(100);
             }
         }
+    }
+
+    async void Test(string topic, string payload)
+    {
+        await buslistener.SendAsync("in test", topic);
+    }
+
+    async void Test2(string topic, string payload)
+    {
+        await buslistener.SendAsync(" in test2", topic);
+    }
+
+    async void Wildcard(string topic, string payload)
+    {
+        await buslistener.SendAsync("in wildcard", topic);
     }
 
 }

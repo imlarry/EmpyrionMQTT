@@ -1,14 +1,18 @@
-﻿
-using System;
-using Eleon.Modding;
-using Newtonsoft.Json.Linq;
-using UnityEngine;
+﻿using Eleon.Modding;
+using EmpyrionNetAPIAccess;
 using ESBGameMod;
+using Newtonsoft.Json.Linq;
+using System;
+using UnityEngine;
 
 namespace ModApi
 {
-    public class Playfield
+    public class Playfield : EmpyrionModBase
     {
+        public override void Initialize(ModGameAPI dediAPI)
+        {
+        }
+
         private readonly ContextData _ctx;
 
         public Playfield(ContextData ctx)
@@ -16,7 +20,7 @@ namespace ModApi
             _ctx = ctx;
         }
 
-        // TODO: ClientPlayfield calls are only available in Client mod .. see MoveEntity below for fix, will require _ctx.LoadedPlayfields ref
+        // TODO: ClientPlayfield calls are only available in Client mod .. see MoveEntity below for fix, will require _ctx.LoadedPlayfields ref (or can we derive playfield and entity dictionaries via other interface?)
         public async void SpawnEntity(string topic, string payload)
         {
             try
@@ -59,6 +63,7 @@ namespace ModApi
                 await _ctx.Messenger.SendAsync(_ctx.Messenger.RespondTo(topic, "X"), ex.Message);
             }
         }
+
         // TODO: ClientPlayfield calls are only available in Client mod .. see MoveEntity below for fix, will require _ctx.LoadedEntities lookup
         public async void RemoveEntity(string topic, string payload)
         {

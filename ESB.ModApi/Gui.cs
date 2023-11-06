@@ -1,7 +1,7 @@
-﻿using System;
-using Eleon.Modding;
-using Newtonsoft.Json.Linq;
+﻿using Eleon.Modding;
 using ESBGameMod;
+using Newtonsoft.Json.Linq;
+using System;
 
 namespace ModApi
 {

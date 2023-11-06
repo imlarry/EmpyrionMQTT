@@ -48,6 +48,21 @@
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>
+    <Reference Include="EmpyrionNetApi, Version=6.3.1.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\EmpyrionNetAPI.6.3.1\lib\net48\EmpyrionNetApi.dll</HintPath>
+    </Reference>
+    <Reference Include="EmpyrionNetApiBroker, Version=1.0.2.1, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\EmpyrionNetAPI.6.3.1\lib\net48\EmpyrionNetApiBroker.dll</HintPath>
+    </Reference>
+    <Reference Include="EmpyrionNetApiDefinitions, Version=5.0.7.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\EmpyrionNetAPI.6.3.1\lib\net48\EmpyrionNetApiDefinitions.dll</HintPath>
+    </Reference>
+    <Reference Include="EmpyrionNetApiModBase, Version=1.0.3.1, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\EmpyrionNetAPI.6.3.1\lib\net48\EmpyrionNetApiModBase.dll</HintPath>
+    </Reference>
+    <Reference Include="EmpyrionNetApiTools, Version=5.0.8.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\EmpyrionNetAPI.6.3.1\lib\net48\EmpyrionNetApiTools.dll</HintPath>
+    </Reference>
     <Reference Include="Mif">
       <HintPath>..\..\..\..\..\..\SteamRoot\steamapps\common\Empyrion - Galactic Survival\Client\Empyrion_Data\Managed\Mif.dll</HintPath>
     </Reference>
@@ -60,8 +75,12 @@
     <Reference Include="UnityEngine.CoreModule">
       <HintPath>..\..\..\..\..\..\SteamRoot\steamapps\common\Empyrion - Galactic Survival\Client\Empyrion_Data\Managed\UnityEngine.CoreModule.dll</HintPath>
     </Reference>
+    <Reference Include="YamlDotNet, Version=13.0.0.0, Culture=neutral, PublicKeyToken=ec19458f3c15af5e, processorArchitecture=MSIL">
+      <HintPath>..\packages\YamlDotNet.13.1.0\lib\net47\YamlDotNet.dll</HintPath>
+    </Reference>
   </ItemGroup>
   <ItemGroup>
+    <None Include="app.config" />
     <None Include="packages.config" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />

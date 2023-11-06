@@ -1,9 +1,10 @@
-﻿using System;
-using System.Collections.Generic;
-using Eleon.Modding;
+﻿using Eleon.Modding;
+using ESBGameMod;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
-using ESBGameMod;
+using System;
+using System.Collections.Generic;
+using System.Threading.Tasks;
 
 namespace ModApi
 {
@@ -14,10 +15,44 @@ namespace ModApi
         public Application(ContextData ctx)
         {
             _ctx = ctx;
+            _ = _ctx.Messenger.Subscribe("ESB/Test", Test);
+            _ = _ctx.Messenger.Subscribe("ESB/Test2", Test2);
+            _ = _ctx.Messenger.Subscribe("ESB/#", Wildcard);
         }
 
+        // In this example, you would use Application.CreateAsync(ctx) instead of new Application(ctx)
+        public static async Task<Application> CreateAsync(ContextData ctx)
+        {
+            var app = new Application(ctx);
+            await app.ApplicationQueries("ESB/Client/ModApi.Application.#/Q", "");
+            return app;
+        }
+
+        async Task ApplicationQueries(string topic, string payload)
+        {
+            // this is intended as the switchboard that routes calls based on topic
+            await _ctx.Messenger.SendAsync("ApplicationQueries", "");
+        }
+
+        async void Test(string topic, string payload)
+        {
+            await _ctx.Messenger.SendAsync(topic, "");
+        }
+
+        async void Test2(string topic, string payload)
+        {
+            await _ctx.Messenger.SendAsync(topic, "");
+        }
+
+        async void Wildcard(string topic, string payload)
+        {
+            await _ctx.Messenger.SendAsync(topic, "");
+        }
+
+        // Message Entry Points
+
         /// <summary>
-        /// The reply to the GetPathFor message is the path for specific game sub-directories based on the "AppFolder" property 
+        /// The reply to a GetPathFor message is the path for specific game sub-directories based on the "AppFolder" property 
         /// in the JSON payload. This value must be from the AppFolder enum which includes Root, Content, SaveGame, Mod, ActiveScenario,
         /// Cache, and Dedicated. The use of a /../ parent directory reference and the switch to forward slashes, which do not need 
         /// to be escaped, implies these paths are derived from the System.AppDomain.CurrentDomain.BaseDirectory of the appropriate

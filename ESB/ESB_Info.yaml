@@ -22,14 +22,12 @@ MQTThost: { WithTcpServer: "localhost", Username: "mocked", Password: "mocked" }
 # list of plugin dlls to load based on Application.Mode
 ClientPlugins:
    - Filename: ESB.ModApi.dll
-   - Filename: ESB.Gatetech.dll
 
 DedicatedServerPlugins:
    - Filename: ESB.ModApi.dll
 
 PlayfieldServerPlugins:
    - Filename: ESB.ModApi.dll
-   - Filename: ESB.Gatetech.dll
   
 # list of topics we subscribe to by Application.Mode
 ClientSubscribe:

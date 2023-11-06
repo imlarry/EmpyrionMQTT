@@ -1,8 +1,8 @@
-﻿using System;
+﻿using Eleon.Modding;
+using Newtonsoft.Json.Linq;
+using System;
 using System.Collections.Generic;
 using System.IO;
-using Eleon.Modding;
-using Newtonsoft.Json.Linq;
 using YamlDotNet.RepresentationModel;
 
 namespace ESBGameMod
@@ -43,14 +43,13 @@ namespace ESBGameMod
                 await ctx.Messenger.RegisterPlugin(filepath + plugin.Value);
             }
 
-            // send out a hello
-            var now = DateTime.Today.ToString("s");
+            // send out initialized hello
+            var now = DateTime.Now.ToString("s");
             JObject json = new JObject(
-                    new JProperty("Mode", ctx.ModApi.Application.Mode.ToString()),
                     new JProperty("ClientId", ctx.Messenger.ClientId()),
-                    new JProperty("ConnectedAt", now)
+                    new JProperty("InitializedAt", now)
                     );
-            await ctx.Messenger.SendAsync("ModApi.Init/E", json.ToString(Newtonsoft.Json.Formatting.None));
+            await ctx.Messenger.SendAsync("ModApi.Initialized/E", json.ToString(Newtonsoft.Json.Formatting.None));
         }
     }
 

@@ -1,13 +1,14 @@
 ﻿using ESBMessaging;
-using System.Data.SQLite;
 using Newtonsoft.Json.Linq;
+using System.Data.SqlClient;
+using System.Data.SQLite;
 
 namespace ESBlog;
 
 // since the Logger uses a SQL connection in all handler routines so we derive an extended context for it
 public class LoggerSpecificContext : BaseContextData
 {
-    public SQLiteConnection DBconnection { get; set; } = new("Data Source=EventLog.db");
+    public SQLiteConnection DBconnection { get; set; } = new("Data Source=Discovery.db");
 }
 
 public class Logger
@@ -16,6 +17,12 @@ public class Logger
     public LoggerSpecificContext CTX { get; set; } = new LoggerSpecificContext();
 
     readonly Messenger buslistener = new();
+
+    public Logger()
+    {
+        CTX.Messenger = buslistener;
+    }
+
 
     static void Main(string[] args)
     {
@@ -46,49 +53,54 @@ public class Logger
         await buslistener.ConnectAsync(CTX, "Logger", "localhost");
 
         // subscribe to events we want to log
-        await buslistener.Subscribe("ESB/Client/ModApi.GameEvent.BiomeChanged/E", LogGameEvent);
-        await buslistener.Subscribe("ESB/Client/ModApi.Playfield.EntityLoaded/E", LogEntityEvent);
+        // ESB/Logger/c82bb816b42/Messenger.ProcessMessageAsync/I {"Topic":"ESB/Client/5a05bf426b3/ModApi.Application.OnPlayfieldLoaded/E","Exception":"No handler ModApi.Application.OnPlayfieldLoaded defined"}
+        await buslistener.Subscribe("ESB/Client/+/ModApi.Application.OnPlayfieldLoaded/E", LogPlayfieldLoaded);
+        //await buslistener.Subscribe("ESB/Client/+/ModApi.Playfield.EntityLoaded/E", LogEntityLoaded);
     }
 
     // ************************ subscription handler tasks ************************
 
-    async void LogGameEvent(string topic, string payload)
+    async void LogPlayfieldLoaded(string topic, string payload)
     {
-        JObject GameEvent = JObject.Parse(payload);
-        string txtQuery = string.Format("INSERT INTO GameEventRaw (type, arg1, arg2, arg3, arg4, arg5) VALUES ( \"{0}\", \"{1}\", \"{2}\", \"{3}\", \"{4}\", \"{5}\" ); "
-                            , GameEvent.GetValue("Type")
-                            , GameEvent.GetValue("Arg1") ?? ""
-                            , GameEvent.GetValue("Arg2") ?? ""
-                            , GameEvent.GetValue("Arg3") ?? ""
-                            , GameEvent.GetValue("Arg4") ?? ""
-                            , GameEvent.GetValue("Arg5") ?? ""
-                            );
-        await buslistener.SendAsync("LogGameEvent", txtQuery);
+        JObject PlayfieldEvent = JObject.Parse(payload);
         if (CTX.DBconnection is SQLiteConnection db)
         {
-            SQLiteCommand sql_cmd = db.CreateCommand();
-            sql_cmd.CommandText = txtQuery;
-            sql_cmd.ExecuteNonQuery();
+            using (var insertCommand = new SQLiteCommand("INSERT OR IGNORE INTO Playfield ( name, pftype, ptype, pclass, ssname, sectorx, sectory, sectorz, ispvp) VALUES (@name, @pftype, @ptype, @pclass, @ssname, @sectorx, @sectory, @sectorz, @ispvp)", db))
+            {
+                insertCommand.Parameters.AddWithValue("@name", PlayfieldEvent.GetValue("Name"));
+                insertCommand.Parameters.AddWithValue("@pftype", PlayfieldEvent.GetValue("PlayfieldType"));
+                insertCommand.Parameters.AddWithValue("@ptype", PlayfieldEvent.GetValue("PlanetType"));
+                insertCommand.Parameters.AddWithValue("@pclass", PlayfieldEvent.GetValue("PlanetClass"));
+                insertCommand.Parameters.AddWithValue("@ssname", PlayfieldEvent.GetValue("SolarSystemName"));
+                var coordinates = PlayfieldEvent.GetValue("SolarSystemCoordinates")!.ToString().Split(' ')[1].Split('/');
+                insertCommand.Parameters.AddWithValue("@sectorx", int.Parse(coordinates[0]));
+                insertCommand.Parameters.AddWithValue("@sectory", int.Parse(coordinates[1]));
+                insertCommand.Parameters.AddWithValue("@sectorz", int.Parse(coordinates[2]));
+                insertCommand.Parameters.AddWithValue("@ispvp", PlayfieldEvent.GetValue("IsPvP"));
+
+                insertCommand.ExecuteNonQuery();
+            }
+            await buslistener.SendAsync("LogPlayfieldLoaded", "Playfield Loaded");
         }
     }
-    async void LogEntityEvent(string topic, string payload)
-    {
-        JObject EntityEvent = JObject.Parse(payload);
-        string txtQuery = string.Format("INSERT INTO EntityEventRaw (Id, Name, IsLocal, IsPoi, BelongsTo, DockedTo, Type) VALUES ( {0}, \"{1}\", {2}, {3}, {4}, {5}, {6} ); "
-                            , EntityEvent.GetValue("Id")
-                            , EntityEvent.GetValue("Name")
-                            , EntityEvent.GetValue("IsLocal")
-                            , EntityEvent.GetValue("IsPoi")
-                            , EntityEvent.GetValue("BelongsTo")
-                            , EntityEvent.GetValue("DockedTo")
-                            , EntityEvent.GetValue("Type")
-                            );
-        await buslistener.SendAsync("LogEntityEvent", txtQuery);
-        if (CTX.DBconnection is SQLiteConnection db)
-        {
-            SQLiteCommand sql_cmd = db.CreateCommand();
-            sql_cmd.CommandText = txtQuery;
-            sql_cmd.ExecuteNonQuery();
-        }
-    }
+    //async void LogEntityLoaded(string topic, string payload)
+    //{
+    //    JObject EntityEvent = JObject.Parse(payload);
+    //    string txtQuery = string.Format("INSERT INTO EntityEventRaw (Id, Name, IsLocal, IsPoi, BelongsTo, DockedTo, Type) VALUES ( {0}, \"{1}\", {2}, {3}, {4}, {5}, {6} ); "
+    //                        , EntityEvent.GetValue("Id")
+    //                        , EntityEvent.GetValue("Name")
+    //                        , EntityEvent.GetValue("IsLocal")
+    //                        , EntityEvent.GetValue("IsPoi")
+    //                        , EntityEvent.GetValue("BelongsTo")
+    //                        , EntityEvent.GetValue("DockedTo")
+    //                        , EntityEvent.GetValue("Type")
+    //                        );
+    //    await buslistener.SendAsync("LogEntityLoaded", txtQuery);
+    //    if (CTX.DBconnection is SQLiteConnection db)
+    //    {
+    //        SQLiteCommand sql_cmd = db.CreateCommand();
+    //        sql_cmd.CommandText = txtQuery;
+    //        sql_cmd.ExecuteNonQuery();
+    //    }
+    //}
 }
