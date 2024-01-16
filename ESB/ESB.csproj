@@ -54,6 +54,9 @@
     <Compile Include="BusService\Interfaces\IESBManager.cs" />
     <Compile Include="BusService\Interfaces\ISubscriptionHandler.cs" />
     <Compile Include="Configuration\ESBConfig.cs" />
+    <Compile Include="Configuration\Interfaces\IESBConfig.cs" />
+    <Compile Include="Configuration\Interfaces\IMQTTConfig.cs" />
+    <Compile Include="Configuration\MQTTConfig.cs" />
     <Compile Include="Database\Interfaces\IDatabaseManager.cs" />
     <Compile Include="Database\DatabaseManager.cs" />
     <Compile Include="EventHandlers\EventHandlerFactory.cs" />
