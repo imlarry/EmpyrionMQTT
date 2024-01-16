@@ -4,7 +4,7 @@ Name: ESB
 Description: Empyrion service bus integration for event publishing & subscription
 Author: L.Goodhind, GNU Copyleft 2023
 Version: 0.0
-GIThub: <github link here>
+GIThub: https://github.com/imlarry/EmpyrionMQTT
 
 ModTargets: Client, Dedi, PfServer
 
