@@ -47,15 +47,13 @@ If it doesn't, you cannot go to space yet- figure out what's wrong and fix it.
 1. Once that's working, create an /ESB directory under the Content/Mods folder in the
 game and/or dedicated server directory. 
 
-1. Build the application and copy ESB.dll, ESB_Info.yaml, MQTTnet.dll, Newtonsoft.Json.dll and YamlDotNet.dll 
-into the /ESB directory.
-
-1. Create a /Plugins directory as a child of /ESB and copy ESB.ModApi.dll here.
+1. Build the application and copy ESB.dll, ESB_Info.yaml, MQTTnet.dll, Newtonsoft.Json.dll and YamlDotNet.dll         
+into the /ESB directory. TODO: update to reflect the actual dependencies.
 
 1. If you open the game and enter an existing save you should see a whole lot of messages
 in the subscription window and their arrival will coincide with stuff you're doing in
-the game. These events can be sent to multiple subscribing client services and the game only 
-needed to publish them once.
+the game. These events can be sent to multiple subscribing client services and the game only     
+needed to publish them once ... this one-to-many distribution is the core of the publish/subscribe pattern.
 
 ## What does it do?
 

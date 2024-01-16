@@ -1,0 +1,273 @@
+        // DATA TYPES FOR MISSING LIBS (the hunt for unity "Assembly-CSharp" bits via reflection)
+                if (type == GameEventType.InventoryContains)
+                {
+                    object[] objects = (object[])arg2;
+                    Type nodeInvokerType = objects[0].GetType();
+                    MethodInfo methodInfo = nodeInvokerType.GetMethod("ItemStack");
+                    object result = methodInfo.Invoke(objects[0], null);
+                    Type itemStackType = nodeInvokerType.Assembly.GetType("Assembly-CSharp.ItemStack");
+                    var itemStack = Activator.CreateInstance(itemStackType);
+                    PropertyInfo idProperty = itemStackType.GetProperty("id");
+                    PropertyInfo countProperty = itemStackType.GetProperty("count");
+
+                    await CTX.Messenger.SendAsync("GameEvent." + type.ToString(), $"id: {idProperty.GetValue(itemStack).ToString()}, count: {countProperty.GetValue(itemStack).ToString()}", MessageClass.Event);
+                }
+                else
+
+
+        // DATA TYPES FOR MISSING LIBS (the hunt for unity "Assembly-CSharp" bits via reflection)
+        public static string FormatClassInfo(object obj)
+        {
+            if (obj == null)
+            {
+                return "Object is null";
+            }
+            StringBuilder sb = new StringBuilder();
+            Type type = obj.GetType();
+            // Check if the object is an array
+            if (type.IsArray)
+            {
+                var array = obj as Array;
+                if (array.Length > 0)
+                {
+                    // Get the type of the first element in the array
+                    type = array.GetValue(0).GetType();
+                    sb.AppendLine("Array of:");
+                }
+            }
+            sb.AppendLine("Class Name: " + type.Name);
+            sb.AppendLine("Properties:");
+            foreach (PropertyInfo property in type.GetProperties())
+            {
+                sb.AppendLine("\tName: " + property.Name);
+                sb.AppendLine("\tType: " + property.PropertyType.Name);
+            }
+            sb.AppendLine("Methods:");
+            foreach (MethodInfo method in type.GetMethods())
+            {
+                sb.AppendLine("\tName: " + method.Name);
+                sb.AppendLine("\tReturn Type: " + method.ReturnType.Name);
+            }
+            return sb.ToString();
+        }
+
+        // ARG2 for InventoryContains is NodeInvoker[] where NodeInvoker.ItemStack(?) apparently returns a stack of items...
+        //
+        public struct ItemStack
+        {
+            // Public attributes
+            public int id; // The id of the item
+            public int count; // The number of items in the stack
+            public byte slotIdx; // The index of the slot where the stack is located
+            public int ammo; // The amount of ammo in the stack
+            public int decay; // The decay level of the stack
+            // Constructor
+            public ItemStack(int nid, int ncount)
+            {
+                id = nid;
+                count = ncount;
+                slotIdx = 0;
+                ammo = 0;
+                decay = 0;
+            }
+        }
+
+        // MOVE SUBSCRIPTION INTO DLL CONSTRUCTORS (simplify _Info yaml and make the dll self-contained/configured as required by function)
+        public Application(ContextData ctx)
+        {
+            _ctx = ctx;
+            //_ = _ctx.Messenger.Subscribe("ESB/Test", Test);
+            //_ = _ctx.Messenger.Subscribe("ESB/Test2", Test2);
+            //_ = _ctx.Messenger.Subscribe("ESB/#", Wildcard);
+        }
+
+        // In this example, you would use Application.CreateAsync(ctx) instead of new Application(ctx)
+        public static async Task<Application> CreateAsync(ContextData ctx)
+        {
+            var app = new Application(ctx);
+            await app.ApplicationQueries("ESB/Client/ModApi.Application.#/Q", "");
+            return app;
+        }
+
+        // ATTEMPT TO OVERCOME ENTITY LOADING RACE CONDITION (failed inline, may work as lambda Task.Run as detached)
+        // Define the retry count and delay duration as constants
+        const int MAX_RETRIES = 10;
+        const int DELAY_DURATION = 1000; // in milliseconds
+        if (CTX.ModApi.Application.Mode == ApplicationMode.Client || CTX.ModApi.Application.Mode == ApplicationMode.SinglePlayer)   // fails initial entry (vehicle not spawned in yet?)
+        {
+            // Add a retry mechanism with a delay
+            int retryCount = 0;
+            for (retryCount = 0; retryCount < MAX_RETRIES; retryCount++)
+            {
+                try
+                {
+                    JObject playerJson = new JObject(
+                        new JProperty("EntityId", CTX.ModApi.Application.LocalPlayer.Id),
+                        new JProperty("Name", CTX.ModApi.Application.LocalPlayer.Name));
+                    if (CTX.ModApi.Application.LocalPlayer.IsPilot)
+                    {
+                        playerJson.Add(new JProperty("DrivingEntityId", CTX.ModApi.Application.LocalPlayer.DrivingEntity.Id));
+                        playerJson.Add(new JProperty("DrivingEntityName", CTX.ModApi.Application.LocalPlayer.DrivingEntity.Name));
+                    }
+                    json.Add(new JProperty("Player", playerJson));
+
+                    // If the code executes successfully, break the loop
+                    break;
+                }
+                catch (Exception ex)
+                {
+                    // If an exception occurs, wait for a while before retrying
+                    await Task.Delay(DELAY_DURATION);
+
+                    // If this is the last retry, rethrow the exception
+                    if (retryCount == MAX_RETRIES - 1)
+                        throw;
+                }
+            }
+            json.Add(new JProperty("RetryCount", retryCount));
+        }
+
+        // CANNOT RELIABLY GET STRUCTURE AT ENTITY LOAD (race condition)
+        if (entity.Structure != null)
+            {
+                JObject structureJson = new JObject(
+                    new JProperty("MinPos", entity.Structure.MinPos.ToString()),
+                    new JProperty("MaxPos", entity.Structure.MaxPos.ToString()),
+                    new JProperty("Id", entity.Structure.Id),
+                    new JProperty("IsReady", entity.Structure.IsReady),
+                    new JProperty("IsPowered", entity.Structure.IsPowered),
+                    new JProperty("IsOfflineProtectable", entity.Structure.IsOfflineProtectable),
+                    //new JProperty("DamageLevel", entity.Structure.DamageLevel),   // divide by zero error on entity load
+                    new JProperty("BlockCount", entity.Structure.BlockCount),
+                    new JProperty("DeviceCount", entity.Structure.DeviceCount),
+                    new JProperty("LightCount", entity.Structure.LightCount),
+                    new JProperty("TriangleCount", entity.Structure.TriangleCount),
+                    new JProperty("Fuel", entity.Structure.Fuel),
+                    new JProperty("PowerOutCapacity", entity.Structure.PowerOutCapacity),
+                    new JProperty("PowerConsumption", entity.Structure.PowerConsumption),
+                    new JProperty("PlayerCreatedSteamId", entity.Structure.PlayerCreatedSteamId),
+                    new JProperty("CoreType", entity.Structure.CoreType.ToString()),
+                    new JProperty("SizeClass", entity.Structure.SizeClass),
+                    new JProperty("IsShieldActive", entity.Structure.IsShieldActive),
+                    new JProperty("ShieldLevel", entity.Structure.ShieldLevel),
+                    new JProperty("TotalMass", entity.Structure.TotalMass),
+                    new JProperty("HasLandClaimDevice", entity.Structure.HasLandClaimDevice),
+                    new JProperty("LastVisitedTicks", entity.Structure.LastVisitedTicks)
+                );
+                json.Add(new JProperty("Structure", structureJson));
+            }
+            else
+            {
+                json.Add(new JProperty("Structure", null));
+            }
+
+
+            // REQUEST_ RETURN TYPES AS JSON
+            //{
+//    try
+//    {
+//        JObject json = new JObject(
+//                new JProperty("GameTicks", CTX.ModApi.Application.GameTicks),
+//                new JProperty("CmdId", eventId.ToString()),
+//                new JProperty("SeqNr", seqNr));
+//        // switch on eventId to format data json as expected class
+//        switch (eventId)
+//        {
+//            case CmdId.Event_AlliancesFaction:
+//                json.Add(new JProperty("Data", JObject.FromObject((AlliancesFaction)data)));
+//                break;
+//            case CmdId.Event_AlliancesAll:
+//                json.Add(new JProperty("Data", JObject.FromObject((AlliancesTable)data)));
+//                break;
+//            case CmdId.Event_ChatMessage:
+//                json.Add(new JProperty("Data", JObject.FromObject((ChatInfo)data)));
+//                break;
+//            case CmdId.Event_ChatMessageEx:
+//                json.Add(new JProperty("Data", JObject.FromObject((ChatMsgData)data)));
+//                break;
+//            case CmdId.Event_ConsoleCommand:
+//                json.Add(new JProperty("Data", JObject.FromObject((ConsoleCommandInfo)data)));
+//                break;
+//            case CmdId.Event_Dedi_Stats:
+//                json.Add(new JProperty("Data", JObject.FromObject((DediStats)data)));
+//                break;
+//            case CmdId.Event_Faction_Changed:
+//                json.Add(new JProperty("Data", JObject.FromObject((FactionChangeInfo)data)));
+//                break;
+//            case CmdId.Event_Get_Factions:
+//                json.Add(new JProperty("Data", JObject.FromObject((FactionInfoList)data)));
+//                break;
+//            case CmdId.Event_GameEvent:
+//                json.Add(new JProperty("Data", JObject.FromObject((GameEventData)data)));
+//                break;
+//            case CmdId.Event_GlobalStructure_List:
+//                json.Add(new JProperty("Data", JObject.FromObject((GlobalStructureList)data)));
+//                break;
+//            case CmdId.Event_Player_Connected:
+//            case CmdId.Event_Player_Disconnected:
+//            case CmdId.Event_Player_DisconnectedWaiting:
+//            case CmdId.Event_NewEntityId:
+//                json.Add(new JProperty("Data", JObject.FromObject((Id)data)));
+//                break;
+//            case CmdId.Event_DialogButtonIndex:
+//                json.Add(new JProperty("Data", JObject.FromObject((IdAndIntValue)data)));
+//                break;
+//            case CmdId.Event_Player_Credits:
+//                json.Add(new JProperty("Data", JObject.FromObject((IdCredits)data)));
+//                break;
+//            case CmdId.Event_BannedPlayers:
+//            case CmdId.Event_Player_List:
+//                json.Add(new JProperty("Data", JObject.FromObject((IdList)data)));
+//                break;
+//            case CmdId.Event_Entity_PosAndRot:
+//                json.Add(new JProperty("Data", JObject.FromObject((IdPositionRotation)data)));
+//                break;
+//            case CmdId.Event_Player_GetAndRemoveInventory:
+//            case CmdId.Event_Player_Inventory:
+//                json.Add(new JProperty("Data", JObject.FromObject((Inventory)data)));
+//                break;
+//            case CmdId.Event_Player_ItemExchange:
+//                json.Add(new JProperty("Data", JObject.FromObject((ItemExchangeInfo)data)));
+//                break;
+//            case CmdId.Event_PdaStateChange:
+//                json.Add(new JProperty("Data", JObject.FromObject((PdaStateInfo)data)));
+//                break;
+//            case CmdId.Event_Playfield_Entity_List:
+//                json.Add(new JProperty("Data", JObject.FromObject((PlayfieldEntityList)data)));
+//                break;
+//            case CmdId.Event_Playfield_List:
+//                json.Add(new JProperty("Data", JObject.FromObject((PlayfieldList)data)));
+//                break;
+//            case CmdId.Event_Playfield_Loaded:
+//            case CmdId.Event_Playfield_Unloaded:
+//                json.Add(new JProperty("Data", JObject.FromObject((PlayfieldLoad)data)));
+//                break;
+//            case CmdId.Event_Playfield_Stats:
+//                json.Add(new JProperty("Data", JObject.FromObject((PlayfieldStats)data)));
+//                break;
+//            case CmdId.Event_Player_Info:
+//                json.Add(new JProperty("Data", JObject.FromObject((PlayerInfo)data)));
+//                break;
+//            case CmdId.Event_Statistics:
+//                json.Add(new JProperty("Data", JObject.FromObject((StatisticsParam)data)));
+//                break;
+//            case CmdId.Event_TraderNPCItemSold:
+//                json.Add(new JProperty("Data", JObject.FromObject((TraderNPCItemSoldInfo)data)));
+//                break;
+//            // Add more cases here for other CmdId values that hit the default below
+//            default:
+//                json.Add(new JProperty("Data", "<TODO: This CmdId not converted yet>"));
+//                break;
+//        }
+//        string jsonString = json?.ToString(Newtonsoft.Json.Formatting.None);
+//        await CTX.Messenger.SendAsync("LegacyGameEvent." + eventId.ToString(), jsonString, MessageClass.Event);
+//    }
+//    catch (Exception ex)
+//    {
+//        JObject json = new JObject(
+//                new JProperty("ErrorOnType", eventId.ToString()),
+//                new JProperty("Error", ex.Message)
+//                );
+//        await CTX.Messenger.SendAsync("LegacyGameEvent.Exception", json.ToString(Newtonsoft.Json.Formatting.None), MessageClass.Exception);
+//    }
+//}

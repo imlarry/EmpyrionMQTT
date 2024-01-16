@@ -1,20 +1,15 @@
-﻿using ESBMessaging;
-using Newtonsoft.Json.Linq;
-using System.Data.SqlClient;
-using System.Data.SQLite;
+﻿using ESB.Messaging;
+using CommandLine;
+using ESBLog.Common;
+using ESBLog.TopicHandlers;
+using ESBLog.Database;
 
 namespace ESBlog;
 
-// since the Logger uses a SQL connection in all handler routines so we derive an extended context for it
-public class LoggerSpecificContext : BaseContextData
-{
-    public SQLiteConnection DBconnection { get; set; } = new("Data Source=Discovery.db");
-}
-
 public class Logger
-
 {
     public LoggerSpecificContext CTX { get; set; } = new LoggerSpecificContext();
+    readonly private DbAccess _dbAccess = new("YourConnectionString", true);
 
     readonly Messenger buslistener = new();
 
@@ -23,84 +18,87 @@ public class Logger
         CTX.Messenger = buslistener;
     }
 
+    // parse option definitions
+    public class Options
+    {
+        [Option('o', "output", Required = false, HelpText = "Output to a specific file.")]
+        public string? OutputFileName { get; set; }
+    }
 
+    // ************************ MAIN PROGRAM ************************
     static void Main(string[] args)
     {
         Console.WriteLine("ESBlog: MQTT bus listener to SQLite event db");
         Console.WriteLine();
-        if (args.Length != 0) { Console.WriteLine("...no support for params or switches yet"); }
+        Parser.Default.ParseArguments<Options>(args)
+                .WithParsed<Options>(opts => RunWithOptions(opts))
+                .WithNotParsed(errs => HandleParseError(errs));
+    }
 
-        // create the non-static logger class
+    static void HandleParseError(IEnumerable<Error> errs)
+    {
+        foreach (var err in errs)
+        {
+            switch (err)
+            {
+                case MissingRequiredOptionError missingRequiredOptionError:
+                    Console.WriteLine($"Error: Missing required option '-{missingRequiredOptionError.NameInfo.NameText}'.");
+                    break;
+                case NamedError namedError:
+                    Console.WriteLine($"Error: Invalid argument '-{namedError.NameInfo.NameText}'.");
+                    break;
+                case BadFormatTokenError badFormatTokenError:
+                    Console.WriteLine($"Error: Bad format for argument '{badFormatTokenError.Token}'.");
+                    break;
+                case NoVerbSelectedError:
+                    Console.WriteLine("Error: No verb selected.");
+                    break;
+                default:
+                    Console.WriteLine("Error: Unknown error occurred while parsing arguments.");
+                    break;
+            }
+        }
+    }
+
+    static void RunWithOptions(Options opts)
+    {
+        // create the logger and initialize it
         Logger logger = new();
         logger.Init();
 
-        // console loops while the logger works in background
+        // -output[=filename] .. no console out or redirect to an output file if specified (or sysout if -output without filename)
+        if (opts.OutputFileName == null)
+        {
+            var nullStream = Stream.Null;
+            var nullStreamWriter = new StreamWriter(nullStream);
+            Console.SetOut(nullStreamWriter);
+        }
+        else if (!string.IsNullOrEmpty(opts.OutputFileName))
+        {
+            var fileStream = new FileStream(opts.OutputFileName, FileMode.Create);
+            var streamWriter = new StreamWriter(fileStream);
+            Console.SetOut(streamWriter);
+        }
+
+        // keep the logger running until the user presses Ctrl+C
+        Console.CancelKeyPress += (sender, e) =>
+            {
+                e.Cancel = true;
+                Console.WriteLine("Cleanup complete. Exiting...");
+                Environment.Exit(0);
+            };        
         while (true)
         {
-            Console.Write("ESBlog> ");
-            string? cmd = Console.ReadLine()?.Trim();
-            if (cmd != null && cmd.ToLower() == "exit") { return; }
-            Console.WriteLine("the only command right now is 'exit'");
+            Thread.Sleep(1000);
         }
     }
 
+    // initialize db connection, open messenger, subscribe to messages we log
     async void Init()
     {
-        // open db connection
-        CTX.DBconnection.Open();
-
-        // create messenger and configure
-        await buslistener.ConnectAsync(CTX, "Logger", "localhost");
-
-        // subscribe to events we want to log
-        // ESB/Logger/c82bb816b42/Messenger.ProcessMessageAsync/I {"Topic":"ESB/Client/5a05bf426b3/ModApi.Application.OnPlayfieldLoaded/E","Exception":"No handler ModApi.Application.OnPlayfieldLoaded defined"}
-        await buslistener.Subscribe("ESB/Client/+/ModApi.Application.OnPlayfieldLoaded/E", LogPlayfieldLoaded);
-        //await buslistener.Subscribe("ESB/Client/+/ModApi.Playfield.EntityLoaded/E", LogEntityLoaded);
+        CTX.DBconnection = _dbAccess;
+        await buslistener.ConnectAsync(CTX, "Logger", "localhost");        
+        DatabaseLogging dbLogging = new(CTX);                           // instantiate topic handlers
+        await dbLogging.Subscribe();                                    // enable subscriptions
     }
-
-    // ************************ subscription handler tasks ************************
-
-    async void LogPlayfieldLoaded(string topic, string payload)
-    {
-        JObject PlayfieldEvent = JObject.Parse(payload);
-        if (CTX.DBconnection is SQLiteConnection db)
-        {
-            using (var insertCommand = new SQLiteCommand("INSERT OR IGNORE INTO Playfield ( name, pftype, ptype, pclass, ssname, sectorx, sectory, sectorz, ispvp) VALUES (@name, @pftype, @ptype, @pclass, @ssname, @sectorx, @sectory, @sectorz, @ispvp)", db))
-            {
-                insertCommand.Parameters.AddWithValue("@name", PlayfieldEvent.GetValue("Name"));
-                insertCommand.Parameters.AddWithValue("@pftype", PlayfieldEvent.GetValue("PlayfieldType"));
-                insertCommand.Parameters.AddWithValue("@ptype", PlayfieldEvent.GetValue("PlanetType"));
-                insertCommand.Parameters.AddWithValue("@pclass", PlayfieldEvent.GetValue("PlanetClass"));
-                insertCommand.Parameters.AddWithValue("@ssname", PlayfieldEvent.GetValue("SolarSystemName"));
-                var coordinates = PlayfieldEvent.GetValue("SolarSystemCoordinates")!.ToString().Split(' ')[1].Split('/');
-                insertCommand.Parameters.AddWithValue("@sectorx", int.Parse(coordinates[0]));
-                insertCommand.Parameters.AddWithValue("@sectory", int.Parse(coordinates[1]));
-                insertCommand.Parameters.AddWithValue("@sectorz", int.Parse(coordinates[2]));
-                insertCommand.Parameters.AddWithValue("@ispvp", PlayfieldEvent.GetValue("IsPvP"));
-
-                insertCommand.ExecuteNonQuery();
-            }
-            await buslistener.SendAsync("LogPlayfieldLoaded", "Playfield Loaded");
-        }
-    }
-    //async void LogEntityLoaded(string topic, string payload)
-    //{
-    //    JObject EntityEvent = JObject.Parse(payload);
-    //    string txtQuery = string.Format("INSERT INTO EntityEventRaw (Id, Name, IsLocal, IsPoi, BelongsTo, DockedTo, Type) VALUES ( {0}, \"{1}\", {2}, {3}, {4}, {5}, {6} ); "
-    //                        , EntityEvent.GetValue("Id")
-    //                        , EntityEvent.GetValue("Name")
-    //                        , EntityEvent.GetValue("IsLocal")
-    //                        , EntityEvent.GetValue("IsPoi")
-    //                        , EntityEvent.GetValue("BelongsTo")
-    //                        , EntityEvent.GetValue("DockedTo")
-    //                        , EntityEvent.GetValue("Type")
-    //                        );
-    //    await buslistener.SendAsync("LogEntityLoaded", txtQuery);
-    //    if (CTX.DBconnection is SQLiteConnection db)
-    //    {
-    //        SQLiteCommand sql_cmd = db.CreateCommand();
-    //        sql_cmd.CommandText = txtQuery;
-    //        sql_cmd.ExecuteNonQuery();
-    //    }
-    //}
 }

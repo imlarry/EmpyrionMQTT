@@ -1,0 +1,11 @@
+﻿# all parameters are optional
+
+Name: ESB
+Description: Empyrion service bus integration for event publishing & subscription
+Author: L.Goodhind, GNU Copyleft 2023
+Version: 0.0
+GIThub: <github link here>
+
+ModTargets: Client, Dedi, PfServer
+
+MQTThost: { WithTcpServer: "localhost" } # , Username: "imlarry", Password: "imlarry", CAFilePath: "c:\\mosquitto\\certs\\ca.crt" }

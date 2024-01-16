@@ -1,6 +1,5 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
-  <Import Project="..\packages\EntityFramework.6.4.4\build\EntityFramework.props" Condition="Exists('..\packages\EntityFramework.6.4.4\build\EntityFramework.props')" />
   <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
   <PropertyGroup>
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
@@ -24,6 +23,7 @@
     <DefineConstants>DEBUG;TRACE</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
+    <NoWarn>IDE0052</NoWarn>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
     <DebugType>pdbonly</DebugType>
@@ -34,87 +34,106 @@
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="Assembly-CSharp">
-      <HintPath>..\..\..\..\..\..\SteamRoot\steamapps\common\Empyrion - Galactic Survival\Client\Empyrion_Data\Managed\Assembly-CSharp.dll</HintPath>
-    </Reference>
-    <Reference Include="EmpyrionNetApi, Version=6.3.1.0, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\packages\EmpyrionNetAPI.6.3.1\lib\net48\EmpyrionNetApi.dll</HintPath>
-    </Reference>
-    <Reference Include="EmpyrionNetApiBroker, Version=1.0.2.1, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\packages\EmpyrionNetAPI.6.3.1\lib\net48\EmpyrionNetApiBroker.dll</HintPath>
-    </Reference>
-    <Reference Include="EmpyrionNetApiDefinitions, Version=5.0.7.0, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\packages\EmpyrionNetAPI.6.3.1\lib\net48\EmpyrionNetApiDefinitions.dll</HintPath>
-    </Reference>
-    <Reference Include="EmpyrionNetApiModBase, Version=1.0.3.1, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\packages\EmpyrionNetAPI.6.3.1\lib\net48\EmpyrionNetApiModBase.dll</HintPath>
-    </Reference>
-    <Reference Include="EmpyrionNetApiTools, Version=5.0.8.0, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\packages\EmpyrionNetAPI.6.3.1\lib\net48\EmpyrionNetApiTools.dll</HintPath>
-    </Reference>
-    <Reference Include="EntityFramework, Version=6.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089, processorArchitecture=MSIL">
-      <HintPath>..\packages\EntityFramework.6.4.4\lib\net45\EntityFramework.dll</HintPath>
-    </Reference>
-    <Reference Include="EntityFramework.SqlServer, Version=6.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089, processorArchitecture=MSIL">
-      <HintPath>..\packages\EntityFramework.6.4.4\lib\net45\EntityFramework.SqlServer.dll</HintPath>
-    </Reference>
     <Reference Include="Mif">
       <HintPath>..\..\..\..\..\..\SteamRoot\steamapps\common\Empyrion - Galactic Survival\Client\Empyrion_Data\Managed\Mif.dll</HintPath>
+      <Private>False</Private>
     </Reference>
     <Reference Include="ModApi">
       <HintPath>..\..\..\..\..\..\SteamRoot\steamapps\common\Empyrion - Galactic Survival\Client\Empyrion_Data\Managed\ModApi.dll</HintPath>
+      <Private>False</Private>
     </Reference>
-    <Reference Include="MQTTnet, Version=4.2.1.781, Culture=neutral, PublicKeyToken=fdb7629f2e364a63, processorArchitecture=MSIL">
-      <HintPath>..\packages\MQTTnet.4.2.1.781\lib\net48\MQTTnet.dll</HintPath>
-    </Reference>
-    <Reference Include="Newtonsoft.Json, Version=13.0.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed, processorArchitecture=MSIL">
-      <HintPath>..\packages\Newtonsoft.Json.13.0.3\lib\net45\Newtonsoft.Json.dll</HintPath>
-    </Reference>
+    <Reference Include="System" />
     <Reference Include="System.ComponentModel.DataAnnotations" />
+    <Reference Include="System.Data" />
     <Reference Include="UnityEngine.CoreModule">
       <HintPath>..\..\..\..\..\..\SteamRoot\steamapps\common\Empyrion - Galactic Survival\Client\Empyrion_Data\Managed\UnityEngine.CoreModule.dll</HintPath>
     </Reference>
-    <Reference Include="YamlDotNet, Version=13.0.0.0, Culture=neutral, PublicKeyToken=ec19458f3c15af5e, processorArchitecture=MSIL">
-      <HintPath>..\packages\YamlDotNet.13.1.0\lib\net47\YamlDotNet.dll</HintPath>
-    </Reference>
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="ESB.cs" />
-    <Compile Include="InitManager.cs" />
+    <Compile Include="BusService\Interfaces\IESB.cs" />
+    <Compile Include="BusService\Interfaces\IESBManager.cs" />
+    <Compile Include="BusService\Interfaces\ISubscriptionHandler.cs" />
+    <Compile Include="Configuration\ESBConfig.cs" />
+    <Compile Include="Database\Interfaces\IDatabaseManager.cs" />
+    <Compile Include="Database\DatabaseManager.cs" />
+    <Compile Include="EventHandlers\EventHandlerFactory.cs" />
+    <Compile Include="EventHandlers\Intefaces\IEventHandlerFactory.cs" />
+    <Compile Include="EventHandlers\Intefaces\IEventManager.cs" />
+    <Compile Include="LegacyEventHandlers\LegacyPlayfieldLoadedHandler.cs" />
+    <Compile Include="Models\IContextData.cs" />
+    <Compile Include="Utilities\IYamlFileReader.cs" />
+    <Compile Include="Utilities\YamlFileReader.cs" />
+    <Compile Include="Models\ContextData.cs" />
+    <Compile Include="EventHandlers\ChatMessageSentHandler.cs" />
+    <Compile Include="EventHandlers\EntityLoadedHandler.cs" />
+    <Compile Include="EventHandlers\EntityUnloadedHandler.cs" />
+    <Compile Include="EventHandlers\EventManager.cs" />
+    <Compile Include="EventHandlers\Intefaces\IChatMessageSentHandler.cs" />
+    <Compile Include="EventHandlers\Intefaces\IEntityLoadedHandler.cs" />
+    <Compile Include="EventHandlers\Intefaces\IEntityUnloadedHandler.cs" />
+    <Compile Include="EventHandlers\Intefaces\IGameEnteredHandler.cs" />
+    <Compile Include="EventHandlers\Intefaces\IGameEventHandler.cs" />
+    <Compile Include="EventHandlers\Intefaces\IPlayfieldLoadedHandler.cs" />
+    <Compile Include="EventHandlers\Intefaces\IPlayfieldUnloadingHandler.cs" />
+    <Compile Include="BusService\ESBManager.cs" />
+    <Compile Include="EventHandlers\GameEnteredHandler.cs" />
+    <Compile Include="EventHandlers\GameEventHandler.cs" />
+    <Compile Include="EventHandlers\PlayfieldLoadedHandler.cs" />
+    <Compile Include="EventHandlers\PlayfieldUnloadingHandler.cs" />
+    <Compile Include="BusService\SubscriptionHandler.cs" />
+    <Compile Include="BusService\ESB.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="TopicHandlers\Application.cs" />
+    <Compile Include="TopicHandlers\Edna.cs" />
+    <Compile Include="TopicHandlers\Gui.cs" />
+    <Compile Include="TopicHandlers\Playfield.cs" />
+    <Compile Include="TopicHandlers\WIP\MemoryDumper.cs" />
+    <Compile Include="TopicHandlers\WIP\MemorySearcher.cs" />
+    <Compile Include="TopicHandlers\WIP\WinInfo.cs" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="App.config" />
-    <None Include="ESB_Info.yaml">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    <None Include="Configuration\ESB_Info.yaml">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
-    <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\ESBMessaging\ESBMessaging.csproj">
-      <Project>{3d39d663-f591-4d7c-a185-c5084f4426bd}</Project>
-      <Name>ESBMessaging</Name>
+    <ProjectReference Include="..\ESB.Database\ESB.Database.csproj">
+      <Project>{def85312-496a-40f1-bc3b-23e7f1ec45a7}</Project>
+      <Name>ESB.Database</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\ESB.Messaging\ESB.Messaging.csproj">
+      <Project>{70443289-c45d-4656-97eb-2d2d43a669aa}</Project>
+      <Name>ESB.Messaging</Name>
     </ProjectReference>
   </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="EmpyrionNetAPI">
+      <Version>6.3.1</Version>
+    </PackageReference>
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection">
+      <Version>8.0.0</Version>
+    </PackageReference>
+    <PackageReference Include="MQTTnet">
+      <Version>4.3.3.952</Version>
+    </PackageReference>
+    <PackageReference Include="Newtonsoft.Json">
+      <Version>13.0.3</Version>
+    </PackageReference>
+    <PackageReference Include="System.Data.SQLite">
+      <Version>1.0.118</Version>
+    </PackageReference>
+    <PackageReference Include="YamlDotNet">
+      <Version>13.7.1</Version>
+    </PackageReference>
+  </ItemGroup>
+  <ItemGroup>
+    <Folder Include="TopicHandlers\Interfaces\" />
+  </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
-  <Target Name="EnsureNuGetPackageBuildImports" BeforeTargets="PrepareForBuild">
-    <PropertyGroup>
-      <ErrorText>This project references NuGet package(s) that are missing on this computer. Use NuGet Package Restore to download them.  For more information, see http://go.microsoft.com/fwlink/?LinkID=322105. The missing file is {0}.</ErrorText>
-    </PropertyGroup>
-    <Error Condition="!Exists('..\packages\EntityFramework.6.4.4\build\EntityFramework.props')" Text="$([System.String]::Format('$(ErrorText)', '..\packages\EntityFramework.6.4.4\build\EntityFramework.props'))" />
-    <Error Condition="!Exists('..\packages\EntityFramework.6.4.4\build\EntityFramework.targets')" Text="$([System.String]::Format('$(ErrorText)', '..\packages\EntityFramework.6.4.4\build\EntityFramework.targets'))" />
-  </Target>
-  <Import Project="..\packages\EntityFramework.6.4.4\build\EntityFramework.targets" Condition="Exists('..\packages\EntityFramework.6.4.4\build\EntityFramework.targets')" />
   <PropertyGroup>
-    <PostBuildEvent>xcopy.exe /D /Y "$(ProjectDir)$(OutDir)ESB.dll" "C:\SteamRoot\steamapps\common\Empyrion - Galactic Survival\Content\Mods\ESB\*.*"
-xcopy.exe /D /Y "$(ProjectDir)$(OutDir)ESB_Info.yaml" "C:\SteamRoot\steamapps\common\Empyrion - Galactic Survival\Content\Mods\ESB\*.*"
-xcopy.exe /D /Y "$(ProjectDir)$(OutDir)MQTTnet.dll" "C:\SteamRoot\steamapps\common\Empyrion - Galactic Survival\Content\Mods\ESB\*.*"
-xcopy.exe /D /Y "$(ProjectDir)$(OutDir)Newtonsoft.Json.dll" "C:\SteamRoot\steamapps\common\Empyrion - Galactic Survival\Content\Mods\ESB\*.*"
-xcopy.exe /D /Y "$(ProjectDir)$(OutDir)YamlDotNet.dll" "C:\SteamRoot\steamapps\common\Empyrion - Galactic Survival\Content\Mods\ESB\*.*"
-xcopy.exe /D /Y "$(ProjectDir)$(OutDir)ESB.dll" "C:\SteamRoot\steamapps\common\Empyrion - Dedicated Server\Content\Mods\ESB\*.*"
-xcopy.exe /D /Y "$(ProjectDir)$(OutDir)ESB_Info.yaml" "C:\SteamRoot\steamapps\common\Empyrion - Dedicated Server\Content\Mods\ESB\*.*"
-xcopy.exe /D /Y "$(ProjectDir)$(OutDir)MQTTnet.dll" "C:\SteamRoot\steamapps\common\Empyrion - Dedicated Server\Content\Mods\ESB\*.*"
-xcopy.exe /D /Y "$(ProjectDir)$(OutDir)Newtonsoft.Json.dll" "C:\SteamRoot\steamapps\common\Empyrion - Dedicated Server\Content\Mods\ESB\*.*"
-xcopy.exe /D /Y "$(ProjectDir)$(OutDir)YamlDotNet.dll" "C:\SteamRoot\steamapps\common\Empyrion - Dedicated Server\Content\Mods\ESB\*.*"</PostBuildEvent>
+    <PostBuildEvent>xcopy.exe /D /Y "$(ProjectDir)$(OutDir)*.dll" "C:\SteamRoot\steamapps\common\Empyrion - Galactic Survival\Content\Mods\ESB\*.*"
+xcopy.exe /D /Y "$(ProjectDir)$(OutDir)\Configuration\ESB_Info.yaml" "C:\SteamRoot\steamapps\common\Empyrion - Galactic Survival\Content\Mods\ESB\*.*"
+xcopy.exe /D /Y "$(ProjectDir)$(OutDir)*.dll" "C:\SteamRoot\steamapps\common\Empyrion - Dedicated Server\Content\Mods\ESB\*.*"
+xcopy.exe /D /Y "$(ProjectDir)$(OutDir)\Configuration\ESB_Info.yaml" "C:\SteamRoot\steamapps\common\Empyrion - Dedicated Server\Content\Mods\ESB\*.*"</PostBuildEvent>
   </PropertyGroup>
 </Project>

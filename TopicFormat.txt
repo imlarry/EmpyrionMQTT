@@ -7,17 +7,24 @@ Since topic structure and naming conventions impact how this implementation dete
 gets what messages and what code gets run by it, following a fairly rigid topic definition 
 format ends up being critical.
 
- example:    ESB/Client/ModApi.GameEvent/E/20E9AD182A2D
+ example:    Client/E/ModApi.GameEvent.WindowClosed/20E9AD182A2D
 
-             ESB/     identifies this as an Empyrion Service Bus message
-      <sourceid>/     the name of the service ... basically an APPID
-     <subjectid>/     the subject of the message (user topic string as dot path)
-      <msgclass>/     Q=question, R=response, E=event, I=information, X=exception 
-      <clientid>      a unique session identifier (currently the last 12 of a guid)
+      <sourceid>/   the name of the source service (except for commands which use to target)
+      <msgclass>/   C=command, R=response, E=event, I=information, X=exception 
+     <subjectid>/   the subject of the message (user topic string as dot path)
+      <clientid>    a unique session identifier (currently the last 12 of a guid)
 
-A publisher subscribes to Questions that it issues a Response to that provide information
-or confirms a request was satisfied. Events that occur may be issued as a result of async
-events in the publisher. When errors occur eXceptions are raised.
+A bus partner subscribes to Command topics that it can or is expected to issue a Response 
+to that return data and/or change something. Events occur as a result of in-game actions 
+or may be issued as a result of async events occuring in a bus partner. When errors occur
+exceptions are raised in the form of messages. Finally informational messages can be published
+to facilitate logging, debugging, and similar non-actionable bus activity.
 
-The ESB uses the Application.Mode (Client, DedicatedServer, PlayfieldServer) as the sourceid 
-for these services.
+Some messages imply conversational semantics where a command is sent, a response (or exception)
+is returned, and potentially future events are triggered. Bus partners can take observational
+roles (like a logger) that consume but do not produce actionable messages.
+
+The ESB uses the Application.Mode (SinglePlayer, Client, DedicatedServer, PlayfieldServer) as 
+the sourceid for these services. While in the lobby the player connection is considered as a
+Client and it is only after entering the game that the determination this is a SinglePlayer
+connection can be made.
