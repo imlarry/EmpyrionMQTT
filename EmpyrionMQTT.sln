@@ -12,7 +12,6 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution 
 		CodeFragments.txt = CodeFragments.txt
 		License.txt = License.txt
 		README.md = README.md
-		TopicFormat.txt = TopicFormat.txt
 	EndProjectSection
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "EDNA", "EDNAClient\EDNA.csproj", "{BA24B873-5C47-4614-94BE-A285ED087A34}"
