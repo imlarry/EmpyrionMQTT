@@ -61,6 +61,9 @@
     <Compile Include="EventHandlers\Intefaces\IEventManager.cs" />
     <Compile Include="LegacyEventHandlers\LegacyPlayfieldLoadedHandler.cs" />
     <Compile Include="Models\IContextData.cs" />
+    <Compile Include="TopicHandlers\Interfaces\IApplication.cs" />
+    <Compile Include="TopicHandlers\Interfaces\IGui.cs" />
+    <Compile Include="TopicHandlers\Interfaces\IPlayfield.cs" />
     <Compile Include="Utilities\IYamlFileReader.cs" />
     <Compile Include="Utilities\YamlFileReader.cs" />
     <Compile Include="Models\ContextData.cs" />
@@ -126,9 +129,7 @@
       <Version>13.7.1</Version>
     </PackageReference>
   </ItemGroup>
-  <ItemGroup>
-    <Folder Include="TopicHandlers\Interfaces\" />
-  </ItemGroup>
+  <ItemGroup />
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <PropertyGroup>
     <PostBuildEvent>xcopy.exe /D /Y "$(ProjectDir)$(OutDir)*.dll" "C:\SteamRoot\steamapps\common\Empyrion - Galactic Survival\Content\Mods\ESB\*.*"

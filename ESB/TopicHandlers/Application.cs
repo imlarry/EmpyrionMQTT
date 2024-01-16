@@ -12,7 +12,7 @@ using System.Diagnostics;
 
 namespace ESB.TopicHandlers
 {
-    public class Application 
+    public class Application : IApplication
     {
         private readonly ContextData _ctx;
 

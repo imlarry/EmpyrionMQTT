@@ -8,7 +8,7 @@ using UnityEngine;
 
 namespace ESB.TopicHandlers
 {
-    public class Playfield
+    public class Playfield : IPlayfield
     {
 
         private readonly ContextData _ctx;
