@@ -12,7 +12,7 @@ using Newtonsoft.Json.Linq;
 
 namespace ESB.Messaging
 {
-    public class Messenger
+    public class Messenger : IMessenger
     {
         private BaseContextData _ctx;
         private string _applicationId;
@@ -56,7 +56,7 @@ namespace ESB.Messaging
         }
 
         // MsgClass ... function used to convert MessageClass enum into topic encoding
-        public static char MsgClass(MessageClass messageClass)
+        public char MsgClass(MessageClass messageClass)
         {
             switch (messageClass)
             {

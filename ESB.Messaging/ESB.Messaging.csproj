@@ -42,6 +42,9 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="BaseContextData.cs" />
+    <Compile Include="Interfaces\IBaseContextData.cs" />
+    <Compile Include="Interfaces\IMessenger.cs" />
+    <Compile Include="Interfaces\IParsedTopic.cs" />
     <Compile Include="MessageClass.cs" />
     <Compile Include="Messenger.cs" />
     <Compile Include="ParsedTopic.cs" />
@@ -58,6 +61,7 @@
       <Version>13.0.3</Version>
     </PackageReference>
   </ItemGroup>
+  <ItemGroup />
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <PropertyGroup>
     <PostBuildEvent>

@@ -21,12 +21,11 @@
 using System.Data.SQLite;
 using System.Data;
 using System;
-
 using Newtonsoft.Json.Linq;
 
 namespace ESBLog.Database
 {
-    public class DbAccess
+    public class DbAccess : IDbAccess
     {
         private SQLiteConnection _connection;
         readonly private bool _reuseConnection;
@@ -99,7 +98,7 @@ namespace ESBLog.Database
                             var row = new JObject();
                             for (int i = 0; i < reader.FieldCount; i++)
                             {
-                                row[reader.GetName(i)] = JToken.FromObject(reader.GetValue(i)); // = reader.GetValue(i).ToString();
+                                row[reader.GetName(i)] = JToken.FromObject(reader.GetValue(i));
                             }
                             rows.Add(row);
                         }
