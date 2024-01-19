@@ -46,11 +46,5 @@ namespace ESB.EventHandlers
             return new PlayfieldUnloadingHandler(_contextData, entityLoadedHandler, entityUnloadedHandler);
         }
 
-        // legacy handlers
-        public LegacyPlayfieldLoadedHandler CreateLegacyPlayfieldLoadedHandler()
-        {
-            return new LegacyPlayfieldLoadedHandler(_contextData);
-        }
-
     }
 }

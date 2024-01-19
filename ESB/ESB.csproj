@@ -50,8 +50,10 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="BusService\GameManager.cs" />
     <Compile Include="BusService\Interfaces\IESB.cs" />
-    <Compile Include="BusService\Interfaces\IESBManager.cs" />
+    <Compile Include="BusService\Interfaces\IBusManager.cs" />
+    <Compile Include="BusService\Interfaces\IGameManager.cs" />
     <Compile Include="BusService\Interfaces\ISubscriptionHandler.cs" />
     <Compile Include="Configuration\ESBConfig.cs" />
     <Compile Include="Configuration\Interfaces\IESBConfig.cs" />
@@ -62,6 +64,9 @@
     <Compile Include="EventHandlers\EventHandlerFactory.cs" />
     <Compile Include="EventHandlers\Intefaces\IEventHandlerFactory.cs" />
     <Compile Include="EventHandlers\Intefaces\IEventManager.cs" />
+    <Compile Include="LegacyEventHandlers\LegacyEventHandlerFactory.cs" />
+    <Compile Include="LegacyEventHandlers\Interfaces\ILegacyPlayfieldLoadedHandler.cs" />
+    <Compile Include="LegacyEventHandlers\LegacyEventManager.cs" />
     <Compile Include="LegacyEventHandlers\LegacyPlayfieldLoadedHandler.cs" />
     <Compile Include="Models\IContextData.cs" />
     <Compile Include="TopicHandlers\Interfaces\IApplication.cs" />
@@ -81,7 +86,7 @@
     <Compile Include="EventHandlers\Intefaces\IGameEventHandler.cs" />
     <Compile Include="EventHandlers\Intefaces\IPlayfieldLoadedHandler.cs" />
     <Compile Include="EventHandlers\Intefaces\IPlayfieldUnloadingHandler.cs" />
-    <Compile Include="BusService\ESBManager.cs" />
+    <Compile Include="BusService\BusManager.cs" />
     <Compile Include="EventHandlers\GameEnteredHandler.cs" />
     <Compile Include="EventHandlers\GameEventHandler.cs" />
     <Compile Include="EventHandlers\PlayfieldLoadedHandler.cs" />

@@ -17,7 +17,8 @@ namespace ESB.Common
         public IModApi ModApi { get; set; }
         public EmpyrionModBase ModBase { get; set; }
         public ESBConfig ESBConfig { get; set; }
-        public ESBManager ESBManager { get; set; }
+        public BusManager BusManager { get; set; }
+        public GameManager GameManager { get; set; }
 
         // cache prealloc to expected max + safety to avoid GC (TODO: dial in via dynamic alloc and watching actual max)
         private const int PlayfieldListEntries = 5;

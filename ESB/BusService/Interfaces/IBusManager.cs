@@ -2,7 +2,7 @@
 
 namespace ESB
 {
-    public interface IESBManager
+    public interface IBusManager
     {
         string ApplicationName { get; }
         string GameName { get; }

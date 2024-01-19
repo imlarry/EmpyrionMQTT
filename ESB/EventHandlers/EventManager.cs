@@ -53,7 +53,7 @@ namespace ESB
             _cntxt.ModApi.Application.OnPlayfieldUnloading -= _playfieldUnloadingHandler.Handle;
         }
 
-        /* retain for potential testing via mock events but not currently used...
+        /* testing template- test via mock events but not currently used...
         
         [Test]
         public void TestChatMessageSentHandler()

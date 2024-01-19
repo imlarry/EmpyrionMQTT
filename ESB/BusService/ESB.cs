@@ -1,21 +1,14 @@
 ﻿using Eleon.Modding;
-using Eleon;
 using EmpyrionNetAPIAccess;
 using ESB.Common;
 using ESB.EventHandlers;
-using ESB.Messaging;
-using Newtonsoft.Json.Linq;
-using System;
-using System.Threading.Tasks;
-using ESBLog.Database;
-using System.Data.SQLite;
 
 // EmpyrionMQTT .. mod entrypoint for MQTT integration with Empyrion Galactic Survival
 
 namespace ESB
 {
     public class EmpyrionServiceBus : EmpyrionModBase, IMod
-   // public class EmpyrionServiceBus : IMod, ModInterface
+    // public class EmpyrionServiceBus : IMod, ModInterface // debug event logging
     {
         // ********************************************
         // ************ Local Context Data ************ 
@@ -23,27 +16,21 @@ namespace ESB
 
         private readonly ContextData _contextData = new ContextData();
         private EventManager _eventManager;
-        private ESBManager _esbManager;
+        private LegacyEventManager _legacyEventManager;
+        private BusManager _busManager;
+        private GameManager _gameManager;
 
         public EmpyrionServiceBus()
         {
         }
 
+        // debug event logging
         //ModGameAPI legacyModApi;
-
-        //// ----- ModInterface methods -----------------------------------------
-
-        //// Called once early when the host process starts - treat this like a constructor for your mod
-        //public void Game_Start(ModGameAPI legacyModApi)
+        //public void Game_Start(ModGameAPI legacyModApi) {}
         //{
         //    this.legacyModApi = legacyModApi;
         //}
-
-        //// Called once just before the game is shut down - treat this like a Dispose method to release unmanaged resources
-        //public void Game_Exit()
-        //{
-        //}
-
+        //
         //public void Game_Event(CmdId eventId, ushort seqNr, object data)
         //{
         //    JObject json = new JObject(
@@ -53,13 +40,31 @@ namespace ESB
         //    {
         //        await _contextData.Messenger.SendAsync(MessageClass.Event, "LegacyGameEvent", json.ToString(Newtonsoft.Json.Formatting.None));
         //    });
-
         //}
+        //
+        //public void Game_Exit() {}
+        //public void Game_Update() {}
 
-        //// called each frame - don't waste time here!
-        //public void Game_Update()
+        // ******************************************** TEST ME (requires changes to EmpyrionModBase)
+        //public class EmpyrionModBase
         //{
+        //    public virtual void Game_Event(CmdId eventId, ushort seqNr, object data)  // if you want to override the base class's implementation, use the "override" keyword .. potential for adding MQTT publish to ASTICs wrapper
+        //    {
+        //        // Existing implementation...
+        //    }
         //}
+
+        //public class EmpyrionServiceBus : EmpyrionModBase, IMod
+        //{
+        //    public override void Game_Event(CmdId eventId, ushort seqNr, object data)
+        //    {
+        //        // Your custom logic here...
+
+        //        // Call the base class's implementation
+        //        base.Game_Event(eventId, seqNr, data);
+        //    }
+        //}
+        // ******************************************** TEST ME
 
         // ********************************************
         // ************ EmpyrionModBase API ***********
@@ -68,23 +73,10 @@ namespace ESB
         {
             dediAPI.Console_Write("ESB ModGameAPI start");
             _contextData.ModBase = this;
-            var factory = new EventHandlerFactory(_contextData);
-
+            var factory = new LegacyEventHandlerFactory(_contextData);
             var legacyPlayfieldLoadedHandler = factory.CreateLegacyPlayfieldLoadedHandler();
-            this.Event_Playfield_Loaded += legacyPlayfieldLoadedHandler.Handle;
-
-            this.Event_Player_ChangedPlayfield += Handle_Event_Player_ChangedPlayfield;
+            _legacyEventManager = new LegacyEventManager(_contextData, legacyPlayfieldLoadedHandler);
         }
-
-        private async void Handle_Event_Player_ChangedPlayfield(IdPlayfield obj)
-        {
-            var json = new JObject(
-                new JProperty("PlayerEntityId", obj.id),
-                new JProperty("PlayfieldName", obj.playfield)
-                );
-            await _contextData.Messenger.SendAsync(MessageClass.Event, "PlayerChangedPlayfield", json.ToString(Newtonsoft.Json.Formatting.None));
-        }
-
 
         // ********************************************
         // ***************** IMod API *****************
@@ -109,16 +101,19 @@ namespace ESB
             _eventManager = new EventManager(_contextData, chatMessageSentHandler, entityLoadedHandler, entityUnloadedHandler, gameEnteredHandler, gameEventHandler, playfieldLoadedHandler, playfieldUnloadingHandler);
 
             // initialize bus manager (message broker, database, etc)
-            _esbManager = new ESBManager(_contextData, _eventManager);
-            await _esbManager.Init();
+            _busManager = new BusManager(_contextData, _eventManager);
+            await _busManager.Init();
+
+            // initialize game manager (game state and associated methods)
+            _gameManager = new GameManager(_contextData);
+            await _gameManager.Init();
         }
 
         public async void Shutdown()
         {
             _contextData.ModApi.Log("ESB IMod API exit");
-            await _esbManager.Shutdown();
+            await _busManager.Shutdown();
         }
-
 
     }
 }

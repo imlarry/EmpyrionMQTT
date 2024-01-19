@@ -5,8 +5,9 @@ using ESBLog.Database;
 using Newtonsoft.Json.Linq;
 using System.Data.SQLite;
 using System;
+using ESB;
 
-public class LegacyPlayfieldLoadedHandler
+public class LegacyPlayfieldLoadedHandler : ILegacyPlayfieldLoadedHandler
 {
     private readonly ContextData _contextData;
 

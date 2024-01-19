@@ -9,7 +9,8 @@ namespace ESB.Common
         IModApi ModApi { get; set; }
         EmpyrionModBase ModBase { get; set; }
         ESBConfig ESBConfig { get; set; }
-        ESBManager ESBManager { get; set; }
+        BusManager BusManager { get; set; }
+        GameManager GameManager { get; set; }
         Dictionary<string, IPlayfield> LoadedPlayfield { get; set; }
         Dictionary<int, IEntity> LoadedEntity { get; set; }
 
