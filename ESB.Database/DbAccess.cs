@@ -16,18 +16,23 @@
  * - Open(string connectionString): Opens a new database connection with the provided connection string.
  *   If a connection is already open, an InvalidOperationException is thrown.
  * - CloseConnection(): Closes the database connection if it is not already closed.
+ * - CreateDatabaseFile(string folderPath, string dbName): Creates a new SQLite database file at the specified location.
+ * - ExecuteQuery(string query): Executes the provided SQL query and returns the result as a DataTable.
+ * - ExecuteNonQuery(string query): Executes the provided SQL non-query and returns the number of affected rows.
+ * - ExecuteScalar(string query): Executes the provided SQL query and returns the first column of the first row in the result set.
  */
 
 using System.Data.SQLite;
 using System.Data;
 using System;
 using Newtonsoft.Json.Linq;
+using System.IO;
 
-namespace ESBLog.Database
+namespace ESB.Database
 {
     public class DbAccess : IDbAccess
     {
-        private SQLiteConnection _connection;
+        readonly private SQLiteConnection _connection;
         readonly private bool _reuseConnection;
 
         public DbAccess(string connectionString, bool reuseConnection)
@@ -40,7 +45,12 @@ namespace ESBLog.Database
             }
         }
 
-        public void DoWork(Action<SQLiteConnection> work)
+        ~DbAccess() // Finalizer
+        {
+            CloseConnection();
+        }
+
+        private void DoWork(Action<SQLiteConnection> work)
         {
             if (!_reuseConnection)
             {
@@ -60,24 +70,117 @@ namespace ESBLog.Database
             }
         }
 
-        public void Open(string connectionString)
-        {
-            if (_connection != null)
-            {
-                throw new InvalidOperationException("Connection is already open.");
-            }
 
-            _connection = new SQLiteConnection(connectionString);
-            _connection.Open();
-        }
-
-        public void CloseConnection()
+        private void CloseConnection()
         {
             if (_connection.State != ConnectionState.Closed)
             {
                 _connection.Close();
             }
         }
+
+        public void CreateDatabaseFile(string folderPath, string dbName)
+        {
+            string dbPath = Path.Combine(folderPath, dbName);
+
+            if (!File.Exists(dbPath))
+            {
+                SQLiteConnection.CreateFile(dbPath);
+            }
+        }
+
+        public void ExecuteCommand(string sql, params object[] parameters)
+        {
+            DoWork(connection =>
+            {
+                using (var command = new SQLiteCommand(sql, connection))
+                {
+                    if (parameters != null)
+                    {
+                        for (int i = 0; i < parameters.Length; i++)
+                        {
+                            command.Parameters.AddWithValue($"@p{i + 1}", parameters[i]);
+                        }
+                    }
+
+                    command.ExecuteNonQuery();
+                }
+            });
+        }
+
+        public DataTable ExecuteSelect(string sql, params object[] parameters)
+        {
+            DataTable dt = new DataTable();
+
+            DoWork(connection =>
+            {
+                using (var command = new SQLiteCommand(sql, connection))
+                {
+                    if (parameters != null)
+                    {
+                        for (int i = 0; i < parameters.Length; i++)
+                        {
+                            command.Parameters.AddWithValue($"@p{i + 1}", parameters[i]);
+                        }
+                    }
+
+                    using (var reader = command.ExecuteReader())
+                    {
+                        dt.Load(reader);
+                    }
+                }
+            });
+
+            return dt;
+        }
+
+        //public DataTable ExecuteQuery(string query)
+        //{
+        //    DataTable result = new DataTable();
+
+        //    DoWork(connection =>
+        //    {
+        //        using (var command = new SQLiteCommand(query, connection))
+        //        {
+        //            using (var adapter = new SQLiteDataAdapter(command))
+        //            {
+        //                adapter.Fill(result);
+        //            }
+        //        }
+        //    });
+
+        //    return result;
+        //}
+
+        //public int ExecuteNonQuery(string query)
+        //{
+        //    int affectedRows = 0;
+
+        //    DoWork(connection =>
+        //    {
+        //        using (var command = new SQLiteCommand(query, connection))
+        //        {
+        //            affectedRows = command.ExecuteNonQuery();
+        //        }
+        //    });
+
+        //    return affectedRows;
+        //}
+
+        //public object ExecuteScalar(string query)
+        //{
+        //    object result = null;
+
+        //    DoWork(connection =>
+        //    {
+        //        using (var command = new SQLiteCommand(query, connection))
+        //        {
+        //            result = command.ExecuteScalar();
+        //        }
+        //    });
+
+        //    return result;
+        //}
 
         public void JsonDataset(JObject json, string datasetName, string sql, params SQLiteParameter[] parameters)
         {
