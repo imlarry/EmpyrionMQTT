@@ -1,8 +1,8 @@
-﻿using ESB.Messaging;
-using CommandLine;
+﻿using CommandLine;
 using ESBLog.Common;
 using ESBLog.TopicHandlers;
-using ESBLog.Database;
+using ESB.Database;
+using ESB.Messaging;
 
 namespace ESBlog;
 
@@ -10,7 +10,6 @@ public class Logger
 {
     public LoggerSpecificContext CTX { get; set; } = new LoggerSpecificContext();
     readonly private DbAccess _dbAccess = new("YourConnectionString", true);
-
     readonly Messenger buslistener = new();
 
     public Logger()

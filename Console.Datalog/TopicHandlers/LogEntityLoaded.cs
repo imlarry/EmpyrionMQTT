@@ -1,5 +1,4 @@
 ﻿using Newtonsoft.Json.Linq;
-using System.Data.SQLite;
 using ESBLog.Common;
 
 namespace ESBLog.TopicHandlers
@@ -24,19 +23,16 @@ namespace ESBLog.TopicHandlers
         async Task LogEntityLoadedX(string topic, string payload)
         {
             JObject EntityEvent = JObject.Parse(payload);
-            _ctx.DBconnection?.DoWork(db =>
-            {
-                using var insertCommand = new SQLiteCommand("INSERT INTO EntityEventRaw (Id, Name, IsLocal, IsPoi, BelongsTo, DockedTo, Type) VALUES (@id, @name, @isLocal, @isPoi, @belongsTo, @dockedTo, @type)", db);
-                insertCommand.Parameters.AddWithValue("@id", EntityEvent.GetValue("Id"));
-                insertCommand.Parameters.AddWithValue("@name", EntityEvent.GetValue("Name"));
-                insertCommand.Parameters.AddWithValue("@isLocal", EntityEvent.GetValue("IsLocal"));
-                insertCommand.Parameters.AddWithValue("@isPoi", EntityEvent.GetValue("IsPoi"));
-                insertCommand.Parameters.AddWithValue("@belongsTo", EntityEvent.GetValue("BelongsTo"));
-                insertCommand.Parameters.AddWithValue("@dockedTo", EntityEvent.GetValue("DockedTo"));
-                insertCommand.Parameters.AddWithValue("@type", EntityEvent.GetValue("Type"));
-
-                insertCommand.ExecuteNonQuery();
-            });
+            _ctx.DBconnection?.ExecuteCommand(
+                "INSERT INTO EntityEventRaw (Id, Name, IsLocal, IsPoi, BelongsTo, DockedTo, Type) VALUES (@p1, @p2, @p3, @p4, @p5, @p6, @p7)",
+                EntityEvent.GetValue("Id"),
+                EntityEvent.GetValue("Name"),
+                EntityEvent.GetValue("IsLocal"),
+                EntityEvent.GetValue("IsPoi"),
+                EntityEvent.GetValue("BelongsTo"),
+                EntityEvent.GetValue("DockedTo"),
+                EntityEvent.GetValue("Type")
+            );
             await _ctx.Messenger.SendAsync("LogEntityLoaded", "Entity Loaded");
         }
     }

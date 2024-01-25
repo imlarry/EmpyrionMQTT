@@ -1,5 +1,5 @@
 ﻿using ESB.Messaging;
-using ESBLog.Database;
+using ESB.Database;
 
 namespace ESBLog.Common
 {
