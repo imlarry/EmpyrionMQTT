@@ -39,6 +39,7 @@ namespace EDNAClient
             this.toolStripContainer1 = new System.Windows.Forms.ToolStripContainer();
             this.tableLayoutPanel = new System.Windows.Forms.TableLayoutPanel();
             this.treeView = new System.Windows.Forms.TreeView();
+            this.tabControl1 = new System.Windows.Forms.TabControl();
             this.menuStrip1.SuspendLayout();
             this.toolStripContainer1.ContentPanel.SuspendLayout();
             this.toolStripContainer1.SuspendLayout();
@@ -116,12 +117,12 @@ namespace EDNAClient
             this.tableLayoutPanel.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 26.40068F));
             this.tableLayoutPanel.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 73.59932F));
             this.tableLayoutPanel.Controls.Add(this.treeView, 0, 0);
+            this.tableLayoutPanel.Controls.Add(this.tabControl1, 1, 0);
             this.tableLayoutPanel.Dock = System.Windows.Forms.DockStyle.Fill;
             this.tableLayoutPanel.Location = new System.Drawing.Point(0, 0);
             this.tableLayoutPanel.Name = "tableLayoutPanel";
-            this.tableLayoutPanel.RowCount = 2;
-            this.tableLayoutPanel.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 65F));
-            this.tableLayoutPanel.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 35F));
+            this.tableLayoutPanel.RowCount = 1;
+            this.tableLayoutPanel.RowStyles.Add(new System.Windows.Forms.RowStyle());
             this.tableLayoutPanel.Size = new System.Drawing.Size(1178, 664);
             this.tableLayoutPanel.TabIndex = 0;
             // 
@@ -131,9 +132,18 @@ namespace EDNAClient
             this.treeView.LabelEdit = true;
             this.treeView.Location = new System.Drawing.Point(3, 3);
             this.treeView.Name = "treeView";
-            this.tableLayoutPanel.SetRowSpan(this.treeView, 2);
             this.treeView.Size = new System.Drawing.Size(305, 658);
             this.treeView.TabIndex = 0;
+            // 
+            // tabControl1
+            // 
+            this.tabControl1.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.tabControl1.Location = new System.Drawing.Point(314, 3);
+            this.tabControl1.Name = "tabControl1";
+            this.tabControl1.SelectedIndex = 0;
+            this.tabControl1.Size = new System.Drawing.Size(861, 658);
+            this.tabControl1.SizeMode = System.Windows.Forms.TabSizeMode.FillToRight;
+            this.tabControl1.TabIndex = 1;
             // 
             // ClientWindow
             // 
@@ -171,5 +181,6 @@ namespace EDNAClient
         private ToolStripMenuItem helpToolStripMenuItem;
         private TableLayoutPanel tableLayoutPanel;
         private TreeView treeView;
+        private TabControl tabControl1;
     }
 }

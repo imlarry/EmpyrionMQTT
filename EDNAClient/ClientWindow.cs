@@ -1,5 +1,4 @@
-using System;
-using System.Windows.Forms;
+using EDNA;
 
 namespace EDNAClient
 {
@@ -12,6 +11,12 @@ namespace EDNAClient
 
             // add the bookmarks feature
             _ = new Bookmarks(treeView);
+
+            // Create an instance of the ConsoleForm
+            _ = new ConsoleForm(tabControl1);
+
+            // Create an instance of the SystemMapForm
+            _ = new SystemMapForm(tabControl1);
         }
     }
 }
