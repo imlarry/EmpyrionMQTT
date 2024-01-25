@@ -1,5 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Net.NetworkInformation;
+using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Threading;
@@ -8,6 +10,7 @@ using MQTTnet;
 using MQTTnet.Client;
 using MQTTnet.Formatter;
 using Newtonsoft.Json.Linq;
+using System.Management;
 
 
 namespace ESB.Messaging
@@ -16,6 +19,7 @@ namespace ESB.Messaging
     {
         private BaseContextData _ctx;
         private string _applicationId;
+        private string _machineId;
         private string _clientId;
         private int _pubSeqId = 0;
         private MqttFactory _mqttFactory;
@@ -28,6 +32,12 @@ namespace ESB.Messaging
             return _applicationId;
         }
         
+        // MachineId ... returns the MachineId associated with the connection
+        public string MachineId()
+        {
+            return _machineId;
+        }
+
         // ClientId ... returns the ClintId associated with the connection
         public string ClientId()
         {
@@ -70,6 +80,7 @@ namespace ESB.Messaging
             }
         }
 
+        // MqttClientOptions ... function used to create an MQTT client options object
         public MqttClientOptions CreateMqttClientOptions(string withTcpServer = "localhost", string username = null, string password = null, string caFilePath = null)
         {
             int? port = null;
@@ -100,12 +111,43 @@ namespace ESB.Messaging
             return optionsBuilder.Build();
         }
 
+        // GetMacAddress ... function used to get the MAC address of the first active network interface
+        public static string GetMacAddress()
+        {
+            foreach (NetworkInterface nic in NetworkInterface.GetAllNetworkInterfaces())
+            {
+                if (nic.OperationalStatus == OperationalStatus.Up)
+                {
+                    return nic.GetPhysicalAddress().ToString();
+                }
+            }
+            return String.Empty;
+        }
+
+        // GenerateMachineId ... function used to generate a machine id from MAC address and a secret key
+        public static string GenerateMachineId(string secretKey)
+        {
+            string macAddress = GetMacAddress();
+            string rawId = macAddress + (secretKey ?? ""); 
+
+            using (SHA256 sha256Hash = SHA256.Create())
+            {
+                byte[] bytes = sha256Hash.ComputeHash(Encoding.UTF8.GetBytes(rawId));
+                StringBuilder builder = new StringBuilder();
+                for (int i = 0; i < bytes.Length; i++)
+                {
+                    builder.Append(bytes[i].ToString("x2"));
+                }
+                return builder.ToString();
+            }
+        }
 
         // ConnectAsync ... build client and connect to broker
         public async Task ConnectAsync(BaseContextData ctx, string applicationId, string withTcpServer = "localhost", string username = null, string password = null, string caFilePath = null)
         {
             _ctx = ctx;
             _applicationId = applicationId;
+            _machineId = GenerateMachineId(password);
             _clientId = Guid.NewGuid().ToString().Substring(25);
             _mqttFactory = new MqttFactory();
             _mqttClient = _mqttFactory.CreateMqttClient();
@@ -131,6 +173,7 @@ namespace ESB.Messaging
             JObject json = new JObject(
                     new JProperty("WithTcpServer", withTcpServer),
                     new JProperty("Application", _applicationId),
+                    new JProperty("MachineId", _machineId),
                     new JProperty("ClientId", _clientId),
                     new JProperty("ConnectedAt", now)
                     );
