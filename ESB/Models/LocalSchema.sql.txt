@@ -1,0 +1,183 @@
+﻿/*
+
+The local.db is a refactored client-side variant of Empyrion's global.db game database. It serves multiple purposes, such as providing tool information, acting as SOR for published dedi server information in a multiplayer game, and providing an abstraction layer to deal with changes and additions made to schema in upcoming releases of the Empyrion global.db. 
+
+An ETL processes provides a unified interface to adapt/adopt updates into the ESB and related tools and toys as required.
+
+*/
+
+-- TABLE SCHEMA .. mostly duplicate of global.db + local surrogate pkey and missing enum domains
+
+-- NVPair .. free form name/value pairs with a surogate key, interpretation of value is based on name and only needs to be understood by source and consumers
+CREATE TABLE IF NOT EXISTS "NVPair" (
+	"id" INTEGER PRIMARY KEY AUTOINCREMENT,
+	"name" TEXT UNIQUE,
+	"value" TEXT,
+	"asoftick" INTEGER
+);
+
+-- DOMAIN TABLES
+
+-- StarType .. locate enum or use group by on large dataset as a domain table 
+CREATE TABLE IF NOT EXISTS "StarType" (
+	"id" INTEGER PRIMARY KEY AUTOINCREMENT,
+	"name" TEXT UNIQUE
+);
+-- SOURCE: GalaxyConfig.ecf entries like "{ GalaxyConfig, Name: G Type Star"
+-- these "StarClass" values G, G4, M3, B2V, etc. are displayed on Galaxy Map (ie Orobuga [G4]) and infers system info (color, luminosity, surface temp mass. radius, age, habitable zone MIN & MAX) and sector info
+
+-- EVENT DRIVEN INSERT by PlayfieldLoaded
+-- Sector .. like SolarSystems, is derived from sector information in Playfield but can be preloaded with stardata.csv from GalacticWaez to facilitate mapping
+CREATE TABLE IF NOT EXISTS "Sector" (
+	"id" INTEGER PRIMARY KEY AUTOINCREMENT,
+	"stid" INTEGER,
+	"name" TEXT UNIQUE,
+	"sectorx" INTEGER,
+	"sectory" INTEGER,
+	"sectorz" INTEGER,
+	"asoftick" INTEGER,
+	FOREIGN KEY("stid") REFERENCES "StarType"("id")
+);
+-- if using GalacticWaez stardata, load table prior to adding altkey index
+CREATE INDEX IF NOT EXISTS Sector_Coordinates ON Sector (sectorx, sectory, sectorz);
+
+-- PlayfieldType .. is the playfieldtype enum as a domain table
+CREATE TABLE IF NOT EXISTS "PlayfieldType" (
+	"id" INTEGER PRIMARY KEY AUTOINCREMENT,
+	"name" TEXT
+);
+INSERT OR IGNORE INTO PlayfieldType (Id, Name) VALUES (0, 'Undefined');
+INSERT OR IGNORE INTO PlayfieldType (Id, Name) VALUES (1, 'Planet');
+INSERT OR IGNORE INTO PlayfieldType (Id, Name) VALUES (2, 'Space');
+INSERT OR IGNORE INTO PlayfieldType (Id, Name) VALUES (3, 'Sun');
+INSERT OR IGNORE INTO PlayfieldType (Id, Name) VALUES (4, 'Moon');
+INSERT OR IGNORE INTO PlayfieldType (Id, Name) VALUES (5, 'GasGiant');
+
+-- PlanetType .. is the normalized text of planettype from Playfields
+CREATE TABLE IF NOT EXISTS "PlanetType" (
+	"id" INTEGER PRIMARY KEY AUTOINCREMENT,
+	"name" TEXT
+);
+
+-- MapType .. is the normalized text of maptype from Playfields
+CREATE TABLE IF NOT EXISTS "MapType" (
+	"id" INTEGER PRIMARY KEY AUTOINCREMENT,
+	"name" TEXT
+);
+
+-- EVENT DRIVEN INSERT ... by WHAT???
+-- Faction
+CREATE TABLE IF NOT EXISTS "Faction" (
+	"id" INTEGER PRIMARY KEY,
+	"name" TEXT UNIQUE
+);
+-- TODO: SIMILAR TO BOOKMARKS
+
+-- FactionGroup
+CREATE TABLE IF NOT EXISTS "FactionGroup" (
+	"id" INTEGER PRIMARY KEY,
+	"name" TEXT UNIQUE
+);
+INSERT OR IGNORE INTO FactionGroup (Id, Name) VALUES (0, 'Faction');
+INSERT OR IGNORE INTO FactionGroup (Id, Name) VALUES (1, 'Player');
+INSERT OR IGNORE INTO FactionGroup (Id, Name) VALUES (2, 'Zirax');
+INSERT OR IGNORE INTO FactionGroup (Id, Name) VALUES (3, 'Predator');
+INSERT OR IGNORE INTO FactionGroup (Id, Name) VALUES (4, 'Prey');
+INSERT OR IGNORE INTO FactionGroup (Id, Name) VALUES (5, 'Admin');
+INSERT OR IGNORE INTO FactionGroup (Id, Name) VALUES (6, 'Talon');
+INSERT OR IGNORE INTO FactionGroup (Id, Name) VALUES (7, 'Polaris');
+INSERT OR IGNORE INTO FactionGroup (Id, Name) VALUES (8, 'Alien');
+INSERT OR IGNORE INTO FactionGroup (Id, Name) VALUES (9, 'Pirates');
+INSERT OR IGNORE INTO FactionGroup (Id, Name) VALUES (9, 'DynFaction1');
+INSERT OR IGNORE INTO FactionGroup (Id, Name) VALUES (10, 'Kriel');
+INSERT OR IGNORE INTO FactionGroup (Id, Name) VALUES (10, 'DynFaction2');
+INSERT OR IGNORE INTO FactionGroup (Id, Name) VALUES (11, 'UCH');
+INSERT OR IGNORE INTO FactionGroup (Id, Name) VALUES (11, 'DynFaction3');
+INSERT OR IGNORE INTO FactionGroup (Id, Name) VALUES (12, 'DynFaction4');
+INSERT OR IGNORE INTO FactionGroup (Id, Name) VALUES (12, 'Trader');
+INSERT OR IGNORE INTO FactionGroup (Id, Name) VALUES (13, 'DynFaction5');
+INSERT OR IGNORE INTO FactionGroup (Id, Name) VALUES (13, 'Civilian');
+INSERT OR IGNORE INTO FactionGroup (Id, Name) VALUES (14, 'DynFaction6');
+INSERT OR IGNORE INTO FactionGroup (Id, Name) VALUES (15, 'DynFaction7');
+INSERT OR IGNORE INTO FactionGroup (Id, Name) VALUES (16, 'DynFaction8');
+INSERT OR IGNORE INTO FactionGroup (Id, Name) VALUES (17, 'DynFaction9');
+INSERT OR IGNORE INTO FactionGroup (Id, Name) VALUES (18, 'DynFaction10');
+INSERT OR IGNORE INTO FactionGroup (Id, Name) VALUES (254, 'Main');
+INSERT OR IGNORE INTO FactionGroup (Id, Name) VALUES (255, 'NoFaction');
+
+-- EVENT DRIVEN INSERT by PlayfieldLoaded
+-- Playfield .. is the Playfields table with domains for denormalized text
+CREATE TABLE IF NOT EXISTS "Playfield" (
+	"id" INTEGER PRIMARY KEY AUTOINCREMENT,
+	"name" TEXT UNIQUE,
+	"sid" INTEGER,
+	"pftid" INTEGER,
+	"ptid" INTEGER,
+	"mtid" INTEGER,
+	"iconcolor" INTEGER,
+	"planetsize" INTEGER,
+	"ispvp" BOOL,
+	"isinstance" BOOL,
+	"posx" REAL,
+	"posy" REAL,
+	"posz" REAL,
+	"asoftick" INTEGER,
+	FOREIGN KEY("sid") REFERENCES "Sector"("id"),
+	FOREIGN KEY("pftid") REFERENCES "PlayfieldType"("id"),
+	FOREIGN KEY("ptid") REFERENCES "PlanetType"("id"),
+	FOREIGN KEY("mtid") REFERENCES "MapType"("id")
+);
+
+-- Bookmarks .. bookmark entries from client and PDA very dynamic ... drive with trigger and user defn C# func against global.db?
+CREATE TABLE IF NOT EXISTS "Bookmarks" (
+	"id" INTEGER PRIMARY KEY,
+	"type" INTEGER NOT NULL,
+	"refid" INTEGER,
+	"facgroup" INTEGER NOT NULL,
+	"facid" INTEGER NOT NULL,
+	"entityid" INTEGER NOT NULL,
+	"pfid" INTEGER,
+	"name" TEXT,
+	"sectorx" INTEGER,
+	"sectory" INTEGER,
+	"sectorz" INTEGER,
+	"posx" REAL,
+	"posy" REAL,
+	"posz" REAL,
+	"icon" INTEGER,
+	"isshared" BOOL,
+	"iswaypoint" BOOL,
+	"isremove" BOOL,
+	"isshowhud" BOOL,
+	"iscallback" BOOL,
+	"createdticks" INTEGER NOT NULL,
+	"expireafterticks" INTEGER DEFAULT 0,
+	"mindistance" INTEGER DEFAULT 0,
+	"maxdistance" INTEGER DEFAULT -1,
+	FOREIGN KEY("pfid") REFERENCES "Playfields"("pfid")
+);
+
+-- EVENT DRIVEN INSERT by EntityLoaded
+-- Structure .. a blend of Entities and Structures data (for static "things" vs. NPC, ships, players, RE variant resources etc.)
+CREATE TABLE IF NOT EXISTS "Structure" (
+	"id" INTEGER PRIMARY KEY,
+	"pfid" INTEGER NOT NULL,
+	"name" TEXT,
+	"eid" INTEGER NOT NULL,
+	"posx" REAL,
+	"posy" REAL,
+	"posz" REAL,
+	FOREIGN KEY("pfid") REFERENCES "Playfield"("id"),
+	FOREIGN KEY("eid") REFERENCES "Entity"("id")
+);
+
+-- EVENT DRIVEN INSERT by EntityLoaded
+-- Player
+CREATE TABLE IF NOT EXISTS "Player" (
+	"id" INTEGER PRIMARY KEY,
+	"name" TEXT UNIQUE,
+	"playerid" INTEGER,
+	"steamid" TEXT UNIQUE,
+	"factionid" INTEGER,
+	FOREIGN KEY("factionid") REFERENCES "Faction"("factionid")
+);

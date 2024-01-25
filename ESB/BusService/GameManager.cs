@@ -2,10 +2,10 @@ using Newtonsoft.Json.Linq;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
-using System.Data.SQLite;
 using Eleon.Modding;
 using ESB.Common;
 using ESB.Messaging;
+using ESB.Database;
 
 namespace ESB
 {
@@ -15,7 +15,8 @@ namespace ESB
 
         public string GameName { get; private set; }
         public string GameIdentifier { get; private set; }
-        public string GamePath { get; private set; }
+        public string GameDataPath { get; private set; }
+        public string GameMode { get; private set; }
 
         public GameManager(ContextData context)
         {
@@ -27,39 +28,77 @@ namespace ESB
             _cntxt.GameManager = this;
             var json = new JObject(
                 new JProperty("Status", "Created"));
-            await _cntxt.Messenger.SendAsync(MessageClass.Information, "ESB.GameManager.Init", json.ToString(Newtonsoft.Json.Formatting.None));
+            await _cntxt.Messenger.SendAsync(MessageClass.Information, "ESB.GameManager", json.ToString(Newtonsoft.Json.Formatting.None));
             // set to a "no game active" state
         }
-        public void SetGameDirectory()
+        public async Task StateChanged(bool hasEntered)
+        {
+            if (hasEntered)
+            {
+                // set to a "game active" state (I AM THE POWER!)
+                SetGameProperties();
+                await OpenLocalDatabase();
+            }
+            else
+            {
+                // set to a "no game active" state (LET THE POWER RETURN!)
+            }
+        }
+        private void SetGameProperties()
         {
             var cacheDir = _cntxt.ModApi.Application.GetPathFor(AppFolder.Cache);
             var directories = Directory.GetDirectories(cacheDir);
             GameName = Path.GetFileName(_cntxt.ModApi.Application.GetPathFor(AppFolder.SaveGame));
-            GameIdentifier = Path.GetFileName(directories.FirstOrDefault(dir => Path.GetFileName(dir).StartsWith(GameName)));
-            GamePath = Path.GetFullPath(Path.Combine(_cntxt.BusManager.ESBModPath, "Data", "Games", GameIdentifier));
-            // add SenAsync call to send GameName, GameIdentifier, and GamePath to ESB and switch to async task
+            GameIdentifier = GenerateUniqueIdentifier(Path.GetFileName(directories.FirstOrDefault(dir => Path.GetFileName(dir).StartsWith(GameName))));
+            GameDataPath = Path.GetFullPath(Path.Combine(_cntxt.BusManager.ESBModPath, "Games", GameIdentifier));
+            GameMode = _cntxt.ModApi.Application.Mode.ToString();
         }
 
-        public async Task CreateLocalDatabase()
+        private string GenerateUniqueIdentifier(string identifier)
         {
-            string dbPath = Path.Combine(GamePath, "local.db");
+            var parts = identifier.Split('_');
+            if (parts.Length > 1)
+            {
+                int number = int.Parse(parts[parts.Length - 1]);
+                string hexValue = number.ToString("X");
+                return $"{parts[0]}@{hexValue}";
+            }
+            else
+            {
+                return parts[0];
+            }
+        }
+
+        private async Task OpenLocalDatabase()
+        {
+            string dbPath = Path.Combine(GameDataPath, "local.db");
             JObject json;
 
+            // create directory for game data if it doesn't exist
+            if (!Directory.Exists(GameDataPath))
+            {
+                Directory.CreateDirectory(GameDataPath);
+            }
+
+            // create local database if it doesn't exist and populate it with schema
             if (!File.Exists(dbPath))
             {
-                SQLiteConnection.CreateFile(dbPath);
+                var dbAccess = new DbAccess($"Data Source={dbPath};Version=3;", false);
+                dbAccess.CreateDatabaseFile(GameDataPath, "local.db");
+                string sqlCommands = File.ReadAllText(Path.Combine(_cntxt.BusManager.ESBModPath, "LocalSchema.sql.txt"));
+                dbAccess.ExecuteCommand(sqlCommands);
                 json = new JObject(
                     new JProperty("DatabasePath", dbPath),
                     new JProperty("Status", "Created"));
-                await _cntxt.Messenger.SendAsync(MessageClass.Information, "ESB.GameManager.CreateLocalDatabase", json.ToString(Newtonsoft.Json.Formatting.None));
             }
             else
             {
                 json = new JObject(
                     new JProperty("DatabasePath", dbPath),
                     new JProperty("Status", "AlreadyExists"));
-                await _cntxt.Messenger.SendAsync(MessageClass.Information, "ESB.GameManager.CreateLocalDatabase", json.ToString(Newtonsoft.Json.Formatting.None));
             }
+
+            await _cntxt.Messenger.SendAsync(MessageClass.Information, "ESB.GameManager.CreateLocalDatabase", json.ToString(Newtonsoft.Json.Formatting.None));
         }
     }
 }

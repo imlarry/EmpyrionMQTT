@@ -7,9 +7,9 @@ namespace ESB
         string GameName { get; }
         string GameIdentifier { get; }
         string GamePath { get; }
+        string GameMode { get; }
 
         Task Init();
-        void SetGameDirectory();
-        Task CreateLocalDatabase();
+        Task StateChanged(bool hasEntered);
     }
 }

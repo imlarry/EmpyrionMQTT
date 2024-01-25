@@ -67,7 +67,7 @@ namespace ESB
 
         public async Task InitDataDirectory()
         {
-            var dataDir = Path.GetFullPath(Path.Combine(ESBModPath, "Data"));
+            var dataDir = Path.GetFullPath(Path.Combine(ESBModPath, "Games"));
             if (!Directory.Exists(dataDir))
             {
                 Directory.CreateDirectory(dataDir);

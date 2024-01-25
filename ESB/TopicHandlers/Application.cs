@@ -256,8 +256,10 @@ namespace ESB.TopicHandlers
             {
                 JObject applicationArgs = JObject.Parse(payload);
                 Enum.TryParse(applicationArgs.GetValue("AppFolder").ToString(), true, out AppFolder appFolder);
-                var path = _ctx.ModApi.Application.GetPathFor(appFolder);
-                JObject json = new JObject(new JProperty("Path", Path.GetFullPath(path)));
+                var path = _ctx.ModApi.Application.GetPathFor(appFolder) ?? "N/A";
+                JObject json = new JObject(
+                    new JProperty("AppFolder", appFolder.ToString()),
+                    new JProperty("Path", Path.GetFullPath(path)));
                 await _ctx.Messenger.SendAsync(MessageClass.Response, topic, json.ToString(Newtonsoft.Json.Formatting.None));
             }
             catch (Exception ex)

@@ -59,8 +59,6 @@
     <Compile Include="Configuration\Interfaces\IESBConfig.cs" />
     <Compile Include="Configuration\Interfaces\IMQTTConfig.cs" />
     <Compile Include="Configuration\MQTTConfig.cs" />
-    <Compile Include="Database\Interfaces\IDatabaseManager.cs" />
-    <Compile Include="Database\DatabaseManager.cs" />
     <Compile Include="EventHandlers\EventHandlerFactory.cs" />
     <Compile Include="EventHandlers\Intefaces\IEventHandlerFactory.cs" />
     <Compile Include="EventHandlers\Intefaces\IEventManager.cs" />
@@ -134,15 +132,22 @@
       <Version>1.0.118</Version>
     </PackageReference>
     <PackageReference Include="YamlDotNet">
-      <Version>13.7.1</Version>
+      <Version>15.1.0</Version>
     </PackageReference>
   </ItemGroup>
-  <ItemGroup />
+  <ItemGroup>
+    <Content Include="Models\LocalSchema.sql.txt">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <PropertyGroup>
     <PostBuildEvent>xcopy.exe /D /Y "$(ProjectDir)$(OutDir)*.dll" "C:\SteamRoot\steamapps\common\Empyrion - Galactic Survival\Content\Mods\ESB\*.*"
-xcopy.exe /D /Y "$(ProjectDir)$(OutDir)\Configuration\ESB_Info.yaml" "C:\SteamRoot\steamapps\common\Empyrion - Galactic Survival\Content\Mods\ESB\*.*"
+xcopy.exe /D /Y "$(ProjectDir)$(OutDir)\Configuration\*.*" "C:\SteamRoot\steamapps\common\Empyrion - Galactic Survival\Content\Mods\ESB\*.*"
+xcopy.exe /D /Y "$(ProjectDir)$(OutDir)\Database\*.*" "C:\SteamRoot\steamapps\common\Empyrion - Galactic Survival\Content\Mods\ESB\*.*"
 xcopy.exe /D /Y "$(ProjectDir)$(OutDir)*.dll" "C:\SteamRoot\steamapps\common\Empyrion - Dedicated Server\Content\Mods\ESB\*.*"
-xcopy.exe /D /Y "$(ProjectDir)$(OutDir)\Configuration\ESB_Info.yaml" "C:\SteamRoot\steamapps\common\Empyrion - Dedicated Server\Content\Mods\ESB\*.*"</PostBuildEvent>
+xcopy.exe /D /Y "$(ProjectDir)$(OutDir)\Configuration\*.*" "C:\SteamRoot\steamapps\common\Empyrion - Dedicated Server\Content\Mods\ESB\*.*"
+xcopy.exe /D /Y "$(ProjectDir)$(OutDir)\Database\*.*" "C:\SteamRoot\steamapps\common\Empyrion - Galactic Survival\Content\Mods\ESB\*.*"
+</PostBuildEvent>
   </PropertyGroup>
 </Project>

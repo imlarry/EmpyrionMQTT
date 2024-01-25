@@ -1,7 +1,7 @@
 ﻿using Eleon.Modding;
 using ESB.Common;
 using ESB.Messaging;
-using ESBLog.Database;
+using ESB.Database;
 using Newtonsoft.Json.Linq;
 using System.Data.SQLite;
 using System;
