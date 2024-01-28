@@ -27,6 +27,7 @@ using System.Data;
 using System;
 using Newtonsoft.Json.Linq;
 using System.IO;
+using System.Linq;
 
 namespace ESB.Database
 {
@@ -71,9 +72,9 @@ namespace ESB.Database
         }
 
 
-        private void CloseConnection()
+        public void CloseConnection()
         {
-            if (_connection.State != ConnectionState.Closed)
+            if (_connection != null && _connection.State != System.Data.ConnectionState.Closed)
             {
                 _connection.Close();
             }
@@ -209,6 +210,23 @@ namespace ESB.Database
                     }
                 }
             });
+        }
+
+        public void Import(string filename)
+        {
+            var json = File.ReadAllText(filename);
+            var data = JArray.Parse(json);
+            var tableName = Path.GetFileNameWithoutExtension(filename);
+
+            ExecuteCommand($"DELETE FROM {tableName};");
+
+            foreach (var item in data)
+            {
+                var columnNames = item.Children<JProperty>().Select(p => p.Name).ToList();
+                var values = item.Children<JProperty>().Select(p => p.Value.ToString()).ToList();
+                var insertQuery = $"INSERT INTO {tableName} ({string.Join(", ", columnNames)}) VALUES ({string.Join(", ", values.Select(v => $"'{v}'"))});";
+                ExecuteCommand(insertQuery);
+            }
         }
     }
 }

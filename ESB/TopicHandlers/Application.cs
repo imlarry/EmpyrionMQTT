@@ -9,6 +9,9 @@ using System.IO;
 using System.Threading.Tasks;
 using UnityEngine;
 using System.Diagnostics;
+using StarScraper;
+using static StarScraper.StarFinder;
+using System.Linq;
 
 namespace ESB.TopicHandlers
 {
@@ -23,6 +26,7 @@ namespace ESB.TopicHandlers
 
         public async Task Subscribe()
         {
+            await _ctx.Messenger.SubscribeAsync("Application.StarScraper", StarScraper);
             await _ctx.Messenger.SubscribeAsync("Application.Teleport", Teleport);
             await _ctx.Messenger.SubscribeAsync("Application.DumpMemory", DumpMemory);
             await _ctx.Messenger.SubscribeAsync("Application.WindowInfo", WindowInfo);
@@ -45,6 +49,40 @@ namespace ESB.TopicHandlers
             await _ctx.Messenger.SubscribeAsync("Application.Player_GetInventory", Player_GetInventory); 
         }
 
+        public async Task StarScraper(string topic, string payload)
+        {
+            try
+            {
+                // parse args
+                JObject args = JObject.Parse(payload);
+                string posStr = args.GetValue("Pos").ToString();
+                string filename = Path.GetFullPath(Path.Combine(_ctx.GameManager.GameDataPath, args.GetValue("Filename").ToString()));
+                // scrape stars (thanks to shudson6/EGS-GalacticWaez for access to the star data!)
+                string[] values = posStr.Split(',');
+                VectorInt3 knownPosition = new VectorInt3(int.Parse(values[0]), int.Parse(values[1]), int.Parse(values[2]));
+                StarFinder starFinder = new StarFinder();
+                StarData[] starDataArray = starFinder.SearchStarData(knownPosition);
+                // write star data to file
+                if (filename != "")
+                {
+                    string jsonOut = JsonConvert.SerializeObject(starDataArray);
+                    File.WriteAllText(filename, jsonOut);
+                }
+                //_ctx.DbAccess.Import(filename);
+                //await _ctx.Messenger.SendAsync(MessageClass.Information, topic, new JObject(new JProperty("Msg","starting db load .. this can take awhile")).ToString());
+                JObject json = new JObject(
+                    new JProperty("KnownPosition", knownPosition.ToString()),
+                    new JProperty("Filename", filename),
+                    new JProperty("StarDataCount", starDataArray.Length)
+                    );
+
+                await _ctx.Messenger.SendAsync(MessageClass.Response, topic, json.ToString(Newtonsoft.Json.Formatting.None));
+            }
+            catch (Exception ex)
+            {
+                await _ctx.Messenger.SendAsync(MessageClass.Exception, topic, ex.Message);
+            }
+        }
         public async Task Teleport(string topic, string payload)
         {
             try

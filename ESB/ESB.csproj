@@ -114,6 +114,10 @@
       <Project>{70443289-c45d-4656-97eb-2d2d43a669aa}</Project>
       <Name>ESB.Messaging</Name>
     </ProjectReference>
+    <ProjectReference Include="..\StarScraper\StarScraper.csproj">
+      <Project>{5b145aa1-8244-4c60-94d5-cf152fa70cb8}</Project>
+      <Name>StarScraper</Name>
+    </ProjectReference>
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="EmpyrionNetAPI">

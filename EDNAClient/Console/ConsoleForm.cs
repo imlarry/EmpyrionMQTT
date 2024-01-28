@@ -1,7 +1,7 @@
-﻿
+using System;
 using System.Windows.Forms;
 
-namespace EDNA
+namespace EDNAClient
 {
     public class NonFocusableRichTextBox : RichTextBox
     {
@@ -16,27 +16,26 @@ namespace EDNA
         }
     }
 
-    public partial class ConsoleForm : Form
+    public class ConsoleForm : Form
     {
         public ConsoleForm(TabControl tabControl)
         {
-            InitializeComponent();
-
             // Create the layout and consoles
-            TableLayoutPanel tableLayoutPanel = CreateTableLayoutPanel();
+            SplitContainer splitContainer = CreateSplitContainer();
             NonFocusableRichTextBox outputConsole = CreateOutputConsole();
             TextBox inputConsole = CreateInputConsole(outputConsole);
-            tableLayoutPanel.Controls.Add(outputConsole, 0, 0);
-            tableLayoutPanel.Controls.Add(inputConsole, 0, 1);
+            splitContainer.Panel1.Controls.Add(outputConsole);
+            splitContainer.Panel2.Controls.Add(inputConsole);
 
-            // Set the TextBox to fill its parent control
-            inputConsole.Dock = DockStyle.Fill;
+            // Set the height of the inputConsole to 30 pixels
+            splitContainer.FixedPanel = FixedPanel.Panel2;
+            splitContainer.SplitterDistance = splitContainer.Height - 30;
 
             // Create a new TabPage
             TabPage consoleTab = new("Console");
 
-            // Add the TableLayoutPanel to the TabPage
-            consoleTab.Controls.Add(tableLayoutPanel);
+            // Add the SplitContainer to the TabPage
+            consoleTab.Controls.Add(splitContainer);
 
             // Add the TabPage to the TabControl
             tabControl.TabPages.Add(consoleTab);
@@ -51,17 +50,14 @@ namespace EDNA
             Application.Idle += IdleHandler;
         }
 
-        private TableLayoutPanel CreateTableLayoutPanel()
+        private SplitContainer CreateSplitContainer()
         {
-            TableLayoutPanel tableLayoutPanel = new()
+            SplitContainer splitContainer = new()
             {
                 Dock = DockStyle.Fill,
-                RowCount = 2,
-                ColumnCount = 1
+                Orientation = Orientation.Horizontal
             };
-            tableLayoutPanel.RowStyles.Add(new RowStyle(SizeType.Percent, 100F)); // consoleOutput row
-            tableLayoutPanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 30F)); // consoleInput row
-            return tableLayoutPanel;
+            return splitContainer;
         }
 
         private NonFocusableRichTextBox CreateOutputConsole()
@@ -110,6 +106,5 @@ namespace EDNA
             };
             return inputConsole;
         }
-
     }
 }

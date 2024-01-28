@@ -1,7 +1,7 @@
 using CommandLine;
 using System.Text;
 
-namespace EDNA
+namespace EDNAClient
 {
     public class Options
     {
@@ -33,7 +33,7 @@ namespace EDNA
         public static void Evaluate(string input, NonFocusableRichTextBox outputConsole)
         {
             Parser.Default.ParseArguments<Options>(input.Split(' '))
-                .WithParsed<Options>(opts => RunWithOptions(opts, outputConsole))
+                .WithParsed(opts => RunWithOptions(opts, outputConsole))
                 .WithNotParsed(errs => HandleParseError(errs, outputConsole));
         }
     }

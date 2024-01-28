@@ -22,6 +22,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ESB.Messaging", "ESB.Messag
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ESB.Database", "ESB.Database\ESB.Database.csproj", "{DEF85312-496A-40F1-BC3B-23E7F1EC45A7}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "StarScraper", "StarScraper\StarScraper.csproj", "{5B145AA1-8244-4C60-94D5-CF152FA70CB8}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -52,6 +54,10 @@ Global
 		{DEF85312-496A-40F1-BC3B-23E7F1EC45A7}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{DEF85312-496A-40F1-BC3B-23E7F1EC45A7}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{DEF85312-496A-40F1-BC3B-23E7F1EC45A7}.Release|Any CPU.Build.0 = Release|Any CPU
+		{5B145AA1-8244-4C60-94D5-CF152FA70CB8}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{5B145AA1-8244-4C60-94D5-CF152FA70CB8}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{5B145AA1-8244-4C60-94D5-CF152FA70CB8}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{5B145AA1-8244-4C60-94D5-CF152FA70CB8}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

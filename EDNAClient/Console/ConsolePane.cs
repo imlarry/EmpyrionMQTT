@@ -41,7 +41,7 @@ namespace EDNAClient
                     while (!errorOccurred)
                     {
                         //WriteConsole("EDNA> ");
-                        string ?cmd = Console.ReadLine()?.Trim();
+                        string? cmd = Console.ReadLine()?.Trim();
                         if (cmd != null)
                         {
                             var result = Parser.Default.ParseArguments<ExitOptions, OtherCommandOptions>(cmd.Split(' '));
@@ -82,7 +82,7 @@ namespace EDNAClient
         {
             if (errs.Any())
             {
-                StringBuilder sb = new() ;
+                StringBuilder sb = new();
                 foreach (var err in errs)
                 {
                     sb.AppendLine($"Error: {err.Tag}");
@@ -110,7 +110,7 @@ namespace EDNAClient
 
         [Option('l', "log", Required = false, Default = "EWEoutput.txt", HelpText = "Name of the log file.")]
 
-        public string ?Log { get; set; }
+        public string? Log { get; set; }
     }
 
     [Verb("other")]

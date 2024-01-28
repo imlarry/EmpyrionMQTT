@@ -1,11 +1,50 @@
 using System.Windows.Forms;
+using CommandLine.Text;
+using System.Windows.Forms.VisualStyles;
+using ESB.Database;
+using ESB.TopicHandlers;
+using Newtonsoft.Json.Linq;
 using OpenTK;
 using OpenTK.Graphics.OpenGL;
 
-namespace EDNA
+namespace EDNAClient
 {
+    public class Playfield
+    {
+        public int Ssid { get; set; }
+        public int Pfid { get; set; }
+        public string Name { get; set; }
+        public int PlanetSize { get; set; }
+        public int IconColor { get; set; }
+        public int SectorX { get; set; }
+        public int SectorY { get; set; }
+        public int SectorZ { get; set; }
+        public float PosX { get; set; }
+        public float PosY { get; set; }
+        public float PosZ { get; set; }
+    }
     public class SystemMapForm : Form
     {
+        private void PlotPoints(IEnumerable<Playfield> playfields)
+        {
+            GL.Begin(PrimitiveType.Points);
+
+            foreach (var playfield in playfields)
+            {
+                float x = playfield.SectorX / 100000f;
+                float y = playfield.SectorY / 100000f;
+                float z = playfield.SectorZ / 100000f;
+
+                GL.Vertex3(x, y, z);
+            }
+
+            GL.End();
+        }
+        public void PlotPointsFromJson(JObject json)
+        {
+            var playfields = json["Map"].ToObject<List<Playfield>>();
+            PlotPoints(playfields);
+        }
         public SystemMapForm(TabControl tabControl)
         {
             // Create the layout
@@ -26,6 +65,7 @@ namespace EDNA
 
             // Add the TabPage to the TabControl
             tabControl.TabPages.Add(systemMapTab);
+
         }
 
         private TableLayoutPanel CreateTableLayoutPanel()
@@ -50,6 +90,13 @@ namespace EDNA
             systemMapControl.Load += (s, e) =>
             {
                 GL.ClearColor(Color.Black);
+
+                // Fetch the data and plot the points
+                DbAccess _dbAccess = new("Data Source=C:\\SteamRoot\\steamapps\\common\\Empyrion - Galactic Survival\\Saves\\Games\\Wanderlust\\global.db;Version=3;", true);
+                JObject json = new();
+                _dbAccess.JsonDataset(json, "Map", "select ssid,pfid,name,planetsize,iconcolor,sectorx,sectory,sectorz,posx,posy,posz from Playfields where pftype <> 2 and ssid <= 2", null);
+                this.PlotPointsFromJson(json);
+                var jsonString = json.ToString();
             };
             systemMapControl.Paint += (s, e) =>
             {

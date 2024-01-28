@@ -30,7 +30,7 @@
             // add a button node for creating new groups
             var createGroupNode = bookmarksNode.Nodes.Add("New group");
             createGroupNode.ForeColor = Color.Blue;
-            createGroupNode.NodeFont = new System.Drawing.Font(_treeView.Font, System.Drawing.FontStyle.Italic);
+            createGroupNode.NodeFont = new Font(_treeView.Font, FontStyle.Italic);
 
             // add handler for clicking on leaf items in the treeview
             _treeView.AfterSelect += TreeView_AfterSelect;

@@ -20,9 +20,7 @@ namespace ESB
         private BusManager _busManager;
         private GameManager _gameManager;
 
-        public EmpyrionServiceBus()
-        {
-        }
+        public EmpyrionServiceBus() { } // no constructor as yet
 
         // debug event logging
         //ModGameAPI legacyModApi;

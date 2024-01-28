@@ -1,5 +1,6 @@
 ﻿using Eleon.Modding;
 using EmpyrionNetAPIAccess;
+using ESB.Database;
 using ESB.Messaging;
 using System.Collections.Generic;
 
@@ -19,6 +20,7 @@ namespace ESB.Common
         public ESBConfig ESBConfig { get; set; }
         public BusManager BusManager { get; set; }
         public GameManager GameManager { get; set; }
+        public DbAccess DbAccess { get; set; }
 
         // cache prealloc to expected max + safety to avoid GC (TODO: dial in via dynamic alloc and watching actual max)
         private const int PlayfieldListEntries = 5;

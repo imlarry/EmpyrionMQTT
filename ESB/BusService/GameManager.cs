@@ -74,6 +74,9 @@ namespace ESB
             string dbPath = Path.Combine(GameDataPath, "local.db");
             JObject json;
 
+            // close the previous database connection
+            _cntxt.DbAccess?.CloseConnection();
+
             // create directory for game data if it doesn't exist
             if (!Directory.Exists(GameDataPath))
             {
@@ -83,16 +86,17 @@ namespace ESB
             // create local database if it doesn't exist and populate it with schema
             if (!File.Exists(dbPath))
             {
-                var dbAccess = new DbAccess($"Data Source={dbPath};Version=3;", false);
-                dbAccess.CreateDatabaseFile(GameDataPath, "local.db");
+                _cntxt.DbAccess = new DbAccess($"Data Source={dbPath};Version=3;", false);
+                _cntxt.DbAccess.CreateDatabaseFile(GameDataPath, "local.db");
                 string sqlCommands = File.ReadAllText(Path.Combine(_cntxt.BusManager.ESBModPath, "LocalSchema.sql.txt"));
-                dbAccess.ExecuteCommand(sqlCommands);
+                _cntxt.DbAccess.ExecuteCommand(sqlCommands);
                 json = new JObject(
                     new JProperty("DatabasePath", dbPath),
                     new JProperty("Status", "Created"));
             }
             else
             {
+                _cntxt.DbAccess = new DbAccess($"Data Source={dbPath};Version=3;", false);
                 json = new JObject(
                     new JProperty("DatabasePath", dbPath),
                     new JProperty("Status", "AlreadyExists"));
