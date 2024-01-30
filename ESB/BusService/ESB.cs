@@ -2,6 +2,7 @@
 using EmpyrionNetAPIAccess;
 using ESB.Common;
 using ESB.EventHandlers;
+using System.Runtime.Remoting.Contexts;
 
 // EmpyrionMQTT .. mod entrypoint for MQTT integration with Empyrion Galactic Survival
 
@@ -94,9 +95,10 @@ namespace ESB
             var gameEventHandler = factory.CreateGameEventHandler();
             var playfieldLoadedHandler = factory.CreatePlayfieldLoadedHandler(entityLoadedHandler, entityUnloadedHandler);
             var playfieldUnloadingHandler = factory.CreatePlayfieldUnloadingHandler(entityLoadedHandler, entityUnloadedHandler);
-
+            var updateHandler = factory.CreateUpdateHandler();
+            
             // create the event manager
-            _eventManager = new EventManager(_contextData, chatMessageSentHandler, entityLoadedHandler, entityUnloadedHandler, gameEnteredHandler, gameEventHandler, playfieldLoadedHandler, playfieldUnloadingHandler);
+            _eventManager = new EventManager(_contextData, chatMessageSentHandler, entityLoadedHandler, entityUnloadedHandler, gameEnteredHandler, gameEventHandler, playfieldLoadedHandler, playfieldUnloadingHandler, updateHandler);
 
             // initialize bus manager (message broker, database, etc)
             _busManager = new BusManager(_contextData, _eventManager);

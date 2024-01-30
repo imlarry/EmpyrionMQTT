@@ -1,6 +1,6 @@
 ﻿using ESB.Common;
 using ESB.Messaging;
-using ESB.Intefaces;
+using ESB.Interfaces;
 using Newtonsoft.Json.Linq;
 
 namespace ESB

@@ -1,5 +1,5 @@
 ﻿using ESB.Common;
-using ESB.Intefaces;
+using ESB.Interfaces;
 using ESB.Messaging;
 using Newtonsoft.Json.Linq;
 using System;

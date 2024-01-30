@@ -1,5 +1,6 @@
 ﻿using ESB.Common;
-using ESB.Intefaces;
+using ESB.Interfaces;
+using static EmpyrionNetAPIAccess.EmpyrionModBase;
 
 namespace ESB
 {
@@ -13,16 +14,18 @@ namespace ESB
         readonly private IGameEventHandler _gameEventHandler;
         readonly private IPlayfieldLoadedHandler _playfieldLoadedHandler;
         readonly private IPlayfieldUnloadingHandler _playfieldUnloadingHandler;
+        readonly private IUpdateHandler _updateHandler;
 
         public EventManager
             (ContextData cntxt
             , IChatMessageSentHandler chatMessageSentHandler
-            , IEntityLoadedHandler entityLoadedHandler 
+            , IEntityLoadedHandler entityLoadedHandler
             , IEntityUnloadedHandler entityUnloadedHandler
             , IGameEnteredHandler gameEnteredHandler
             , IGameEventHandler gameEventHandler
             , IPlayfieldLoadedHandler playfieldLoadedHandler
             , IPlayfieldUnloadingHandler playfieldUnloadingHandler
+            , IUpdateHandler updateHandler
             )
         {
             _cntxt = cntxt;
@@ -33,6 +36,7 @@ namespace ESB
             _gameEventHandler = gameEventHandler;
             _playfieldLoadedHandler = playfieldLoadedHandler;
             _playfieldUnloadingHandler = playfieldUnloadingHandler;
+            _updateHandler = updateHandler;
         }
 
         public void EnableEventHandlers()
@@ -42,6 +46,7 @@ namespace ESB
             _cntxt.ModApi.Application.GameEntered += _gameEnteredHandler.Handle;
             _cntxt.ModApi.Application.OnPlayfieldLoaded += _playfieldLoadedHandler.Handle;
             _cntxt.ModApi.Application.OnPlayfieldUnloading += _playfieldUnloadingHandler.Handle;
+            _cntxt.ModApi.Application.Update += _updateHandler.Handle;
         }
 
         public void DisableEventHandlers()
@@ -51,6 +56,7 @@ namespace ESB
             _cntxt.ModApi.Application.GameEntered -= _gameEnteredHandler.Handle;
             _cntxt.ModApi.Application.OnPlayfieldLoaded -= _playfieldLoadedHandler.Handle;
             _cntxt.ModApi.Application.OnPlayfieldUnloading -= _playfieldUnloadingHandler.Handle;
+            _cntxt.ModApi.Application.Update -= _updateHandler.Handle;
         }
 
         /* testing template- test via mock events but not currently used...

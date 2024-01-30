@@ -1,6 +1,6 @@
 using Eleon;
 
-namespace ESB.Intefaces
+namespace ESB.Interfaces
 {
     public interface IChatMessageSentHandler
     {

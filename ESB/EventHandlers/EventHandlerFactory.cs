@@ -45,6 +45,10 @@ namespace ESB.EventHandlers
         {
             return new PlayfieldUnloadingHandler(_contextData, entityLoadedHandler, entityUnloadedHandler);
         }
+        public UpdateHandler CreateUpdateHandler()
+        {
+            return new UpdateHandler(_contextData);
+        }
 
     }
 }

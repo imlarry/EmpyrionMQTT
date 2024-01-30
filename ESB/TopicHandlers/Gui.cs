@@ -4,6 +4,7 @@ using ESB.Messaging;
 using Newtonsoft.Json.Linq;
 using System;
 using System.Threading.Tasks;
+using UnityEngine;
 
 namespace ESB.TopicHandlers
 {
@@ -65,44 +66,61 @@ namespace ESB.TopicHandlers
 
         void DialogActionHandler(int buttonIdx, string linkId, string inputContent, int playerId, int customValue)
         {
-            _ = _ctx.Messenger.SendAsync(MessageClass.Exception, "Gui.ShowDialog", "Button:" + buttonIdx.ToString());
+            JObject json = new JObject(
+                new JProperty("ButtonIdx", buttonIdx),
+                new JProperty("LinkId", linkId),
+                new JProperty("InputContent", inputContent),
+                new JProperty("PlayerId", playerId),
+                new JProperty("CustomValue", customValue)
+            );
+
+            _ = _ctx.Messenger.SendAsync(MessageClass.Information, "Gui.ShowDialog", json.ToString(Newtonsoft.Json.Formatting.None));
         }
 
         public async Task ShowDialog(string topic, string payload)
-        // TODO: this one is causing a stack dump from inside the try/catch ... no idea why
         {
+            bool displayed = false;
             try
             {
-                string[] bt = { "dog", "cat", "duck" };
+                JObject dialogArgs = JObject.Parse(payload);
+                string[] bt = dialogArgs.GetValue("ButtonTexts")?.ToObject<string[]>();
                 var config = new DialogConfig
                 {
-                    TitleText = "TitleText: Your Title Here",
-                    BodyText = "BodyText: This is a test of the emergency broadcast system.",
-                    //CloseOnLinkClick = true,
+                    TitleText = dialogArgs.GetValue("TitleText")?.ToString(),
+                    BodyText = dialogArgs.GetValue("BodyText")?.ToString(),
+                    CloseOnLinkClick = dialogArgs.GetValue("CloseOnLinkClick")?.Value<bool>() ?? true,
                     ButtonTexts = bt,
-                    //ButtonIdxForEsc = 0,
-                    //ButtonIdxForEnter = 1,
-                    //MaxChars = 30,
-                    //Placeholder = "Placeholder",
-                    //InitialContent = "InitialContent"
+                    ButtonIdxForEsc = dialogArgs.GetValue("ButtonIdxForEsc")?.Value<int>() ?? 0,
+                    ButtonIdxForEnter = dialogArgs.GetValue("ButtonIdxForEnter")?.Value<int>() ?? 1,
+                    MaxChars = dialogArgs.GetValue("MaxChars")?.Value<int>() ?? 0,
+                    Placeholder = dialogArgs.GetValue("Placeholder")?.ToString(),
+                    InitialContent = dialogArgs.GetValue("InitialContent")?.ToString()
                 };
                 var handler = new DialogActionHandler(DialogActionHandler);
-                var displayed = _ctx.ModApi.GUI.ShowDialog(config, handler, 0);
-                await _ctx.Messenger.SendAsync(MessageClass.Response, topic, "Displayed: " + displayed.ToString());
+
+                await _ctx.MainThreadRunner.RunOnMainThread(async () =>
+                {
+                    displayed = _ctx.ModApi.GUI.ShowDialog(config, handler, 0);  // requires Unity main thread (see: UpdateHandler.cs)
+                    JObject json = new JObject(new JProperty("Displayed", displayed));
+                    await _ctx.Messenger.SendAsync(MessageClass.Response, topic, json.ToString(Newtonsoft.Json.Formatting.None));
+                });
             }
             catch (Exception ex)
             {
-                await _ctx.Messenger.SendAsync(MessageClass.Exception, topic, ex.Message);
+                _ = _ctx.Messenger.SendAsync(MessageClass.Exception, topic, ex.Message);
             }
         }
 
         public async Task IsWorldVisible(string topic, string payload)
-        // TODO: this one is causing a stack dump from inside the try/catch ... moving on
         {
             try
             {
-                var isWorldVisible = _ctx.ModApi.GUI.IsWorldVisible;
-                await _ctx.Messenger.SendAsync(MessageClass.Response, topic, "IsWorldVisible = " + isWorldVisible.ToString());
+                await _ctx.MainThreadRunner.RunOnMainThread(async () =>
+                {
+                    var isWorldVisible = _ctx.ModApi.GUI.IsWorldVisible;
+                    JObject json = new JObject(new JProperty("IsWorldVisible", isWorldVisible));
+                    await _ctx.Messenger.SendAsync(MessageClass.Response, topic, json.ToString(Newtonsoft.Json.Formatting.None));
+                });
             }
             catch (Exception ex)
             {

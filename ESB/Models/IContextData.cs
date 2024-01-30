@@ -13,6 +13,7 @@ namespace ESB.Common
         BusManager BusManager { get; set; }
         GameManager GameManager { get; set; }
         DbAccess DbAccess { get; set; }
+        MainThreadRunner MainThreadRunner { get; }
         Dictionary<string, IPlayfield> LoadedPlayfield { get; set; }
         Dictionary<int, IEntity> LoadedEntity { get; set; }
 

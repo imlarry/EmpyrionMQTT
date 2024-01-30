@@ -1,6 +1,6 @@
 ﻿using Eleon.Modding;
 
-namespace ESB.Intefaces
+namespace ESB.Interfaces
 {
     public interface IPlayfieldUnloadingHandler
     {

@@ -55,6 +55,7 @@
     <Compile Include="BusService\Interfaces\IBusManager.cs" />
     <Compile Include="BusService\Interfaces\IGameManager.cs" />
     <Compile Include="BusService\Interfaces\ISubscriptionHandler.cs" />
+    <Compile Include="BusService\MainThreadRunner.cs" />
     <Compile Include="Configuration\ESBConfig.cs" />
     <Compile Include="Configuration\Interfaces\IESBConfig.cs" />
     <Compile Include="Configuration\Interfaces\IMQTTConfig.cs" />
@@ -62,6 +63,8 @@
     <Compile Include="EventHandlers\EventHandlerFactory.cs" />
     <Compile Include="EventHandlers\Intefaces\IEventHandlerFactory.cs" />
     <Compile Include="EventHandlers\Intefaces\IEventManager.cs" />
+    <Compile Include="EventHandlers\Intefaces\IUpdateHandler.cs" />
+    <Compile Include="EventHandlers\UpdateHandler.cs" />
     <Compile Include="LegacyEventHandlers\LegacyEventHandlerFactory.cs" />
     <Compile Include="LegacyEventHandlers\Interfaces\ILegacyPlayfieldLoadedHandler.cs" />
     <Compile Include="LegacyEventHandlers\LegacyEventManager.cs" />

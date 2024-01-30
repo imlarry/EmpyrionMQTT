@@ -1,8 +1,9 @@
 ﻿using Eleon;
 using ESB.Common;
 using ESB.Messaging;
-using ESB.Intefaces;
+using ESB.Interfaces;
 using Newtonsoft.Json.Linq;
+using Eleon.Modding;
 
 namespace ESB
 {
@@ -32,6 +33,28 @@ namespace ESB
             new JProperty("Text", chatMsgData.Text)
                     );
             await _cntxt.Messenger.SendAsync(MessageClass.Event, "Application.ChatMessageSent", json.ToString(Newtonsoft.Json.Formatting.None));
+
+            void DialogActionHandler(int buttonIdx, string linkId, string inputContent, int playerId, int customValue)
+            {
+                _ = _cntxt.Messenger.SendAsync(MessageClass.Exception, "Gui.ShowDialog", "Button:" + buttonIdx.ToString());
+            }
+
+            string[] bt = { "esc", "enter", "punt" };
+            var config = new DialogConfig
+            {
+                TitleText = "TitleText",
+                BodyText = "BodyText - This is a test",
+                CloseOnLinkClick = true,
+                ButtonTexts = bt,
+                ButtonIdxForEsc = 0,
+                ButtonIdxForEnter = 1,
+                MaxChars = 0
+                //Placeholder = "Placeholder",
+                //InitialContent = "InitialContent"
+            };
+            var handler = new DialogActionHandler(DialogActionHandler);
+            var displayed = _cntxt.ModApi.GUI.ShowDialog(config, handler, 0);
+            await _cntxt.Messenger.SendAsync(MessageClass.Response, "FromChatHandler", "Displayed: " + displayed.ToString());
         }
     }
 }

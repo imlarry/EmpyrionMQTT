@@ -21,6 +21,7 @@ namespace ESB.Common
         public BusManager BusManager { get; set; }
         public GameManager GameManager { get; set; }
         public DbAccess DbAccess { get; set; }
+        public MainThreadRunner MainThreadRunner { get; } = new MainThreadRunner();
 
         // cache prealloc to expected max + safety to avoid GC (TODO: dial in via dynamic alloc and watching actual max)
         private const int PlayfieldListEntries = 5;

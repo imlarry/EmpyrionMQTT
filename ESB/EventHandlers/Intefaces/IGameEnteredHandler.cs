@@ -1,4 +1,4 @@
-namespace ESB.Intefaces
+namespace ESB.Interfaces
 {
     public interface IGameEnteredHandler
     {
