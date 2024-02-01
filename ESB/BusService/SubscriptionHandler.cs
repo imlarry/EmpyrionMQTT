@@ -23,6 +23,9 @@ namespace ESB
 
             var gui = new Gui(_cntxt);
             await gui.Subscribe();
+
+            var player = new Player(_cntxt);
+            await player.Subscribe();
         }
     }
 }
