@@ -3,13 +3,15 @@ using EmpyrionNetAPIAccess;
 using ESB.Common;
 using ESB.EventHandlers;
 using System.Runtime.Remoting.Contexts;
+using Newtonsoft.Json.Linq;
+using System.Threading.Tasks;
+using ESB.Messaging;
 
 // EmpyrionMQTT .. mod entrypoint for MQTT integration with Empyrion Galactic Survival
 
 namespace ESB
 {
-    public class EmpyrionServiceBus : EmpyrionModBase, IMod
-    // public class EmpyrionServiceBus : IMod, ModInterface // debug event logging
+    public class EmpyrionServiceBus : IMod, ModInterface // debug event logging EmpyrionModBase, IMod
     {
         // ********************************************
         // ************ Local Context Data ************ 
@@ -20,62 +22,43 @@ namespace ESB
         private LegacyEventManager _legacyEventManager;
         private BusManager _busManager;
         private GameManager _gameManager;
+        private ModGameAPI legacyModApi;
 
         public EmpyrionServiceBus() { } // no constructor as yet
 
         // debug event logging
-        //ModGameAPI legacyModApi;
-        //public void Game_Start(ModGameAPI legacyModApi) {}
-        //{
-        //    this.legacyModApi = legacyModApi;
-        //}
-        //
-        //public void Game_Event(CmdId eventId, ushort seqNr, object data)
-        //{
-        //    JObject json = new JObject(
-        //        new JProperty("EventId", eventId.ToString())
-        //        );
-        //    Task.Run(async () =>
-        //    {
-        //        await _contextData.Messenger.SendAsync(MessageClass.Event, "LegacyGameEvent", json.ToString(Newtonsoft.Json.Formatting.None));
-        //    });
-        //}
-        //
-        //public void Game_Exit() {}
-        //public void Game_Update() {}
 
-        // ******************************************** TEST ME (requires changes to EmpyrionModBase)
-        //public class EmpyrionModBase
-        //{
-        //    public virtual void Game_Event(CmdId eventId, ushort seqNr, object data)  // if you want to override the base class's implementation, use the "override" keyword .. potential for adding MQTT publish to ASTICs wrapper
-        //    {
-        //        // Existing implementation...
-        //    }
-        //}
+        public void Game_Start(ModGameAPI legacyModApi)
+        { 
+            this.legacyModApi = legacyModApi;
+        }
 
-        //public class EmpyrionServiceBus : EmpyrionModBase, IMod
-        //{
-        //    public override void Game_Event(CmdId eventId, ushort seqNr, object data)
-        //    {
-        //        // Your custom logic here...
+        public void Game_Event(CmdId eventId, ushort seqNr, object data)
+        {
+            JObject json = new JObject(
+                new JProperty("EventId", eventId.ToString())
+                );
+            Task.Run(async () =>
+            {
+                await _contextData.Messenger.SendAsync(MessageClass.Event, "LegacyGameEvent", json.ToString(Newtonsoft.Json.Formatting.None));
+            });
+        }
 
-        //        // Call the base class's implementation
-        //        base.Game_Event(eventId, seqNr, data);
-        //    }
-        //}
-        // ******************************************** TEST ME
+        public void Game_Exit() { }
+        public void Game_Update() { }
+
 
         // ********************************************
         // ************ EmpyrionModBase API ***********
         // ********************************************
-        public override void Initialize(ModGameAPI dediAPI)
-        {
-            dediAPI.Console_Write("ESB ModGameAPI start");
-            _contextData.ModBase = this;
-            var factory = new LegacyEventHandlerFactory(_contextData);
-            var legacyPlayfieldLoadedHandler = factory.CreateLegacyPlayfieldLoadedHandler();
-            _legacyEventManager = new LegacyEventManager(_contextData, legacyPlayfieldLoadedHandler);
-        }
+        //public override void Initialize(ModGameAPI dediAPI)
+        //{
+        //    dediAPI.Console_Write("ESB ModGameAPI start");
+        //    _contextData.ModBase = this;
+        //    var factory = new LegacyEventHandlerFactory(_contextData);
+        //    var legacyPlayfieldLoadedHandler = factory.CreateLegacyPlayfieldLoadedHandler();
+        //    _legacyEventManager = new LegacyEventManager(_contextData, legacyPlayfieldLoadedHandler);
+        //}
 
         // ********************************************
         // ***************** IMod API *****************

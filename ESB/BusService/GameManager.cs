@@ -6,6 +6,7 @@ using Eleon.Modding;
 using ESB.Common;
 using ESB.Messaging;
 using ESB.Database;
+using System.Collections.Generic;
 
 namespace ESB
 {
@@ -17,6 +18,7 @@ namespace ESB
         public string GameIdentifier { get; private set; }
         public string GameDataPath { get; private set; }
         public string GameMode { get; private set; }
+        public Dictionary<int, string> BlockAndItemMapping { get; private set; }
 
         public GameManager(ContextData context)
         {
@@ -35,13 +37,11 @@ namespace ESB
         {
             if (hasEntered)
             {
-                // set to a "game active" state (I AM THE POWER!)
                 SetGameProperties();
                 await OpenLocalDatabase();
             }
             else
             {
-                // set to a "no game active" state (LET THE POWER RETURN!)
             }
         }
         private void SetGameProperties()
@@ -52,6 +52,12 @@ namespace ESB
             GameIdentifier = GenerateUniqueIdentifier(Path.GetFileName(directories.FirstOrDefault(dir => Path.GetFileName(dir).StartsWith(GameName))));
             GameDataPath = Path.GetFullPath(Path.Combine(_cntxt.BusManager.ESBModPath, "Games", GameIdentifier));
             GameMode = _cntxt.ModApi.Application.Mode.ToString();
+            var mapping = _cntxt.ModApi.Application.GetBlockAndItemMapping();
+            BlockAndItemMapping = new Dictionary<int, string>();
+            foreach (var pair in mapping)
+            {
+                BlockAndItemMapping[pair.Value] = pair.Key;
+            }
         }
 
         private string GenerateUniqueIdentifier(string identifier)

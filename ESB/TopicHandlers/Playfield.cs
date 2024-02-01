@@ -27,7 +27,6 @@ namespace ESB.TopicHandlers
             await _ctx.Messenger.SubscribeAsync("Playfield.MoveEntity", MoveEntity);
         }
 
-        // TODO: ClientPlayfield calls are only available in Client mod .. see MoveEntity below for fix, will require _ctx.LoadedPlayfields ref (or can we derive playfield and entity dictionaries via other interface?)
         public async Task SpawnEntity(string topic, string payload)
         {
             try
@@ -48,7 +47,7 @@ namespace ESB.TopicHandlers
                 await _ctx.Messenger.SendAsync(MessageClass.Exception, topic, ex.Message);
             }
         }
-        // TODO: ClientPlayfield calls are only available in Client mod .. see MoveEntity below for fix, will require _ctx.LoadedPlayfields ref
+
         public async Task SpawnPrefab(string topic, string payload)
         {
             try
@@ -71,7 +70,6 @@ namespace ESB.TopicHandlers
             }
         }
 
-        // TODO: ClientPlayfield calls are only available in Client mod .. see MoveEntity below for fix, will require _ctx.LoadedEntities lookup
         public async Task RemoveEntity(string topic, string payload)
         {
             try
@@ -86,7 +84,7 @@ namespace ESB.TopicHandlers
                 await _ctx.Messenger.SendAsync(MessageClass.Exception, topic, ex.Message);
             }
         }
-        // TODO: ClientPlayfield calls are only available in Client mod .. see MoveEntity below for fix, scan loaded entities for .Structure.Id (ouch!)?
+
         public async Task IsStructureDeviceLocked(string topic, string payload)
         {
             try
@@ -109,9 +107,26 @@ namespace ESB.TopicHandlers
                 await _ctx.Messenger.SendAsync(MessageClass.Exception, topic, ex.Message);
             }
         }
-        // MoveEntity { "EntityId"="<Id:Int>", "Pos"="<X:Real>,<Y:Real>,<Z:Real>" }
-        // moves Entity on the current playfield to Pos
-        public async Task MoveEntity(string topic, string payload)
+
+        //int AddVoxelArea(Vector3 pos, int sizeInMeter)
+        //bool MoveVoxelArea(int id, Vector3 pos)
+        //bool RemoveVoxelArea(int id)
+        //int SpawnTestPlayer(Vector3 pos)
+        //bool RemoveTestPlayer (int entityId)
+        //float GetTerrainHeightAt (float x, float z)
+        //string Name[get]
+        //string PlayfieldType[get]
+        //string PlanetType[get]
+        //string PlanetClass[get]
+        //string SolarSystemName[get]
+        //VectorInt3 SolarSystemCoordinates[get]
+        //bool IsPvP[get]
+        //Dictionary< int, IPlayer > Players[get]
+        //Dictionary<int, IEntity> Entities[get]
+
+        // *********************************************************************************************************************
+        // IEntity interface .. only works in single player client mode
+        public async Task MoveEntity(string topic, string payload)  // this is actually IEntity.Pos[set]
         {
             try
             {
@@ -123,7 +138,7 @@ namespace ESB.TopicHandlers
                     string posStr = args.GetValue("Pos").ToString();
                     string[] values = posStr.Split(',');
                     Vector3 pos = new Vector3(float.Parse(values[0]), float.Parse(values[1]), float.Parse(values[2]));
-                    entityInterface.Position = pos;
+                    entityInterface.Position = pos; // the actual move
                     JObject json = new JObject(
                             new JProperty("EntityId", entityInterface.Id),
                             new JProperty("Pos", entityInterface.Position.ToString())

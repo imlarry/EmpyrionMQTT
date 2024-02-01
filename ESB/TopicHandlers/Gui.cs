@@ -4,7 +4,6 @@ using ESB.Messaging;
 using Newtonsoft.Json.Linq;
 using System;
 using System.Threading.Tasks;
-using UnityEngine;
 
 namespace ESB.TopicHandlers
 {
@@ -29,7 +28,7 @@ namespace ESB.TopicHandlers
         {
             await _ctx.Messenger.SendAsync(MessageClass.Response, topic, "this is the reply from Edna_Selftest(T,P)");
         }
-            public async Task ShowGameMessage(string topic, string payload)
+        public async Task ShowGameMessage(string topic, string payload)
         {
             try
             {

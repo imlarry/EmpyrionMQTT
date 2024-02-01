@@ -21,8 +21,8 @@ namespace ESB.Common
         public BusManager BusManager { get; set; }
         public GameManager GameManager { get; set; }
         public DbAccess DbAccess { get; set; }
-        public MainThreadRunner MainThreadRunner { get; } = new MainThreadRunner();
-
+        public MainThreadRunner MainThreadRunner { get; } = new MainThreadRunner(); // should I constuct this here?
+        
         // cache prealloc to expected max + safety to avoid GC (TODO: dial in via dynamic alloc and watching actual max)
         private const int PlayfieldListEntries = 5;
         private const int EntityListEntries = 100;

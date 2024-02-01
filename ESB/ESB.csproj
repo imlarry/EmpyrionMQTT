@@ -70,6 +70,9 @@
     <Compile Include="LegacyEventHandlers\LegacyEventManager.cs" />
     <Compile Include="LegacyEventHandlers\LegacyPlayfieldLoadedHandler.cs" />
     <Compile Include="Models\IContextData.cs" />
+    <Compile Include="Models\ItemStackWithName.cs" />
+    <Compile Include="TopicHandlers\Interfaces\IPlayer.cs" />
+    <Compile Include="TopicHandlers\Player.cs" />
     <Compile Include="TopicHandlers\Interfaces\IApplication.cs" />
     <Compile Include="TopicHandlers\Interfaces\IGui.cs" />
     <Compile Include="TopicHandlers\Interfaces\IPlayfield.cs" />
