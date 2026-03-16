@@ -5,6 +5,7 @@ namespace ESB.TopicHandlers
     public interface IPlayfield
     {
         Task Subscribe();
+        Task Info(string topic, string payload);
         Task SpawnEntity(string topic, string payload);
         Task SpawnPrefab(string topic, string payload);
         Task RemoveEntity(string topic, string payload);

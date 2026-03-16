@@ -26,6 +26,9 @@ namespace ESB
 
             var player = new Player(_cntxt);
             await player.Subscribe();
+
+            var structure = new Structure(_cntxt);
+            await structure.Subscribe();
         }
     }
 }

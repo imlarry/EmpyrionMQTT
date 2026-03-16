@@ -7,5 +7,6 @@ namespace ESB.TopicHandlers
         Task Subscribe();
         Task Teleport(string topic, string payload);
         Task SteamId(string topic, string payload);
+        Task Stats(string topic, string payload);
     }
 }

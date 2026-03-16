@@ -26,7 +26,7 @@ namespace ESB.TopicHandlers
 
         public async Task Edna_Selftest(string topic, string payload)
         {
-            await _ctx.Messenger.SendAsync(MessageClass.Response, topic, "this is the reply from Edna_Selftest(T,P)");
+            await _ctx.Messenger.SendAsync(MessageClass.Response, topic, new JObject(new JProperty("Message", "Edna_Selftest OK")).ToString(Newtonsoft.Json.Formatting.None));
         }
         public async Task ShowGameMessage(string topic, string payload)
         {
@@ -36,30 +36,24 @@ namespace ESB.TopicHandlers
                 string text = GuiArgs.GetValue("Text")?.ToString();
                 int? prio = GuiArgs.GetValue("Prio")?.Value<int>();
                 float? duration = GuiArgs.GetValue("Duration")?.Value<float>();
-                // make the call (all variations of optional defaulted params)
-                if (prio.HasValue && duration.HasValue)
-                {
-                    _ctx.ModApi.GUI.ShowGameMessage(text, prio.Value, duration.Value);
-                }
-                else if (prio.HasValue)
-                {
-                    _ctx.ModApi.GUI.ShowGameMessage(text, prio.Value);
-                }
-                else if (duration.HasValue)
-                {
-                    _ctx.ModApi.GUI.ShowGameMessage(text, duration: duration.Value);
-                }
-                else
-                {
-                    _ctx.ModApi.GUI.ShowGameMessage(text);
-                }
 
-                JObject json = new JObject(new JProperty("Path", "TODO"));
-                await _ctx.Messenger.SendAsync(MessageClass.Response, topic, json.ToString(Newtonsoft.Json.Formatting.None));
+                await _ctx.MainThreadRunner.RunOnMainThread(async () =>
+                {
+                    if (prio.HasValue && duration.HasValue)
+                        _ctx.ModApi.GUI.ShowGameMessage(text, prio.Value, duration.Value);
+                    else if (prio.HasValue)
+                        _ctx.ModApi.GUI.ShowGameMessage(text, prio.Value);
+                    else if (duration.HasValue)
+                        _ctx.ModApi.GUI.ShowGameMessage(text, duration: duration.Value);
+                    else
+                        _ctx.ModApi.GUI.ShowGameMessage(text);
+
+                    await _ctx.Messenger.SendAsync(MessageClass.Response, topic, new JObject(new JProperty("Text", text)).ToString(Newtonsoft.Json.Formatting.None));
+                });
             }
             catch (Exception ex)
             {
-                await _ctx.Messenger.SendAsync(MessageClass.Exception, topic, ex.Message);
+                await _ctx.Messenger.SendAsync(MessageClass.Exception, topic, MessageHelpers.ExceptionJson(ex));
             }
         }
 
@@ -106,7 +100,7 @@ namespace ESB.TopicHandlers
             }
             catch (Exception ex)
             {
-                _ = _ctx.Messenger.SendAsync(MessageClass.Exception, topic, ex.Message);
+                _ = _ctx.Messenger.SendAsync(MessageClass.Exception, topic, MessageHelpers.ExceptionJson(ex));
             }
         }
 
@@ -123,7 +117,7 @@ namespace ESB.TopicHandlers
             }
             catch (Exception ex)
             {
-                await _ctx.Messenger.SendAsync(MessageClass.Exception, topic, ex.Message);
+                await _ctx.Messenger.SendAsync(MessageClass.Exception, topic, MessageHelpers.ExceptionJson(ex));
             }
         }
     }

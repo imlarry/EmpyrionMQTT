@@ -1,4 +1,5 @@
-﻿using Eleon.Modding;
+﻿
+using Eleon.Modding;
 using ESB.Common;
 using ESB.Messaging;
 using Newtonsoft.Json;
@@ -9,8 +10,6 @@ using System.IO;
 using System.Threading.Tasks;
 using UnityEngine;
 using System.Diagnostics;
-using StarScraper;
-using static StarScraper.StarFinder;
 
 namespace ESB.TopicHandlers
 {
@@ -25,7 +24,6 @@ namespace ESB.TopicHandlers
 
         public async Task Subscribe()
         {
-            await _ctx.Messenger.SubscribeAsync("Application.StarScraper", StarScraper);
             await _ctx.Messenger.SubscribeAsync("Application.Teleport", Teleport);
             await _ctx.Messenger.SubscribeAsync("Application.DumpMemory", DumpMemory);
             await _ctx.Messenger.SubscribeAsync("Application.WindowInfo", WindowInfo);
@@ -45,69 +43,32 @@ namespace ESB.TopicHandlers
             await _ctx.Messenger.SubscribeAsync("Application.Mode", Mode);
             await _ctx.Messenger.SubscribeAsync("Application.LocalPlayer", LocalPlayer);
             await _ctx.Messenger.SubscribeAsync("Application.GameTicks", GameTicks);
-            await _ctx.Messenger.SubscribeAsync("Application.Player_GetInventory", Player_GetInventory); 
+            await _ctx.Messenger.SubscribeAsync("Application.Player_GetInventory", Player_GetInventory);
         }
 
-        public async Task StarScraper(string topic, string payload)
-        {
-            try
-            {
-                // parse args
-                JObject args = JObject.Parse(payload);
-                string posStr = args.GetValue("Pos").ToString();
-                string filename = Path.GetFullPath(Path.Combine(_ctx.GameManager.GameDataPath, args.GetValue("Filename").ToString()));
-                // scrape stars (thanks to shudson6/EGS-GalacticWaez for access to the star data!)
-                string[] values = posStr.Split(',');
-                VectorInt3 knownPosition = new VectorInt3(int.Parse(values[0]), int.Parse(values[1]), int.Parse(values[2]));
-                StarFinder starFinder = new StarFinder();
-                StarData[] starDataArray = starFinder.SearchStarData(knownPosition);
-                // write star data to file
-                if (filename != "")
-                {
-                    string jsonOut = JsonConvert.SerializeObject(starDataArray);
-                    File.WriteAllText(filename, jsonOut);
-                }
-                //_ctx.DbAccess.Import(filename);
-                //await _ctx.Messenger.SendAsync(MessageClass.Information, topic, new JObject(new JProperty("Msg","starting db load .. this can take awhile")).ToString());
-                JObject json = new JObject(
-                    new JProperty("KnownPosition", knownPosition.ToString()),
-                    new JProperty("Filename", filename),
-                    new JProperty("StarDataCount", starDataArray.Length)
-                    );
-
-                await _ctx.Messenger.SendAsync(MessageClass.Response, topic, json.ToString(Newtonsoft.Json.Formatting.None));
-            }
-            catch (Exception ex)
-            {
-                await _ctx.Messenger.SendAsync(MessageClass.Exception, topic, ex.Message);
-            }
-        }
         public async Task Teleport(string topic, string payload)
         {
             try
             {
                 JObject args = JObject.Parse(payload);
-                //var playfield = args.GetValue("Playfield").ToString();
-                //string posStr = args.GetValue("Pos").ToString();
-                //string rotStr = args.GetValue("Rot").ToString();
-                //string[] values = posStr.Split(',');
-                //Vector3 pos = new Vector3(float.Parse(values[0]), float.Parse(values[1]), float.Parse(values[2]));
-                string playfield = "Adedirha";
-                Vector3 pos = new Vector3(500.0f, 500.0f, 500.0f);
-                Vector3 rot = new Vector3(0.0f, 0.0f, 0.0f);
-                JObject json = new JObject(
-                    new JProperty("ReadPlayfield", playfield),
-                    new JProperty("ReadPos", pos.ToString()),
-                    new JProperty("ReadRot", rot.ToString())
-                    );
-                await _ctx.Messenger.SendAsync(MessageClass.Information, topic, json.ToString(Newtonsoft.Json.Formatting.None));
-                //var bret = _ctx.ModApi.Application.LocalPlayer.Teleport(pos);
-                var bret = _ctx.ModApi.Application.LocalPlayer.Teleport(playfield, pos, rot);
-                await _ctx.Messenger.SendAsync(MessageClass.Response, topic, bret.ToString()); // json.ToString(Newtonsoft.Json.Formatting.None));
+                string playfield = args.GetValue("Playfield").ToString();
+                Vector3 pos = MessageHelpers.ParseVec3(args["Pos"]);
+                Vector3 rot = MessageHelpers.ParseVec3(args["Rot"]);
+                await _ctx.MainThreadRunner.RunOnMainThread(async () =>
+                {
+                    var localPlayer = _ctx.ModApi.Application.LocalPlayer;
+                    if (localPlayer == null)
+                    {
+                        await _ctx.Messenger.SendAsync(MessageClass.Exception, topic, MessageHelpers.ErrorJson("LocalPlayer is null - Teleport is only valid on a client mod with an active player"));
+                        return;
+                    }
+                    var bret = localPlayer.Teleport(playfield, pos, rot);
+                    await _ctx.Messenger.SendAsync(MessageClass.Response, topic, bret.ToString());
+                });
             }
             catch (Exception ex)
             {
-                await _ctx.Messenger.SendAsync(MessageClass.Exception, topic, ex.Message);
+                await _ctx.Messenger.SendAsync(MessageClass.Exception, topic, MessageHelpers.ExceptionJson(ex));
             }
         }
 
@@ -124,7 +85,7 @@ namespace ESB.TopicHandlers
             }
             catch (Exception ex)
             {
-                await _ctx.Messenger.SendAsync(MessageClass.Exception, topic, ex.Message);
+                await _ctx.Messenger.SendAsync(MessageClass.Exception, topic, MessageHelpers.ExceptionJson(ex));
             }
         }
 
@@ -134,11 +95,11 @@ namespace ESB.TopicHandlers
             {
                 WinInfo windownInfo = new WinInfo();
                 JObject json = JObject.FromObject(windownInfo);
-                await _ctx.Messenger.SendAsync(MessageClass.Request, topic, json.ToString(Newtonsoft.Json.Formatting.None));
+                await _ctx.Messenger.SendAsync(MessageClass.Response, topic, json.ToString(Newtonsoft.Json.Formatting.None));
             }
             catch (Exception ex)
             {
-                await _ctx.Messenger.SendAsync(MessageClass.Exception, topic, ex.Message);
+                await _ctx.Messenger.SendAsync(MessageClass.Exception, topic, MessageHelpers.ExceptionJson(ex));
             }
         }
 
@@ -151,36 +112,56 @@ namespace ESB.TopicHandlers
                 int duration = Convert.ToInt32(applicationArgs.GetValue("Duration"));
                 int refreshRate = Convert.ToInt32(applicationArgs.GetValue("RefreshRate"));
 
-                // Start a new task for the entity
+                // Start a background trace loop - position reads happen on the main thread
                 _ = Task.Run(async () =>
                 {
-                    var entity = _ctx.GetEntityByKey(entityId);
-                    if (entity != null)
+                    try
                     {
-                        DateTime startTime = DateTime.Now;
+                        if (_ctx.GetEntityByKey(entityId) == null)
+                        {
+                            await _ctx.Messenger.SendAsync(MessageClass.Exception, topic, MessageHelpers.ErrorJson($"Entity {entityId} not found in LoadedEntity cache"));
+                            return;
+                        }
 
+                        DateTime startTime = DateTime.Now;
                         while ((DateTime.Now - startTime).TotalSeconds < duration)
                         {
-                            Vector3 position = entity.Position;
+                            // Re-check cache each tick - entity may have been killed/unloaded
+                            var entity = _ctx.GetEntityByKey(entityId);
+                            if (entity == null)
+                            {
+                                await _ctx.Messenger.SendAsync(MessageClass.Event, topic,
+                                    new JObject(new JProperty("Status", "EntityLost"), new JProperty("EntityId", entityId)).ToString(Formatting.None));
+                                return;
+                            }
+
+                            // Read position on main thread - Unity objects require it
+                            Vector3 position = default;
+                            await _ctx.MainThreadRunner.RunOnMainThread(async () =>
+                            {
+                                position = entity.Position;
+                                await Task.CompletedTask;
+                            });
+
                             JObject json = new JObject(
+                                new JProperty("EntityId", entityId),
                                 new JProperty("Position", new JObject(
                                     new JProperty("X", position.x),
                                     new JProperty("Y", position.y),
                                     new JProperty("Z", position.z)
                                 ))
                             );
-                            await _ctx.Messenger.SendAsync(MessageClass.Request, topic, json.ToString(Newtonsoft.Json.Formatting.None));
+                            await _ctx.Messenger.SendAsync(MessageClass.Event, topic, json.ToString(Formatting.None));
 
-                            // Wait for the refresh interval before the next update
                             await Task.Delay(TimeSpan.FromSeconds(refreshRate));
                         }
 
-                        // Send a final message indicating that the trace has expired
-                        await _ctx.Messenger.SendAsync(MessageClass.Information, topic, $"TraceExpired for EntityId: {entityId}");
+                        await _ctx.Messenger.SendAsync(MessageClass.Information, topic,
+                            new JObject(new JProperty("Status", "TraceExpired"), new JProperty("EntityId", entityId)).ToString(Formatting.None));
                     }
-                    else
+                    catch (Exception ex)
                     {
-                        await _ctx.Messenger.SendAsync(MessageClass.Exception, topic, "Entity not found");
+                        await _ctx.Messenger.SendAsync(MessageClass.Exception, topic, MessageHelpers.ExceptionJson(ex));
                     }
                 });
             }
@@ -192,55 +173,70 @@ namespace ESB.TopicHandlers
 
         public async Task ShowEntity(string topic, string payload)
         {
+            try
+            {
             JObject applicationArgs = JObject.Parse(payload);
             int entityId = Convert.ToInt32(applicationArgs.GetValue("EntityId"));
             var entity = _ctx.GetEntityByKey(entityId);
 
+            if (entity == null)
+            {
+                await _ctx.Messenger.SendAsync(MessageClass.Exception, topic, MessageHelpers.ErrorJson($"Entity {entityId} not found in LoadedEntity cache"));
+                return;
+            }
+
+            string factionStr;
+            try { factionStr = entity.Faction.ToString(); } catch { factionStr = null; }
+
             JObject json = new JObject(
                 new JProperty("Id", entity.Id),
                 new JProperty("Name", entity.Name),
-                new JProperty("Faction", entity.Faction.ToString()),
+                new JProperty("Faction", factionStr),
                 new JProperty("Position", new JObject(
                     new JProperty("X", entity.Position.x),
                     new JProperty("Y", entity.Position.y),
                     new JProperty("Z", entity.Position.z)
                 )),
-                new JProperty("Forward", entity.Forward.ToString()),
-                new JProperty("Rotation", entity.Rotation.ToString()),
+                new JProperty("Forward", MessageHelpers.Vec(entity.Forward)),
+                new JProperty("Rotation", MessageHelpers.Vec(entity.Rotation)),
                 new JProperty("IsLocal", entity.IsLocal),
                 new JProperty("IsProxy", entity.IsProxy),
                 new JProperty("IsPoi", entity.IsPoi),
                 new JProperty("BelongsTo", entity.BelongsTo),
                 new JProperty("DockedTo", entity.DockedTo),
-                new JProperty("Type", entity.Type)
+                new JProperty("Type", entity.Type.ToString())
             );
 
             if (entity.Structure != null)
             {
+                var s = entity.Structure;
                 JObject structureJson = new JObject(
-                    new JProperty("MinPos", entity.Structure.MinPos.ToString()),
-                    new JProperty("MaxPos", entity.Structure.MaxPos.ToString()),
-                    new JProperty("Id", entity.Structure.Id),
-                    new JProperty("IsReady", entity.Structure.IsReady),
-                    new JProperty("IsPowered", entity.Structure.IsPowered),
-                    new JProperty("IsOfflineProtectable", entity.Structure.IsOfflineProtectable),
-                    new JProperty("DamageLevel", entity.Structure.DamageLevel),   // divide by zero error on entity load (before "Ready = true")
-                    new JProperty("BlockCount", entity.Structure.BlockCount),
-                    new JProperty("DeviceCount", entity.Structure.DeviceCount),
-                    new JProperty("LightCount", entity.Structure.LightCount),
-                    new JProperty("TriangleCount", entity.Structure.TriangleCount),
-                    new JProperty("Fuel", entity.Structure.Fuel),
-                    new JProperty("PowerOutCapacity", entity.Structure.PowerOutCapacity),
-                    new JProperty("PowerConsumption", entity.Structure.PowerConsumption),
-                    new JProperty("PlayerCreatedSteamId", entity.Structure.PlayerCreatedSteamId),
-                    new JProperty("CoreType", entity.Structure.CoreType.ToString()),
-                    new JProperty("SizeClass", entity.Structure.SizeClass),
-                    new JProperty("IsShieldActive", entity.Structure.IsShieldActive),
-                    new JProperty("ShieldLevel", entity.Structure.ShieldLevel),
-                    new JProperty("TotalMass", entity.Structure.TotalMass),
-                    new JProperty("HasLandClaimDevice", entity.Structure.HasLandClaimDevice),
-                    new JProperty("LastVisitedTicks", entity.Structure.LastVisitedTicks)
+                    new JProperty("Id", s.Id),
+                    new JProperty("IsReady", s.IsReady),
+                    new JProperty("MinPos", MessageHelpers.Vec(s.MinPos)),
+                    new JProperty("MaxPos", MessageHelpers.Vec(s.MaxPos)),
+                    new JProperty("PlayerCreatedSteamId", s.PlayerCreatedSteamId),
+                    new JProperty("CoreType", s.CoreType.ToString()),
+                    new JProperty("SizeClass", s.SizeClass),
+                    new JProperty("LastVisitedTicks", s.LastVisitedTicks)
                 );
+                if (s.IsReady)
+                {
+                    structureJson.Add(new JProperty("IsPowered", s.IsPowered));
+                    structureJson.Add(new JProperty("IsOfflineProtectable", s.IsOfflineProtectable));
+                    structureJson.Add(new JProperty("DamageLevel", s.DamageLevel));
+                    structureJson.Add(new JProperty("BlockCount", s.BlockCount));
+                    structureJson.Add(new JProperty("DeviceCount", s.DeviceCount));
+                    structureJson.Add(new JProperty("LightCount", s.LightCount));
+                    structureJson.Add(new JProperty("TriangleCount", s.TriangleCount));
+                    structureJson.Add(new JProperty("Fuel", s.Fuel));
+                    structureJson.Add(new JProperty("PowerOutCapacity", s.PowerOutCapacity));
+                    structureJson.Add(new JProperty("PowerConsumption", s.PowerConsumption));
+                    structureJson.Add(new JProperty("IsShieldActive", s.IsShieldActive));
+                    structureJson.Add(new JProperty("ShieldLevel", s.ShieldLevel));
+                    structureJson.Add(new JProperty("TotalMass", s.TotalMass));
+                    structureJson.Add(new JProperty("HasLandClaimDevice", s.HasLandClaimDevice));
+                }
                 json.Add(new JProperty("Structure", structureJson));
             }
             else
@@ -249,6 +245,11 @@ namespace ESB.TopicHandlers
             }
 
             await _ctx.Messenger.SendAsync(MessageClass.Response, topic, json.ToString(Newtonsoft.Json.Formatting.None));
+            }
+            catch (Exception ex)
+            {
+                await _ctx.Messenger.SendAsync(MessageClass.Exception, topic, MessageHelpers.ExceptionJson(ex));
+            }
         }
 
         public async Task Player_GetInventory(string topic, string payload)
@@ -272,7 +273,7 @@ namespace ESB.TopicHandlers
             }
             catch (Exception ex)
             {
-                await _ctx.Messenger.SendAsync(MessageClass.Exception, topic, ex.Message);
+                await _ctx.Messenger.SendAsync(MessageClass.Exception, topic, MessageHelpers.ExceptionJson(ex));
             }
         }
 
@@ -301,7 +302,7 @@ namespace ESB.TopicHandlers
             }
             catch (Exception ex)
             {
-                await _ctx.Messenger.SendAsync(MessageClass.Exception, topic, ex.Message);
+                await _ctx.Messenger.SendAsync(MessageClass.Exception, topic, MessageHelpers.ExceptionJson(ex));
             }
         }
 
@@ -326,7 +327,7 @@ namespace ESB.TopicHandlers
             }
             catch (Exception ex)
             {
-                await _ctx.Messenger.SendAsync(MessageClass.Exception, topic, ex.Message);
+                await _ctx.Messenger.SendAsync(MessageClass.Exception, topic, MessageHelpers.ExceptionJson(ex));
             }
         }
 
@@ -342,13 +343,13 @@ namespace ESB.TopicHandlers
                 }
                 else
                 {
-                    await _ctx.Messenger.SendAsync(MessageClass.Response, topic, "call returned null");     // TODO: json format
+                    await _ctx.Messenger.SendAsync(MessageClass.Exception, topic, MessageHelpers.ErrorJson("GetPfServerInfos returned null"));
                 }
 
             }
             catch (Exception ex)
             {
-                await _ctx.Messenger.SendAsync(MessageClass.Exception, topic, ex.Message);
+                await _ctx.Messenger.SendAsync(MessageClass.Exception, topic, MessageHelpers.ExceptionJson(ex));
             }
         }
 
@@ -362,7 +363,7 @@ namespace ESB.TopicHandlers
             }
             catch (Exception ex)
             {
-                await _ctx.Messenger.SendAsync(MessageClass.Exception, topic, ex.Message);
+                await _ctx.Messenger.SendAsync(MessageClass.Exception, topic, MessageHelpers.ExceptionJson(ex));
             }
         }
 
@@ -371,95 +372,262 @@ namespace ESB.TopicHandlers
             try
             {
                 JObject applicationArgs = JObject.Parse(payload);
-                int? playerEntityId = applicationArgs.GetValue("PlayerEntityId")?.Value<int>() ?? null;
-                if (playerEntityId.HasValue)
+                int? playerEntityId = applicationArgs.GetValue("PlayerEntityId")?.Value<int>();
+                if (!playerEntityId.HasValue)
                 {
-                    var playerData = _ctx.ModApi.Application.GetPlayerDataFor(playerEntityId.Value);
-                    string json = JsonConvert.SerializeObject(playerData);
-                    await _ctx.Messenger.SendAsync(MessageClass.Response, topic, json);
+                    await _ctx.Messenger.SendAsync(MessageClass.Exception, topic, MessageHelpers.ErrorJson("PlayerEntityId is required"));
+                    return;
                 }
+                var playerData = _ctx.ModApi.Application.GetPlayerDataFor(playerEntityId.Value);
+                string json = JsonConvert.SerializeObject(playerData);
+                await _ctx.Messenger.SendAsync(MessageClass.Response, topic, json);
             }
             catch (Exception ex)
             {
-                await _ctx.Messenger.SendAsync(MessageClass.Exception, topic, ex.Message);
+                await _ctx.Messenger.SendAsync(MessageClass.Exception, topic, MessageHelpers.ExceptionJson(ex));
             }
         }
 
+        // Claude Code Implementation - 2025-01-03
+        // Parses MessageData from JSON payload and sends chat message to game
         public async Task SendChatMessage(string topic, string payload)
         {
             try
             {
-                await _ctx.Messenger.SendAsync(MessageClass.Response, topic, "stub");
+                JObject applicationArgs = JObject.Parse(payload);
+
+                // Parse MessageData fields from JSON
+                var messageData = new Eleon.MessageData()
+                {
+                    Text = applicationArgs.GetValue("Text")?.ToString() ?? "",
+                    Channel = Enum.TryParse<Eleon.MsgChannel>(applicationArgs.GetValue("Channel")?.ToString(), true, out var channel)
+                        ? channel
+                        : Eleon.MsgChannel.Global,
+                    SenderType = Enum.TryParse<Eleon.SenderType>(applicationArgs.GetValue("SenderType")?.ToString(), true, out var senderType)
+                        ? senderType
+                        : Eleon.SenderType.ServerInfo,
+                };
+
+                // Optional fields
+                if (applicationArgs.ContainsKey("SenderEntityId"))
+                    messageData.SenderEntityId = applicationArgs.GetValue("SenderEntityId").Value<int>();
+
+                if (applicationArgs.ContainsKey("SenderNameOverride"))
+                    messageData.SenderNameOverride = applicationArgs.GetValue("SenderNameOverride")?.ToString();
+
+                if (applicationArgs.ContainsKey("RecipientEntityId"))
+                    messageData.RecipientEntityId = applicationArgs.GetValue("RecipientEntityId").Value<int>();
+
+                if (applicationArgs.ContainsKey("IsTextLocaKey"))
+                    messageData.IsTextLocaKey = applicationArgs.GetValue("IsTextLocaKey").Value<bool>();
+
+                if (applicationArgs.ContainsKey("Arg1"))
+                    messageData.Arg1 = applicationArgs.GetValue("Arg1")?.ToString();
+
+                if (applicationArgs.ContainsKey("Arg2"))
+                    messageData.Arg2 = applicationArgs.GetValue("Arg2")?.ToString();
+
+                // Send chat message via API
+                _ctx.ModApi.Application.SendChatMessage(messageData);
+
+                await _ctx.Messenger.SendAsync(MessageClass.Response, topic, new JObject(new JProperty("Message", "Chat message sent successfully")).ToString(Formatting.None));
             }
             catch (Exception ex)
             {
-                await _ctx.Messenger.SendAsync(MessageClass.Exception, topic, ex.Message);
+                await _ctx.Messenger.SendAsync(MessageClass.Exception, topic, MessageHelpers.ExceptionJson(ex));
             }
         }
 
-        void DialogActionHandler(int buttonIdx, string linkId, string inputContent, int playerId, int customValue)
-        {
-            //_ = _ctx.Messenger.SendAsync("Application.ShowDialogBox/X", "Button:" + buttonIdx.ToString());
-            _ctx.ModApi.Log("entering ShowDialogBox actionRoutine");
-        }
+        // Claude Code Implementation - 2025-01-03
+        // Shows a dialog box to a player with configurable title, body, buttons, and optional input field
+        // User interactions are published back to MQTT on "Application.DialogResponse" topic
         public async Task ShowDialogBox(string topic, string payload)
         {
-            //try
-            //{
-                _ctx.ModApi.Log("entering ShowDialogBox");
-                var playerId = _ctx.ModApi.Application.LocalPlayer.Id;
-                //var playerData = _ctx.ModApi.Application.GetPlayerDataFor(playerId);
-                //string json = JsonConvert.SerializeObject(playerData);
-                //await _ctx.Messenger.SendAsync(topic, json, MessageClass.Information);
-                string[] bt = { "dog", "cat", "duck" };
-                var config = new DialogConfig() // the parens here forces calling the constructor (which probably populates stuff behind the curtain!)
+            try
+            {
+                JObject applicationArgs = JObject.Parse(payload);
+
+                // Parse player entity ID (required)
+                int playerEntityId = applicationArgs.GetValue("PlayerEntityId")?.Value<int>() ?? _ctx.ModApi.Application.LocalPlayer.Id;
+
+                // Parse DialogConfig from JSON
+                var config = new Eleon.Modding.DialogConfig()
                 {
-                    TitleText = "TitleText",
-                    BodyText = "BodyText",
-                    ButtonTexts = bt,
-                    ButtonIdxForEsc = 0,
-                    ButtonIdxForEnter = 1,
-                    CloseOnLinkClick = true,
-                    MaxChars = 30,
-                    Placeholder = "Placeholder",
-                    InitialContent = "InitialContent"
+                    TitleText = applicationArgs.GetValue("TitleText")?.ToString() ?? "Dialog",
+                    BodyText = applicationArgs.GetValue("BodyText")?.ToString() ?? "",
+                    CloseOnLinkClick = applicationArgs.GetValue("CloseOnLinkClick")?.Value<bool>() ?? true,
+                    ButtonIdxForEsc = applicationArgs.GetValue("ButtonIdxForEsc")?.Value<int>() ?? -1,
+                    ButtonIdxForEnter = applicationArgs.GetValue("ButtonIdxForEnter")?.Value<int>() ?? -1,
+                    MaxChars = applicationArgs.GetValue("MaxChars")?.Value<int>() ?? 0,
+                    Placeholder = applicationArgs.GetValue("Placeholder")?.ToString(),
+                    InitialContent = applicationArgs.GetValue("InitialContent")?.ToString()
                 };
-                var displayed = _ctx.ModApi.Application.ShowDialogBox(playerId, config, DialogActionHandler, 0);
-                await _ctx.Messenger.SendAsync(MessageClass.Response, topic, "Displayed: " + displayed.ToString());
-            //}
-            //catch (Exception ex)
-            //{
-            //    await _ctx.Messenger.SendAsync(MessageClass.Exception, topic, ex.Message);
-            //}
+
+                // Parse ButtonTexts array (0=left, 1=mid, 2=right)
+                if (applicationArgs.ContainsKey("ButtonTexts"))
+                {
+                    var buttonTextsArray = applicationArgs.GetValue("ButtonTexts") as JArray;
+                    if (buttonTextsArray != null)
+                    {
+                        config.ButtonTexts = buttonTextsArray.ToObject<string[]>();
+                    }
+                }
+
+                // Custom value for request/response matching
+                int customValue = applicationArgs.GetValue("CustomValue")?.Value<int>() ?? 0;
+
+                // Define dialog action handler - publishes user interaction to MQTT
+                void DialogActionHandler(int buttonIdx, string linkId, string inputContent, int playerId, int customVal)
+                {
+                    JObject response = new JObject(
+                        new JProperty("PlayerEntityId", playerId),
+                        new JProperty("ButtonIdx", buttonIdx),
+                        new JProperty("LinkId", linkId ?? ""),
+                        new JProperty("InputContent", inputContent ?? ""),
+                        new JProperty("CustomValue", customVal)
+                    );
+
+                    _ = _ctx.Messenger.SendAsync(MessageClass.Event, "Application.DialogResponse", response.ToString(Newtonsoft.Json.Formatting.None));
+                }
+
+                // Show dialog
+                bool displayed = _ctx.ModApi.Application.ShowDialogBox(playerEntityId, config, DialogActionHandler, customValue);
+
+                if (displayed)
+                    await _ctx.Messenger.SendAsync(MessageClass.Response, topic, new JObject(new JProperty("Displayed", true)).ToString(Formatting.None));
+                else
+                    await _ctx.Messenger.SendAsync(MessageClass.Exception, topic, MessageHelpers.ErrorJson("Failed to display dialog - invalid player entity ID"));
+            }
+            catch (Exception ex)
+            {
+                await _ctx.Messenger.SendAsync(MessageClass.Exception, topic, MessageHelpers.ExceptionJson(ex));
+            }
         }
 
+        // Claude Code Implementation - 2025-01-03
+        // Queries a specific structure from DB by entity ID
         public async Task GetStructure(string topic, string payload)
         {
             try
             {
                 JObject applicationArgs = JObject.Parse(payload);
                 var entityId = applicationArgs.GetValue("EntityId").Value<int>();
-                async void ResultCallback(GlobalStructureInfo globalStructureInfo)
+
+                // Define async callback to handle result
+                async void ResultCallback(Eleon.Modding.GlobalStructureInfo structure)
                 {
-                    await _ctx.Messenger.SendAsync(MessageClass.Response, topic, globalStructureInfo.name);         // TODO: confirm format
+                    var structureDict = new Dictionary<string, object>
+                    {
+                        { "id", structure.id },
+                        { "name", structure.name },
+                        { "factionId", structure.factionId },
+                        { "factionGroup", structure.factionGroup },
+                        { "classNr", structure.classNr },
+                        { "coreType", structure.coreType },
+                        { "type", structure.type },
+                        { "PlayfieldName", structure.PlayfieldName },
+                        { "pos", new { x = structure.pos.x, y = structure.pos.y, z = structure.pos.z } },
+                        { "rot", new { x = structure.rot.x, y = structure.rot.y, z = structure.rot.z } },
+                        { "lastVisitedUTC", structure.lastVisitedUTC },
+                        { "powered", structure.powered },
+                        { "dockedShips", structure.dockedShips }
+                    };
+
+                    string json = JsonConvert.SerializeObject(structureDict);
+                    await _ctx.Messenger.SendAsync(MessageClass.Response, topic, json);
                 }
-                _ctx.ModApi.Application.GetStructure(entityId, ResultCallback);
+
+                // Call API
+                bool requestSent = _ctx.ModApi.Application.GetStructure(entityId, ResultCallback);
+
+                if (!requestSent)
+                {
+                    await _ctx.Messenger.SendAsync(MessageClass.Exception, topic, MessageHelpers.ErrorJson("GetStructure request failed - invalid entity ID"));
+                }
             }
             catch (Exception ex)
             {
-                await _ctx.Messenger.SendAsync(MessageClass.Exception, topic, ex.Message);
+                await _ctx.Messenger.SendAsync(MessageClass.Exception, topic, MessageHelpers.ExceptionJson(ex));
             }
         }
 
+        // Claude Code Implementation - 2025-01-03
+        // Queries structures from DB with optional filters: playfieldName, factionData, entityType
+        // At least playfieldName OR factionData must be specified
         public async Task GetStructures(string topic, string payload)
         {
             try
             {
-                await _ctx.Messenger.SendAsync(MessageClass.Response, topic, "stub");
+                JObject applicationArgs = JObject.Parse(payload);
+
+                // Parse filter parameters
+                string playfieldName = applicationArgs.GetValue("PlayfieldName")?.ToString();
+
+                FactionData? factionData = null;
+                if (applicationArgs.ContainsKey("FactionId") && applicationArgs.ContainsKey("FactionGroup"))
+                {
+                    factionData = new FactionData
+                    {
+                        Id = applicationArgs.GetValue("FactionId").Value<byte>(),
+                        Group = (FactionGroup)applicationArgs.GetValue("FactionGroup").Value<byte>()
+                    };
+                }
+
+                EntityType? entityType = null;
+                if (applicationArgs.ContainsKey("EntityType"))
+                {
+                    if (Enum.TryParse<EntityType>(applicationArgs.GetValue("EntityType").ToString(), true, out var et))
+                        entityType = et;
+                }
+
+                // API requires playfieldName OR factionData
+                if (string.IsNullOrEmpty(playfieldName) && !factionData.HasValue)
+                {
+                    await _ctx.Messenger.SendAsync(MessageClass.Exception, topic,
+                        MessageHelpers.ErrorJson("Either PlayfieldName or FactionData (FactionId + FactionGroup) must be specified"));
+                    return;
+                }
+
+                // Define async callback to handle results
+                async void ResultCallback(IEnumerable<Eleon.Modding.GlobalStructureInfo> structures)
+                {
+                    var structureList = new List<Dictionary<string, object>>();
+                    foreach (var structure in structures)
+                    {
+                        var structureDict = new Dictionary<string, object>
+                        {
+                            { "id", structure.id },
+                            { "name", structure.name },
+                            { "factionId", structure.factionId },
+                            { "factionGroup", structure.factionGroup },
+                            { "classNr", structure.classNr },
+                            { "coreType", structure.coreType },
+                            { "type", structure.type },
+                            { "PlayfieldName", structure.PlayfieldName },
+                            { "pos", new { x = structure.pos.x, y = structure.pos.y, z = structure.pos.z } },
+                            { "rot", new { x = structure.rot.x, y = structure.rot.y, z = structure.rot.z } },
+                            { "lastVisitedUTC", structure.lastVisitedUTC },
+                            { "powered", structure.powered },
+                            { "dockedShips", structure.dockedShips }
+                        };
+                        structureList.Add(structureDict);
+                    }
+
+                    string json = JsonConvert.SerializeObject(structureList);
+                    await _ctx.Messenger.SendAsync(MessageClass.Response, topic, json);
+                }
+
+                // Call API
+                bool requestSent = _ctx.ModApi.Application.GetStructures(playfieldName, factionData, entityType, ResultCallback);
+
+                if (!requestSent)
+                {
+                    await _ctx.Messenger.SendAsync(MessageClass.Exception, topic, MessageHelpers.ErrorJson("GetStructures request failed - check parameters"));
+                }
             }
             catch (Exception ex)
             {
-                await _ctx.Messenger.SendAsync(MessageClass.Exception, topic, ex.Message);
+                await _ctx.Messenger.SendAsync(MessageClass.Exception, topic, MessageHelpers.ExceptionJson(ex));
             }
         }
 
@@ -473,7 +641,7 @@ namespace ESB.TopicHandlers
             }
             catch (Exception ex)
             {
-                await _ctx.Messenger.SendAsync(MessageClass.Exception, topic, ex.Message);
+                await _ctx.Messenger.SendAsync(MessageClass.Exception, topic, MessageHelpers.ExceptionJson(ex));
             }
         }
 
@@ -491,11 +659,77 @@ namespace ESB.TopicHandlers
             await _ctx.Messenger.SendAsync(MessageClass.Response, topic, json.ToString(Newtonsoft.Json.Formatting.None));
         }
 
+        // Claude Code Implementation - 2025-01-03
+        // Returns comprehensive data about the local player
         public async Task LocalPlayer(string topic, string payload)
         {
-            var localPlayer = _ctx.ModApi.Application.LocalPlayer;
-            JObject json = new JObject(new JProperty("Stubbed LocalPlayer.Id", localPlayer.Id));
-            await _ctx.Messenger.SendAsync(MessageClass.Response, topic, json.ToString(Newtonsoft.Json.Formatting.None));
+            try
+            {
+                var localPlayer = _ctx.ModApi.Application.LocalPlayer;
+
+                if (localPlayer == null)
+                {
+                    await _ctx.Messenger.SendAsync(MessageClass.Response, topic, new JObject(new JProperty("LocalPlayer", null)).ToString(Formatting.None));
+                    return;
+                }
+
+                // Build player data on main thread - S() guards against properties that throw on client (e.g. SteamOwnerId, Permission)
+                JObject json = null;
+                await _ctx.MainThreadRunner.RunOnMainThread(async () =>
+                {
+                    json = new JObject();
+                    JToken S(Func<object> getter) { try { var v = getter(); return v == null ? JValue.CreateNull() : JToken.FromObject(v); } catch { return JValue.CreateNull(); } }
+                    json.Add("Id",               S(() => localPlayer.Id));
+                    json.Add("Name",             S(() => localPlayer.Name));
+                    json.Add("Position",         S(() => new JObject(new JProperty("X", localPlayer.Position.x), new JProperty("Y", localPlayer.Position.y), new JProperty("Z", localPlayer.Position.z))));
+                    json.Add("Rotation",         S(() => new JObject(new JProperty("X", localPlayer.Rotation.x), new JProperty("Y", localPlayer.Rotation.y), new JProperty("Z", localPlayer.Rotation.z))));
+                    json.Add("Forward",          S(() => new JObject(new JProperty("X", localPlayer.Forward.x),  new JProperty("Y", localPlayer.Forward.y),  new JProperty("Z", localPlayer.Forward.z))));
+                    json.Add("IsLocal",          S(() => localPlayer.IsLocal));
+                    json.Add("IsProxy",          S(() => localPlayer.IsProxy));
+                    json.Add("Type",             S(() => localPlayer.Type.ToString()));
+                    json.Add("Health",           S(() => localPlayer.Health));
+                    json.Add("HealthMax",        S(() => localPlayer.HealthMax));
+                    json.Add("Food",             S(() => localPlayer.Food));
+                    json.Add("FoodMax",          S(() => localPlayer.FoodMax));
+                    json.Add("Stamina",          S(() => localPlayer.Stamina));
+                    json.Add("StaminaMax",       S(() => localPlayer.StaminaMax));
+                    json.Add("Oxygen",           S(() => localPlayer.Oxygen));
+                    json.Add("OxygenMax",        S(() => localPlayer.OxygenMax));
+                    json.Add("BodyTemp",         S(() => localPlayer.BodyTemp));
+                    json.Add("BodyTempMax",      S(() => localPlayer.BodyTempMax));
+                    json.Add("Radiation",        S(() => localPlayer.Radiation));
+                    json.Add("RadiationMax",     S(() => localPlayer.RadiationMax));
+                    json.Add("ExperiencePoints", S(() => localPlayer.ExperiencePoints));
+                    json.Add("Credits",          S(() => localPlayer.Credits));
+                    json.Add("Kills",            S(() => localPlayer.Kills));
+                    json.Add("Died",             S(() => localPlayer.Died));
+                    json.Add("FactionRole",      S(() => localPlayer.FactionRole.ToString()));
+                    json.Add("FactionData",      S(() => new JObject(new JProperty("Id", localPlayer.FactionData.Id), new JProperty("Group", localPlayer.FactionData.Group.ToString()))));
+                    json.Add("HomeBaseId",       S(() => localPlayer.HomeBaseId));
+                    json.Add("IsPilot",          S(() => localPlayer.IsPilot));
+                    json.Add("CurrentStructureId", S(() => localPlayer.CurrentStructure?.Id ?? 0));
+                    json.Add("DrivingEntityId",  S(() => localPlayer.DrivingEntity?.Id ?? 0));
+                    json.Add("SteamId",          S(() => localPlayer.SteamId));
+                    json.Add("SteamOwnerId",     S(() => localPlayer.SteamOwnerId));
+                    json.Add("StartPlayfield",   S(() => localPlayer.StartPlayfield));
+                    json.Add("Origin",           S(() => localPlayer.Origin));
+                    json.Add("Permission",       S(() => localPlayer.Permission));
+                    json.Add("Ping",             S(() => localPlayer.Ping));
+                    json.Add("UpgradePoints",    S(() => localPlayer.UpgradePoints));
+                    json.Add("IsPoi",            S(() => localPlayer.IsPoi));
+                    json.Add("BelongsTo",        S(() => localPlayer.BelongsTo));
+                    json.Add("DockedTo",         S(() => localPlayer.DockedTo));
+                    json.Add("Toolbar",          S(() => localPlayer.Toolbar != null ? (object)JArray.FromObject(localPlayer.Toolbar) : new JArray()));
+                    json.Add("Bag",              S(() => localPlayer.Bag != null ? (object)JArray.FromObject(localPlayer.Bag) : new JArray()));
+                    await Task.CompletedTask;
+                });
+
+                await _ctx.Messenger.SendAsync(MessageClass.Response, topic, json.ToString(Newtonsoft.Json.Formatting.None));
+            }
+            catch (Exception ex)
+            {
+                await _ctx.Messenger.SendAsync(MessageClass.Exception, topic, MessageHelpers.ExceptionJson(ex));
+            }
         }
 
         public async Task GameTicks(string topic, string payload)

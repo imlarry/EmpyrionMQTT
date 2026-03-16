@@ -25,6 +25,7 @@ namespace ESB.TopicHandlers
             await _ctx.Messenger.SubscribeAsync("Playfield.RemoveEntity", RemoveEntity);
             await _ctx.Messenger.SubscribeAsync("Playfield.IsStructureDeviceLocked", IsStructureDeviceLocked);
             await _ctx.Messenger.SubscribeAsync("Playfield.MoveEntity", MoveEntity);
+            await _ctx.Messenger.SubscribeAsync("Playfield.Info", Info);
         }
 
         public async Task SpawnEntity(string topic, string payload)
@@ -33,18 +34,20 @@ namespace ESB.TopicHandlers
             {
                 JObject args = JObject.Parse(payload);
                 var entityType = args.GetValue("EntityType").ToString();
-                string posStr = args.GetValue("Pos").ToString();
-                string rotStr = args.GetValue("Rot").ToString();
-                string[] values = posStr.Split(',');
-                Vector3 pos = new Vector3(float.Parse(values[0]), float.Parse(values[1]), float.Parse(values[2]));
+                Vector3 pos = MessageHelpers.ParseVec3(args["Pos"]);
                 Quaternion rot = new Quaternion(0.0f, 0.0f, 0.0f, 1);
-                var entityId = _ctx.ModApi.ClientPlayfield.SpawnEntity(entityType, pos, rot);
-                JObject json = new JObject(new JProperty("EntityType", entityType));
-                await _ctx.Messenger.SendAsync(MessageClass.Response, topic, json.ToString(Newtonsoft.Json.Formatting.None));
+                await _ctx.MainThreadRunner.RunOnMainThread(async () =>
+                {
+                    var entityId = _ctx.ModApi.ClientPlayfield.SpawnEntity(entityType, pos, rot);
+                    JObject json = new JObject(
+                        new JProperty("EntityId", entityId),
+                        new JProperty("EntityType", entityType));
+                    await _ctx.Messenger.SendAsync(MessageClass.Response, topic, json.ToString(Newtonsoft.Json.Formatting.None));
+                });
             }
             catch (Exception ex)
             {
-                await _ctx.Messenger.SendAsync(MessageClass.Exception, topic, ex.Message);
+                await _ctx.Messenger.SendAsync(MessageClass.Exception, topic, MessageHelpers.ExceptionJson(ex));
             }
         }
 
@@ -54,19 +57,20 @@ namespace ESB.TopicHandlers
             {
                 JObject args = JObject.Parse(payload);
                 string prefabName = args.GetValue("PrefabName").ToString();
-                string posStr = args.GetValue("Pos").ToString();
-                string[] values = posStr.Split(',');
-                Vector3 pos = new Vector3(float.Parse(values[0]), float.Parse(values[1]), float.Parse(values[2]));
-                var entityId = _ctx.ModApi.ClientPlayfield.SpawnPrefab(prefabName, pos);
-                JObject json = new JObject(
-                        new JProperty("EntityId", entityId),
-                        new JProperty("Pos", pos.ToString())
-                        );
-                await _ctx.Messenger.SendAsync(MessageClass.Response, topic, json.ToString(Newtonsoft.Json.Formatting.None));
+                Vector3 pos = MessageHelpers.ParseVec3(args["Pos"]);
+                await _ctx.MainThreadRunner.RunOnMainThread(async () =>
+                {
+                    var entityId = _ctx.ModApi.ClientPlayfield.SpawnPrefab(prefabName, pos);
+                    JObject json = new JObject(
+                            new JProperty("EntityId", entityId),
+                            new JProperty("Pos", MessageHelpers.Vec(pos))
+                            );
+                    await _ctx.Messenger.SendAsync(MessageClass.Response, topic, json.ToString(Newtonsoft.Json.Formatting.None));
+                });
             }
             catch (Exception ex)
             {
-                await _ctx.Messenger.SendAsync(MessageClass.Exception, topic, ex.Message);
+                await _ctx.Messenger.SendAsync(MessageClass.Exception, topic, MessageHelpers.ExceptionJson(ex));
             }
         }
 
@@ -76,12 +80,15 @@ namespace ESB.TopicHandlers
             {
                 JObject args = JObject.Parse(payload);
                 int entityId = args.GetValue("EntityId").Value<int>();
-                _ctx.ModApi.ClientPlayfield.RemoveEntity(entityId);
-                // TODO: add response json send
+                await _ctx.MainThreadRunner.RunOnMainThread(async () =>
+                {
+                    _ctx.ModApi.ClientPlayfield.RemoveEntity(entityId);
+                    await _ctx.Messenger.SendAsync(MessageClass.Response, topic, new JObject(new JProperty("EntityId", entityId)).ToString(Newtonsoft.Json.Formatting.None));
+                });
             }
             catch (Exception ex)
             {
-                await _ctx.Messenger.SendAsync(MessageClass.Exception, topic, ex.Message);
+                await _ctx.Messenger.SendAsync(MessageClass.Exception, topic, MessageHelpers.ExceptionJson(ex));
             }
         }
 
@@ -91,38 +98,63 @@ namespace ESB.TopicHandlers
             {
                 JObject args = JObject.Parse(payload);
                 int structureId = args.GetValue("StructureId").Value<int>();
-                string posStr = args.GetValue("PosInStructure").ToString();
-                string[] values = posStr.Split(',');
-                VectorInt3 posInStructure = new VectorInt3(int.Parse(values[0]), int.Parse(values[1]), int.Parse(values[2]));
-                bool isLocked = _ctx.ModApi.ClientPlayfield.IsStructureDeviceLocked(structureId, posInStructure);
+                VectorInt3 posInStructure = MessageHelpers.ParseVecInt3(args["PosInStructure"]);
+                bool isLocked = false;
+                await _ctx.MainThreadRunner.RunOnMainThread(async () =>
+                {
+                    isLocked = _ctx.ModApi.ClientPlayfield.IsStructureDeviceLocked(structureId, posInStructure);
+                    await Task.CompletedTask;
+                });
                 JObject json = new JObject(
-                        new JProperty("StructureId", structureId.ToString()),
-                        new JProperty("PosInStructure", posInStructure.ToString()),
-                        new JProperty("IsStructureDeviceLocked", isLocked.ToString())
+                        new JProperty("StructureId", structureId),
+                        new JProperty("PosInStructure", MessageHelpers.Vec(posInStructure)),
+                        new JProperty("IsStructureDeviceLocked", isLocked)
                         );
                 await _ctx.Messenger.SendAsync(MessageClass.Response, topic, json.ToString(Newtonsoft.Json.Formatting.None));
             }
             catch (Exception ex)
             {
-                await _ctx.Messenger.SendAsync(MessageClass.Exception, topic, ex.Message);
+                await _ctx.Messenger.SendAsync(MessageClass.Exception, topic, MessageHelpers.ExceptionJson(ex));
             }
         }
 
-        //int AddVoxelArea(Vector3 pos, int sizeInMeter)
-        //bool MoveVoxelArea(int id, Vector3 pos)
-        //bool RemoveVoxelArea(int id)
-        //int SpawnTestPlayer(Vector3 pos)
-        //bool RemoveTestPlayer (int entityId)
-        //float GetTerrainHeightAt (float x, float z)
-        //string Name[get]
-        //string PlayfieldType[get]
-        //string PlanetType[get]
-        //string PlanetClass[get]
-        //string SolarSystemName[get]
-        //VectorInt3 SolarSystemCoordinates[get]
-        //bool IsPvP[get]
-        //Dictionary< int, IPlayer > Players[get]
-        //Dictionary<int, IEntity> Entities[get]
+        public async Task Info(string topic, string payload)
+        {
+            try
+            {
+                JObject json = null;
+                await _ctx.MainThreadRunner.RunOnMainThread(async () =>
+                {
+                    JToken S(Func<object> getter)
+                    {
+                        try { var v = getter(); return v == null ? JValue.CreateNull() : JToken.FromObject(v); }
+                        catch { return JValue.CreateNull(); }
+                    }
+
+                    var pf = _ctx.ModApi.ClientPlayfield;
+                    json = new JObject();
+                    json.Add("Name",                  S(() => pf.Name));
+                    json.Add("PlayfieldType",         S(() => pf.PlayfieldType));
+                    json.Add("PlanetType",            S(() => pf.PlanetType));
+                    json.Add("PlanetClass",           S(() => pf.PlanetClass));
+                    json.Add("SolarSystemName",       S(() => pf.SolarSystemName));
+                    json.Add("SolarSystemCoordinates",S(() => new JObject(
+                                                          new JProperty("X", pf.SolarSystemCoordinates.x),
+                                                          new JProperty("Y", pf.SolarSystemCoordinates.y),
+                                                          new JProperty("Z", pf.SolarSystemCoordinates.z))));
+                    json.Add("IsPvP",                 S(() => pf.IsPvP));
+                    await Task.CompletedTask;
+                });
+                await _ctx.Messenger.SendAsync(MessageClass.Response, topic, json.ToString(Newtonsoft.Json.Formatting.None));
+            }
+            catch (Exception ex)
+            {
+                await _ctx.Messenger.SendAsync(MessageClass.Exception, topic, MessageHelpers.ExceptionJson(ex));
+            }
+        }
+
+        // Not yet implemented: AddVoxelArea, MoveVoxelArea, RemoveVoxelArea, SpawnTestPlayer, RemoveTestPlayer,
+        //   GetTerrainHeightAt, Players[get], Entities[get], LockStructureDevice (requires async callback)
 
         // *********************************************************************************************************************
         // IEntity interface .. only works in single player client mode
@@ -133,22 +165,26 @@ namespace ESB.TopicHandlers
                 JObject args = JObject.Parse(payload);
                 int entityId = args.GetValue("EntityId").Value<int>();
                 var entityInterface = _ctx.GetEntityByKey(entityId);
-                if (entityInterface != null)
+                if (entityInterface == null)
                 {
-                    string posStr = args.GetValue("Pos").ToString();
-                    string[] values = posStr.Split(',');
-                    Vector3 pos = new Vector3(float.Parse(values[0]), float.Parse(values[1]), float.Parse(values[2]));
-                    entityInterface.Position = pos; // the actual move
+                    await _ctx.Messenger.SendAsync(MessageClass.Exception, topic, MessageHelpers.ErrorJson($"Entity {entityId} not found in LoadedEntity cache"));
+                    return;
+                }
+
+                Vector3 pos = MessageHelpers.ParseVec3(args["Pos"]);
+                await _ctx.MainThreadRunner.RunOnMainThread(async () =>
+                {
+                    entityInterface.Position = pos;
                     JObject json = new JObject(
                             new JProperty("EntityId", entityInterface.Id),
-                            new JProperty("Pos", entityInterface.Position.ToString())
+                            new JProperty("Pos", MessageHelpers.Vec(entityInterface.Position))
                             );
                     await _ctx.Messenger.SendAsync(MessageClass.Response, topic, json.ToString(Newtonsoft.Json.Formatting.None));
-                }
+                });
             }
             catch (Exception ex)
             {
-                await _ctx.Messenger.SendAsync(MessageClass.Exception, topic, ex.Message);
+                await _ctx.Messenger.SendAsync(MessageClass.Exception, topic, MessageHelpers.ExceptionJson(ex));
             }
         }
 
