@@ -5,7 +5,6 @@ using System.Threading.Tasks;
 using Eleon.Modding;
 using ESB.Common;
 using ESB.Messaging;
-using ESB.Database;
 using System.Collections.Generic;
 
 namespace ESB
@@ -17,6 +16,7 @@ namespace ESB
         public string GameName { get; private set; }
         public string GameIdentifier { get; private set; }
         public string GameDataPath { get; private set; }
+        public string SaveGamePath { get; private set; }
         public string GameMode { get; private set; }
         public Dictionary<int, string> BlockAndItemMapping { get; private set; }
 
@@ -38,17 +38,18 @@ namespace ESB
             if (hasEntered)
             {
                 SetGameProperties();
-                await OpenLocalDatabase();
             }
             else
             {
             }
+            await Task.CompletedTask;
         }
         private void SetGameProperties()
         {
             var cacheDir = _cntxt.ModApi.Application.GetPathFor(AppFolder.Cache);
             var directories = Directory.GetDirectories(cacheDir);
-            GameName = Path.GetFileName(_cntxt.ModApi.Application.GetPathFor(AppFolder.SaveGame));
+            SaveGamePath = Path.GetFullPath(_cntxt.ModApi.Application.GetPathFor(AppFolder.SaveGame));
+            GameName = Path.GetFileName(SaveGamePath);
             GameIdentifier = GenerateUniqueIdentifier(Path.GetFileName(directories.FirstOrDefault(dir => Path.GetFileName(dir).StartsWith(GameName))));
             GameDataPath = Path.GetFullPath(Path.Combine(_cntxt.BusManager.ESBModPath, "Games", GameIdentifier));
             GameMode = _cntxt.ModApi.Application.Mode.ToString();
@@ -58,6 +59,7 @@ namespace ESB
             {
                 BlockAndItemMapping[pair.Value] = pair.Key;
             }
+            _cntxt.ModApi.Log($"IModApi properties: ClientPlayfield={((_cntxt.ModApi.ClientPlayfield == null) ? "null" : "set")}, Network={(_cntxt.ModApi.Network == null ? "null" : "set")}, GUI={(_cntxt.ModApi.GUI == null ? "null" : "set")}, PDA={(_cntxt.ModApi.PDA == null ? "null" : "set")}, Scripting={(_cntxt.ModApi.Scripting == null ? "null" : "set")}, SoundPlayer={(_cntxt.ModApi.SoundPlayer == null ? "null" : "set")}, Application={(_cntxt.ModApi.Application == null ? "null" : "set")}");
         }
 
         private string GenerateUniqueIdentifier(string identifier)
@@ -73,42 +75,6 @@ namespace ESB
             {
                 return parts[0];
             }
-        }
-
-        private async Task OpenLocalDatabase()
-        {
-            string dbPath = Path.Combine(GameDataPath, "local.db");
-            JObject json;
-
-            // close the previous database connection
-            _cntxt.DbAccess?.CloseConnection();
-
-            // create directory for game data if it doesn't exist
-            if (!Directory.Exists(GameDataPath))
-            {
-                Directory.CreateDirectory(GameDataPath);
-            }
-
-            // create local database if it doesn't exist and populate it with schema
-            if (!File.Exists(dbPath))
-            {
-                _cntxt.DbAccess = new DbAccess($"Data Source={dbPath};Version=3;", false);
-                _cntxt.DbAccess.CreateDatabaseFile(GameDataPath, "local.db");
-                string sqlCommands = File.ReadAllText(Path.Combine(_cntxt.BusManager.ESBModPath, "LocalSchema.sql.txt"));
-                _cntxt.DbAccess.ExecuteCommand(sqlCommands);
-                json = new JObject(
-                    new JProperty("DatabasePath", dbPath),
-                    new JProperty("Status", "Created"));
-            }
-            else
-            {
-                _cntxt.DbAccess = new DbAccess($"Data Source={dbPath};Version=3;", false);
-                json = new JObject(
-                    new JProperty("DatabasePath", dbPath),
-                    new JProperty("Status", "AlreadyExists"));
-            }
-
-            await _cntxt.Messenger.SendAsync(MessageClass.Information, "ESB.GameManager.CreateLocalDatabase", json.ToString(Newtonsoft.Json.Formatting.None));
         }
     }
 }

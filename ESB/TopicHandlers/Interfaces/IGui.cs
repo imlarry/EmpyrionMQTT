@@ -4,7 +4,7 @@ namespace ESB.TopicHandlers
 {
     public interface IGui
     {
-        Task Subscribe();
+        void Register();
         Task Edna_Selftest(string topic, string payload);
         Task ShowGameMessage(string topic, string payload);
         Task ShowDialog(string topic, string payload);

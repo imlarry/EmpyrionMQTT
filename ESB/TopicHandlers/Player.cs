@@ -17,11 +17,11 @@ namespace ESB.TopicHandlers
             _ctx = ctx;
         }
 
-        public async Task Subscribe()
+        public void Register()
         {
-            await _ctx.Messenger.SubscribeAsync("Player.Teleport", Teleport);
-            await _ctx.Messenger.SubscribeAsync("Player.SteamId", SteamId);
-            await _ctx.Messenger.SubscribeAsync("Player.Stats", Stats);
+            _ctx.Messenger.RegisterHandler("Player.Teleport", Teleport);
+            _ctx.Messenger.RegisterHandler("Player.SteamId",  SteamId);
+            _ctx.Messenger.RegisterHandler("Player.Stats",    Stats);
         }
 
         public async Task Teleport(string topic, string payload)

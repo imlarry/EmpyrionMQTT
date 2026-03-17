@@ -1,7 +1,6 @@
 ﻿using Eleon.Modding;
 using EmpyrionNetAPIAccess;
 using System.Collections.Generic;
-using ESB.Database;
 
 namespace ESB.Common
 {
@@ -12,7 +11,6 @@ namespace ESB.Common
         ESBConfig ESBConfig { get; set; }
         BusManager BusManager { get; set; }
         GameManager GameManager { get; set; }
-        DbAccess DbAccess { get; set; }
         MainThreadRunner MainThreadRunner { get; }
         Dictionary<string, IPlayfield> LoadedPlayfield { get; set; }
         Dictionary<int, IEntity> LoadedEntity { get; set; }

@@ -22,28 +22,28 @@ namespace ESB.TopicHandlers
             _ctx = ctx;
         }
 
-        public async Task Subscribe()
+        public void Register()
         {
-            await _ctx.Messenger.SubscribeAsync("Application.Teleport", Teleport);
-            await _ctx.Messenger.SubscribeAsync("Application.DumpMemory", DumpMemory);
-            await _ctx.Messenger.SubscribeAsync("Application.WindowInfo", WindowInfo);
-            await _ctx.Messenger.SubscribeAsync("Application.TraceEntity", TraceEntity);
-            await _ctx.Messenger.SubscribeAsync("Application.ShowEntity", ShowEntity);
-            await _ctx.Messenger.SubscribeAsync("Application.GetPathFor", GetPathFor);
-            await _ctx.Messenger.SubscribeAsync("Application.GetAllPlayfields", GetAllPlayfields);
-            await _ctx.Messenger.SubscribeAsync("Application.GetPfServerInfos", GetPfServerInfos);
-            await _ctx.Messenger.SubscribeAsync("Application.GetPlayerEntityIds", GetPlayerEntityIds);
-            await _ctx.Messenger.SubscribeAsync("Application.GetPlayerDataFor", GetPlayerDataFor);
-            await _ctx.Messenger.SubscribeAsync("Application.SendChatMessage", SendChatMessage);
-            await _ctx.Messenger.SubscribeAsync("Application.ShowDialogBox", ShowDialogBox);
-            await _ctx.Messenger.SubscribeAsync("Application.GetStructure", GetStructure);
-            await _ctx.Messenger.SubscribeAsync("Application.GetStructures", GetStructures);
-            await _ctx.Messenger.SubscribeAsync("Application.GetBlockAndItemMapping", GetBlockAndItemMapping);
-            await _ctx.Messenger.SubscribeAsync("Application.State", State);
-            await _ctx.Messenger.SubscribeAsync("Application.Mode", Mode);
-            await _ctx.Messenger.SubscribeAsync("Application.LocalPlayer", LocalPlayer);
-            await _ctx.Messenger.SubscribeAsync("Application.GameTicks", GameTicks);
-            await _ctx.Messenger.SubscribeAsync("Application.Player_GetInventory", Player_GetInventory);
+            _ctx.Messenger.RegisterHandler("Application.Teleport",            Teleport);
+            _ctx.Messenger.RegisterHandler("Application.DumpMemory",          DumpMemory);
+            _ctx.Messenger.RegisterHandler("Application.WindowInfo",          WindowInfo);
+            _ctx.Messenger.RegisterHandler("Application.TraceEntity",         TraceEntity);
+            _ctx.Messenger.RegisterHandler("Application.ShowEntity",          ShowEntity);
+            _ctx.Messenger.RegisterHandler("Application.GetPathFor",          GetPathFor);
+            _ctx.Messenger.RegisterHandler("Application.GetAllPlayfields",    GetAllPlayfields);
+            _ctx.Messenger.RegisterHandler("Application.GetPfServerInfos",    GetPfServerInfos);
+            _ctx.Messenger.RegisterHandler("Application.GetPlayerEntityIds",  GetPlayerEntityIds);
+            _ctx.Messenger.RegisterHandler("Application.GetPlayerDataFor",    GetPlayerDataFor);
+            _ctx.Messenger.RegisterHandler("Application.SendChatMessage",     SendChatMessage);
+            _ctx.Messenger.RegisterHandler("Application.ShowDialogBox",       ShowDialogBox);
+            _ctx.Messenger.RegisterHandler("Application.GetStructure",        GetStructure);
+            _ctx.Messenger.RegisterHandler("Application.GetStructures",       GetStructures);
+            _ctx.Messenger.RegisterHandler("Application.GetBlockAndItemMapping", GetBlockAndItemMapping);
+            _ctx.Messenger.RegisterHandler("Application.State",               State);
+            _ctx.Messenger.RegisterHandler("Application.Mode",                Mode);
+            _ctx.Messenger.RegisterHandler("Application.LocalPlayer",         LocalPlayer);
+            _ctx.Messenger.RegisterHandler("Application.GameTicks",           GameTicks);
+            _ctx.Messenger.RegisterHandler("Application.Player_GetInventory", Player_GetInventory);
         }
 
         public async Task Teleport(string topic, string payload)
@@ -427,8 +427,12 @@ namespace ESB.TopicHandlers
                 if (applicationArgs.ContainsKey("Arg2"))
                     messageData.Arg2 = applicationArgs.GetValue("Arg2")?.ToString();
 
-                // Send chat message via API
-                _ctx.ModApi.Application.SendChatMessage(messageData);
+                // Send chat message via API — must run on Unity main thread
+                await _ctx.MainThreadRunner.RunOnMainThread(async () =>
+                {
+                    _ctx.ModApi.Application.SendChatMessage(messageData);
+                    await Task.CompletedTask;
+                });
 
                 await _ctx.Messenger.SendAsync(MessageClass.Response, topic, new JObject(new JProperty("Message", "Chat message sent successfully")).ToString(Formatting.None));
             }
@@ -490,8 +494,13 @@ namespace ESB.TopicHandlers
                     _ = _ctx.Messenger.SendAsync(MessageClass.Event, "Application.DialogResponse", response.ToString(Newtonsoft.Json.Formatting.None));
                 }
 
-                // Show dialog
-                bool displayed = _ctx.ModApi.Application.ShowDialogBox(playerEntityId, config, DialogActionHandler, customValue);
+                // Show dialog — must run on Unity main thread
+                bool displayed = false;
+                await _ctx.MainThreadRunner.RunOnMainThread(async () =>
+                {
+                    displayed = _ctx.ModApi.Application.ShowDialogBox(playerEntityId, config, DialogActionHandler, customValue);
+                    await Task.CompletedTask;
+                });
 
                 if (displayed)
                     await _ctx.Messenger.SendAsync(MessageClass.Response, topic, new JObject(new JProperty("Displayed", true)).ToString(Formatting.None));
@@ -514,27 +523,27 @@ namespace ESB.TopicHandlers
                 var entityId = applicationArgs.GetValue("EntityId").Value<int>();
 
                 // Define async callback to handle result
-                async void ResultCallback(Eleon.Modding.GlobalStructureInfo structure)
+                async void ResultCallback(Eleon.Modding.GlobalStructureInfo s)
                 {
-                    var structureDict = new Dictionary<string, object>
-                    {
-                        { "id", structure.id },
-                        { "name", structure.name },
-                        { "factionId", structure.factionId },
-                        { "factionGroup", structure.factionGroup },
-                        { "classNr", structure.classNr },
-                        { "coreType", structure.coreType },
-                        { "type", structure.type },
-                        { "PlayfieldName", structure.PlayfieldName },
-                        { "pos", new { x = structure.pos.x, y = structure.pos.y, z = structure.pos.z } },
-                        { "rot", new { x = structure.rot.x, y = structure.rot.y, z = structure.rot.z } },
-                        { "lastVisitedUTC", structure.lastVisitedUTC },
-                        { "powered", structure.powered },
-                        { "dockedShips", structure.dockedShips }
-                    };
-
-                    string json = JsonConvert.SerializeObject(structureDict);
-                    await _ctx.Messenger.SendAsync(MessageClass.Response, topic, json);
+                    var json = new JObject(
+                        new JProperty("Id",             s.id),
+                        new JProperty("Name",           s.name),
+                        new JProperty("FactionId",      s.factionId),
+                        new JProperty("FactionGroup",   s.factionGroup),
+                        new JProperty("ClassNr",        s.classNr),
+                        new JProperty("CoreType",       s.coreType),
+                        new JProperty("Type",           s.type),
+                        new JProperty("PlayfieldName",  s.PlayfieldName),
+                        new JProperty("Pos", MessageHelpers.Vec(new Vector3(s.pos.x, s.pos.y, s.pos.z))),
+                        new JProperty("Rot", MessageHelpers.Vec(new Vector3(s.rot.x, s.rot.y, s.rot.z))),
+                        new JProperty("LastVisitedUtc", s.lastVisitedUTC),
+                        new JProperty("Powered",        s.powered),
+                        new JProperty("DockedShips",    s.dockedShips != null
+                                                            ? (JToken)new JArray(s.dockedShips)
+                                                            : JValue.CreateNull())
+                    );
+                    await _ctx.Messenger.SendAsync(MessageClass.Response, topic,
+                        json.ToString(Newtonsoft.Json.Formatting.None));
                 }
 
                 // Call API
@@ -591,30 +600,27 @@ namespace ESB.TopicHandlers
                 // Define async callback to handle results
                 async void ResultCallback(IEnumerable<Eleon.Modding.GlobalStructureInfo> structures)
                 {
-                    var structureList = new List<Dictionary<string, object>>();
-                    foreach (var structure in structures)
-                    {
-                        var structureDict = new Dictionary<string, object>
-                        {
-                            { "id", structure.id },
-                            { "name", structure.name },
-                            { "factionId", structure.factionId },
-                            { "factionGroup", structure.factionGroup },
-                            { "classNr", structure.classNr },
-                            { "coreType", structure.coreType },
-                            { "type", structure.type },
-                            { "PlayfieldName", structure.PlayfieldName },
-                            { "pos", new { x = structure.pos.x, y = structure.pos.y, z = structure.pos.z } },
-                            { "rot", new { x = structure.rot.x, y = structure.rot.y, z = structure.rot.z } },
-                            { "lastVisitedUTC", structure.lastVisitedUTC },
-                            { "powered", structure.powered },
-                            { "dockedShips", structure.dockedShips }
-                        };
-                        structureList.Add(structureDict);
-                    }
-
-                    string json = JsonConvert.SerializeObject(structureList);
-                    await _ctx.Messenger.SendAsync(MessageClass.Response, topic, json);
+                    var array = new JArray();
+                    foreach (var s in structures)
+                        array.Add(new JObject(
+                            new JProperty("Id",             s.id),
+                            new JProperty("Name",           s.name),
+                            new JProperty("FactionId",      s.factionId),
+                            new JProperty("FactionGroup",   s.factionGroup),
+                            new JProperty("ClassNr",        s.classNr),
+                            new JProperty("CoreType",       s.coreType),
+                            new JProperty("Type",           s.type),
+                            new JProperty("PlayfieldName",  s.PlayfieldName),
+                            new JProperty("Pos", MessageHelpers.Vec(new Vector3(s.pos.x, s.pos.y, s.pos.z))),
+                            new JProperty("Rot", MessageHelpers.Vec(new Vector3(s.rot.x, s.rot.y, s.rot.z))),
+                            new JProperty("LastVisitedUtc", s.lastVisitedUTC),
+                            new JProperty("Powered",        s.powered),
+                            new JProperty("DockedShips",    s.dockedShips != null
+                                                                ? (JToken)new JArray(s.dockedShips)
+                                                                : JValue.CreateNull())
+                        ));
+                    await _ctx.Messenger.SendAsync(MessageClass.Response, topic,
+                        array.ToString(Newtonsoft.Json.Formatting.None));
                 }
 
                 // Call API
@@ -682,7 +688,7 @@ namespace ESB.TopicHandlers
                     json.Add("Id",               S(() => localPlayer.Id));
                     json.Add("Name",             S(() => localPlayer.Name));
                     json.Add("Position",         S(() => new JObject(new JProperty("X", localPlayer.Position.x), new JProperty("Y", localPlayer.Position.y), new JProperty("Z", localPlayer.Position.z))));
-                    json.Add("Rotation",         S(() => new JObject(new JProperty("X", localPlayer.Rotation.x), new JProperty("Y", localPlayer.Rotation.y), new JProperty("Z", localPlayer.Rotation.z))));
+                    json.Add("Rotation",         S(() => MessageHelpers.Vec(localPlayer.Rotation)));
                     json.Add("Forward",          S(() => new JObject(new JProperty("X", localPlayer.Forward.x),  new JProperty("Y", localPlayer.Forward.y),  new JProperty("Z", localPlayer.Forward.z))));
                     json.Add("IsLocal",          S(() => localPlayer.IsLocal));
                     json.Add("IsProxy",          S(() => localPlayer.IsProxy));

@@ -14,7 +14,7 @@ public static class KnownState
     public const string Playfield   = "Akua";
 
     // VNS Akua — the test base entity
-    public const int    BaseEntityId    = 5319;
+    public const int    BaseEntityId    = 5320;
     public const string BaseName        = "VNS Akua";
 
     // Block positions (struct-space)
@@ -22,9 +22,22 @@ public static class KnownState
 
     // Signal / device names
     public const string SignalName   = "Fridge";
-    public const string DeviceName1  = "ConstructorBuffer";
+    public const string DeviceName1  = "Constructor";
     public const string DeviceName2  = "Fridge";
 
     // Global coordinates of the base (approximate, for GlobalToStructPos tests)
-    public const string BaseGlobalPos = "{\"X\":-83.5,\"Y\":52.0,\"Z\":-26.5}";
+    public const string BaseGlobalPos = "{\"X\":-156.5,\"Y\":51.0,\"Z\":50.5}";
+
+    // LCD panel on the base — place an LCD panel with this custom name.
+    // Position is discovered at runtime via Structure.GetDevicePositions.
+    public const string LcdName = "InfoLcd";
+
+    // Light block on the base — place a light with this custom name.
+    // Position is discovered at runtime via Structure.GetDevicePositions.
+    public const string LightName = "Light";
+
+    // Teleporter device on the base — place a teleporter pad with this custom name.
+    // Position is discovered at runtime via Structure.GetDevicePositions.
+    public const string TeleporterName = "Teleport";
+
 }

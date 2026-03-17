@@ -23,16 +23,13 @@ namespace ESB
         {
             if (_cntxt.LoadedPlayfield.ContainsKey(playfield.Name))
             {
-
                 JObject json2 = new JObject(
                     new JProperty("PlayfieldName", playfield.Name));
                 await _cntxt.Messenger.SendAsync(MessageClass.Exception, "Application.PlayfieldLoadedDuplicate", json2.ToString(Newtonsoft.Json.Formatting.None));
-            }
-            else
-            {
-                _cntxt.LoadedPlayfield.Add(playfield.Name, playfield);
+                return;
             }
 
+            _cntxt.LoadedPlayfield.Add(playfield.Name, playfield);
             playfield.OnEntityLoaded += _entityLoadedHandler.Handle;
             playfield.OnEntityUnloaded += _entityUnloadedHandler.Handle;
 

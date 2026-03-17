@@ -15,20 +15,19 @@ namespace ESB
 
         public async Task SubscribeAll()
         {
-            var app = new Application(_cntxt);
-            await app.Subscribe();
+            new Application(_cntxt).Register();
+            new Playfield(_cntxt).Register();
+            new Gui(_cntxt).Register();
+            new Player(_cntxt).Register();
+            new Structure(_cntxt).Register();
+            new Block(_cntxt).Register();
+            new Lcd(_cntxt).Register();
+            new Container(_cntxt).Register();
+            new Light(_cntxt).Register();
+            new Teleporter(_cntxt).Register();
+            new Pda(_cntxt).Register();
 
-            var playfield = new Playfield(_cntxt);
-            await playfield.Subscribe();
-
-            var gui = new Gui(_cntxt);
-            await gui.Subscribe();
-
-            var player = new Player(_cntxt);
-            await player.Subscribe();
-
-            var structure = new Structure(_cntxt);
-            await structure.Subscribe();
+            await _cntxt.Messenger.SubscribeRequestsAsync();
         }
     }
 }

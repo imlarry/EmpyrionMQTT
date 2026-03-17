@@ -10,7 +10,6 @@ using MQTTnet;
 using MQTTnet.Client;
 using MQTTnet.Formatter;
 using Newtonsoft.Json.Linq;
-using System.Management;
 
 
 namespace ESB.Messaging
@@ -192,41 +191,42 @@ namespace ESB.Messaging
             await _mqttClient.DisconnectAsync();
         }
 
-        // Subscribe ... subscribe to a topic and register topic handler
-        public async Task SubscribeAsync(string topicOrSubjectId, Func<string, string, Task> topicHandler)
+        // RegisterHandler ... register a local dispatch handler by subject ID (no broker round-trip)
+        public void RegisterHandler(string subjectId, Func<string, string, Task> handler)
         {
-            string topic;
-            string multicastTopic;
-            if (topicOrSubjectId.Contains("/"))
-            {
-                topic = topicOrSubjectId;
-                var topicParts = topicOrSubjectId.Split('/');
-                topicParts[3] = "*";
-                multicastTopic = string.Join("/", topicParts);
-            }
-            else
-            {
-                topic = $"{_applicationId}/Q/{topicOrSubjectId}/{_clientId}/+";
-                multicastTopic = $"{_applicationId}/Q/{topicOrSubjectId}/*/+";
-            }
+            if (handler != null)
+                _methods[subjectId] = handler;
+        }
 
+        // SubscribeRequestsAsync ... single broker subscription covering all registered handlers
+        // Matches: {appId}/Q/{anyHandler}/{myClientId}/{seqNum}  (targeted)
+        //      and {appId}/Q/{anyHandler}/*/{seqNum}             (multicast)
+        public async Task SubscribeRequestsAsync()
+        {
             var mqttSubscribeOptions = _mqttFactory.CreateSubscribeOptionsBuilder()
-                    .WithTopicFilter(f => { f.WithTopic(topic); })
-                    .WithTopicFilter(f => { f.WithTopic(multicastTopic); })
-                    .Build();
-            if (topicHandler != null)
-            {
-                var pt = ParseTopic(topic);
-                if (!_methods.ContainsKey(pt.SubjectId))
-                {
-                    _methods[pt.SubjectId] = topicHandler;
-                }
-            }
+                .WithTopicFilter(f => f.WithTopic($"{_applicationId}/Q/+/{_clientId}/#"))
+                .WithTopicFilter(f => f.WithTopic($"{_applicationId}/Q/+/*/#"))
+                .Build();
             await _mqttClient.SubscribeAsync(mqttSubscribeOptions, CancellationToken.None);
-            JObject json = new JObject(
-                    new JProperty("Topic", topic),
-                    new JProperty("MulticastTopic", multicastTopic));
+            var json = new JObject(
+                new JProperty("TargetedFilter",  $"{_applicationId}/Q/+/{_clientId}/#"),
+                new JProperty("MulticastFilter", $"{_applicationId}/Q/+/*/#"),
+                new JProperty("RegisteredHandlers", AvailableTopics()));
             await SendAsync(MessageClass.Information, "Messenger.Subscribed", json.ToString(Newtonsoft.Json.Formatting.None));
+        }
+
+        // SubscribeEventAsync ... subscribe directly to a broker topic filter (for event consumers
+        // such as EDNA). Registers the callback by SubjectId for local dispatch, then subscribes
+        // to the broker. Use this for E/I class topics, not for Q (request) handlers.
+        public async Task SubscribeEventAsync(string topicFilter, Func<string, string, Task> callback)
+        {
+            var pt = ParseTopic(topicFilter);
+            if (callback != null)
+                _methods[pt.SubjectId] = callback;
+            var options = _mqttFactory.CreateSubscribeOptionsBuilder()
+                .WithTopicFilter(f => f.WithTopic(topicFilter))
+                .Build();
+            await _mqttClient.SubscribeAsync(options, CancellationToken.None);
         }
 
         // Unsubscribe ... unsubscribe from a topic

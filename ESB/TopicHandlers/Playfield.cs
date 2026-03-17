@@ -18,14 +18,14 @@ namespace ESB.TopicHandlers
             _ctx = ctx;
         }
         
-        public async Task Subscribe()
+        public void Register()
         {
-            await _ctx.Messenger.SubscribeAsync("Playfield.SpawnEntity", SpawnEntity);
-            await _ctx.Messenger.SubscribeAsync("Playfield.SpawnPrefab", SpawnPrefab);
-            await _ctx.Messenger.SubscribeAsync("Playfield.RemoveEntity", RemoveEntity);
-            await _ctx.Messenger.SubscribeAsync("Playfield.IsStructureDeviceLocked", IsStructureDeviceLocked);
-            await _ctx.Messenger.SubscribeAsync("Playfield.MoveEntity", MoveEntity);
-            await _ctx.Messenger.SubscribeAsync("Playfield.Info", Info);
+            _ctx.Messenger.RegisterHandler("Playfield.SpawnEntity",             SpawnEntity);
+            _ctx.Messenger.RegisterHandler("Playfield.SpawnPrefab",             SpawnPrefab);
+            _ctx.Messenger.RegisterHandler("Playfield.RemoveEntity",            RemoveEntity);
+            _ctx.Messenger.RegisterHandler("Playfield.IsStructureDeviceLocked", IsStructureDeviceLocked);
+            _ctx.Messenger.RegisterHandler("Playfield.MoveEntity",              MoveEntity);
+            _ctx.Messenger.RegisterHandler("Playfield.Info",                    Info);
         }
 
         public async Task SpawnEntity(string topic, string payload)

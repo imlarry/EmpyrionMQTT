@@ -17,23 +17,23 @@ namespace ESB.TopicHandlers
             _ctx = ctx;
         }
 
-        public async Task Subscribe()
+        public void Register()
         {
-            await _ctx.Messenger.SubscribeAsync("Structure.Info",                  Info);
-            await _ctx.Messenger.SubscribeAsync("Structure.Tanks",                 Tanks);
-            await _ctx.Messenger.SubscribeAsync("Structure.GetAllCustomDeviceNames", GetAllCustomDeviceNames);
-            await _ctx.Messenger.SubscribeAsync("Structure.GetDevicePositions",    GetDevicePositions);
-            await _ctx.Messenger.SubscribeAsync("Structure.GetBlock",              GetBlock);
-            await _ctx.Messenger.SubscribeAsync("Structure.SetFaction",            SetFaction);
-            await _ctx.Messenger.SubscribeAsync("Structure.GetDockedVessels",      GetDockedVessels);
-            await _ctx.Messenger.SubscribeAsync("Structure.GetPassengers",         GetPassengers);
-            await _ctx.Messenger.SubscribeAsync("Structure.GetBlockSignals",       GetBlockSignals);
-            await _ctx.Messenger.SubscribeAsync("Structure.GetControlPanelSignals", GetControlPanelSignals);
-            await _ctx.Messenger.SubscribeAsync("Structure.GetSignalState",        GetSignalState);
-            await _ctx.Messenger.SubscribeAsync("Structure.GetSignalReceivers",    GetSignalReceivers);
-            await _ctx.Messenger.SubscribeAsync("Structure.GetSendSignalName",     GetSendSignalName);
-            await _ctx.Messenger.SubscribeAsync("Structure.StructToGlobalPos",     StructToGlobalPos);
-            await _ctx.Messenger.SubscribeAsync("Structure.GlobalToStructPos",     GlobalToStructPos);
+            _ctx.Messenger.RegisterHandler("Structure.Info",                   Info);
+            _ctx.Messenger.RegisterHandler("Structure.Tanks",                  Tanks);
+            _ctx.Messenger.RegisterHandler("Structure.GetAllCustomDeviceNames", GetAllCustomDeviceNames);
+            _ctx.Messenger.RegisterHandler("Structure.GetDevicePositions",     GetDevicePositions);
+            _ctx.Messenger.RegisterHandler("Structure.SetFaction",             SetFaction);
+            _ctx.Messenger.RegisterHandler("Structure.AddTankContent",         AddTankContent);
+            _ctx.Messenger.RegisterHandler("Structure.GetDockedVessels",       GetDockedVessels);
+            _ctx.Messenger.RegisterHandler("Structure.GetPassengers",          GetPassengers);
+            _ctx.Messenger.RegisterHandler("Structure.GetBlockSignals",        GetBlockSignals);
+            _ctx.Messenger.RegisterHandler("Structure.GetControlPanelSignals", GetControlPanelSignals);
+            _ctx.Messenger.RegisterHandler("Structure.GetSignalState",         GetSignalState);
+            _ctx.Messenger.RegisterHandler("Structure.GetSignalReceivers",     GetSignalReceivers);
+            _ctx.Messenger.RegisterHandler("Structure.GetSendSignalName",      GetSendSignalName);
+            _ctx.Messenger.RegisterHandler("Structure.StructToGlobalPos",      StructToGlobalPos);
+            _ctx.Messenger.RegisterHandler("Structure.GlobalToStructPos",      GlobalToStructPos);
         }
 
         // Shared lookup: entity from cache → structure, or send an exception and return null.
@@ -213,58 +213,6 @@ namespace ESB.TopicHandlers
                     new JProperty("EntityId",   entityId),
                     new JProperty("DeviceName", devName),
                     new JProperty("Positions",  positions));
-                await _ctx.Messenger.SendAsync(MessageClass.Response, topic, json.ToString(Newtonsoft.Json.Formatting.None));
-            }
-            catch (Exception ex)
-            {
-                await _ctx.Messenger.SendAsync(MessageClass.Exception, topic, MessageHelpers.ExceptionJson(ex));
-            }
-        }
-
-        // -----------------------------------------------------------------------
-        // Structure.GetBlock — type/shape/rotation/active + damage/hp/lockcode/name
-        // Payload: { "EntityId": n, "Pos": {"X":0,"Y":0,"Z":0} }
-        // -----------------------------------------------------------------------
-        public async Task GetBlock(string topic, string payload)
-        {
-            try
-            {
-                var args     = JObject.Parse(payload);
-                int entityId = args["EntityId"].Value<int>();
-                VectorInt3 pos = MessageHelpers.ParseVecInt3(args["Pos"]);
-
-                var structure = await GetStructure(topic, entityId);
-                if (structure == null) return;
-
-                JObject json = null;
-                await _ctx.MainThreadRunner.RunOnMainThread(async () =>
-                {
-                    var block = structure.GetBlock(pos);
-                    if (block == null)
-                    {
-                        json = new JObject(
-                            new JProperty("EntityId", entityId),
-                            new JProperty("Pos",      MessageHelpers.Vec(pos)),
-                            new JProperty("Block",    null));
-                    }
-                    else
-                    {
-                        block.Get(out int type, out int shape, out int rotation, out bool active);
-                        json = new JObject(
-                            new JProperty("EntityId",   entityId),
-                            new JProperty("Pos",        MessageHelpers.Vec(pos)),
-                            new JProperty("Type",       type),
-                            new JProperty("Shape",      shape),
-                            new JProperty("Rotation",   rotation),
-                            new JProperty("Active",     active),
-                            new JProperty("Damage",     block.GetDamage()),
-                            new JProperty("HitPoints",  block.GetHitPoints()),
-                            new JProperty("LockCode",   block.LockCode),
-                            new JProperty("CustomName", block.CustomName));
-                    }
-                    await Task.CompletedTask;
-                });
-
                 await _ctx.Messenger.SendAsync(MessageClass.Response, topic, json.ToString(Newtonsoft.Json.Formatting.None));
             }
             catch (Exception ex)
@@ -629,6 +577,53 @@ namespace ESB.TopicHandlers
                     new JProperty("GlobalPos", MessageHelpers.Vec(globalPos)),
                     new JProperty("StructPos", MessageHelpers.Vec(structPos)));
                 await _ctx.Messenger.SendAsync(MessageClass.Response, topic, json.ToString(Newtonsoft.Json.Formatting.None));
+            }
+            catch (Exception ex)
+            {
+                await _ctx.Messenger.SendAsync(MessageClass.Exception, topic, MessageHelpers.ExceptionJson(ex));
+            }
+        }
+
+        // -----------------------------------------------------------------------
+        // Structure.AddTankContent — add material to a fuel, oxygen, or pentaxid tank
+        // Payload: { "EntityId": n, "TankType": "Fuel"|"Oxygen"|"Pentaxid", "Amount": 100.0 }
+        // -----------------------------------------------------------------------
+        public async Task AddTankContent(string topic, string payload)
+        {
+            try
+            {
+                var args       = JObject.Parse(payload);
+                int entityId   = args["EntityId"].Value<int>();
+                string tankType = args["TankType"].Value<string>();
+                float amount   = args["Amount"].Value<float>();
+
+                var structure = await GetStructure(topic, entityId);
+                if (structure == null) return;
+
+                await _ctx.MainThreadRunner.RunOnMainThread(async () =>
+                {
+                    IStructureTank tank;
+                    if (tankType == "Fuel")           tank = structure.FuelTank;
+                    else if (tankType == "Oxygen")    tank = structure.OxygenTank;
+                    else if (tankType == "Pentaxid")  tank = structure.PentaxidTank;
+                    else                              tank = null;
+
+                    if (tank == null)
+                    {
+                        await _ctx.Messenger.SendAsync(MessageClass.Exception, topic,
+                            MessageHelpers.ErrorJson($"Unknown or unavailable TankType: {tankType}. Valid values: Fuel, Oxygen, Pentaxid"));
+                        return;
+                    }
+
+                    tank.AddContent(amount);
+                    var json = new JObject(
+                        new JProperty("EntityId", entityId),
+                        new JProperty("TankType", tankType),
+                        new JProperty("Amount",   amount),
+                        new JProperty("Content",  tank.Content),
+                        new JProperty("Capacity", tank.Capacity));
+                    await _ctx.Messenger.SendAsync(MessageClass.Response, topic, json.ToString(Newtonsoft.Json.Formatting.None));
+                });
             }
             catch (Exception ex)
             {

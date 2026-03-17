@@ -21,6 +21,7 @@ namespace ESB
                 new JProperty("GameName", _cntxt.GameManager.GameName),
                 new JProperty("GameIdentifier", _cntxt.GameManager.GameIdentifier),
                 new JProperty("GameDataPath", _cntxt.GameManager.GameDataPath),
+                new JProperty("SaveGamePath", _cntxt.GameManager.SaveGamePath),
                 new JProperty("GameMode", _cntxt.GameManager.GameMode));
             if (hasEntered)
             {

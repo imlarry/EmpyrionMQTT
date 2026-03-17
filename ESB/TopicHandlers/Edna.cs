@@ -17,9 +17,9 @@ namespace ESB.TopicHandlers
             _ctx = ctx;
         }
 
-        public async Task Subscribe()
+        public void Register()
         {
-            await _ctx.Messenger.SubscribeAsync("Edna.DumpMemory", DumpMemory);
+            _ctx.Messenger.RegisterHandler("Edna.DumpMemory", DumpMemory);
         }
 
         // Message Entry Points
@@ -55,7 +55,7 @@ namespace ESB.TopicHandlers
                     var containerArray = new JArray();                                                                                  // init empty array for json of containers
                     for (int i = 0; i < containerPositions.Count; i++)
                     {
-                        IContainer container = _ctx.ModApi.Application.LocalPlayer.CurrentStructure.GetDevice<IContainer>(containerPositions.GetAt(i));
+                        Eleon.Modding.IContainer container = _ctx.ModApi.Application.LocalPlayer.CurrentStructure.GetDevice<Eleon.Modding.IContainer>(containerPositions.GetAt(i));
                         if (container != null)
                         {
                             var contents = container.GetContent();

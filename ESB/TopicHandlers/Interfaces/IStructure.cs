@@ -4,13 +4,13 @@ namespace ESB.TopicHandlers
 {
     public interface IStructure
     {
-        Task Subscribe();
+        void Register();
         Task Info(string topic, string payload);
         Task Tanks(string topic, string payload);
         Task GetAllCustomDeviceNames(string topic, string payload);
         Task GetDevicePositions(string topic, string payload);
-        Task GetBlock(string topic, string payload);
         Task SetFaction(string topic, string payload);
+        Task AddTankContent(string topic, string payload);
         Task GetDockedVessels(string topic, string payload);
         Task GetPassengers(string topic, string payload);
         Task GetBlockSignals(string topic, string payload);

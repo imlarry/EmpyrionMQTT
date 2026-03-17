@@ -1,4 +1,5 @@
-using Microsoft.VisualStudio.TestPlatform.TestHost;
+using System;
+using System.IO;
 using YamlDotNet.Serialization;
 using ESB.Common;
 

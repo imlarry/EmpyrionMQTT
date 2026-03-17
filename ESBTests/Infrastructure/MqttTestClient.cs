@@ -23,6 +23,7 @@ public sealed class MqttTestClient : IAsyncDisposable
     private readonly IMqttClient _client;
     private readonly MqttFactory _factory;
 
+
     private MqttTestClient(IMqttClient client, MqttFactory factory)
     {
         _client = client;
@@ -44,8 +45,10 @@ public sealed class MqttTestClient : IAsyncDisposable
     }
 
     /// <summary>
-    /// Publishes a request to <c>{appId}/Q/{handler}/*/1</c> and awaits the
-    /// first message on <c>{appId}/R/{handler}/#</c> or <c>{appId}/X/{handler}/#</c>.
+    /// Publishes a request to <c>{appId}/Q/{handler}/*/&lt;seqId&gt;</c> and awaits the
+    /// response on <c>{appId}/R/{handler}/*/&lt;seqId&gt;</c> or <c>{appId}/X/{handler}/*/&lt;seqId&gt;</c>.
+    /// The sequence ID is unique per call so concurrent requests from different test
+    /// classes to the same handler cannot receive each other's responses.
     /// Returns the full topic string and the parsed JSON payload.
     /// Throws <see cref="TimeoutException"/> if no response arrives within <paramref name="timeoutMs"/>.
     /// </summary>
@@ -55,6 +58,12 @@ public sealed class MqttTestClient : IAsyncDisposable
         int timeoutMs = 5000,
         string appId = "Client")
     {
+        // Unique sequence ID for this request — position[4] in the topic.
+        // The ESB subscription Client/Q/+/*/#  covers this via the trailing #.
+        // The response echoes back on the same topic with Q→R or Q→X, so
+        // subscribing to our specific seqId means we only receive our own response.
+        string seqId = Guid.NewGuid().ToString("N").Substring(0, 8);
+
         var tcs = new TaskCompletionSource<(string, JObject)>();
 
         Func<MqttApplicationMessageReceivedEventArgs, Task> onMessage = e =>
@@ -64,7 +73,11 @@ public sealed class MqttTestClient : IAsyncDisposable
             {
                 var seg = e.ApplicationMessage.PayloadSegment;
                 var json = Encoding.UTF8.GetString(seg.Array!, seg.Offset, seg.Count);
-                tcs.TrySetResult((t, JObject.Parse(json)));
+                // Some handlers return a bare JSON array; wrap it so callers always get JObject.
+                // Access via payload["items"] for those responses.
+                var token = JToken.Parse(json);
+                var jobj = token as JObject ?? new JObject(new JProperty("items", token));
+                tcs.TrySetResult((t, jobj));
             }
             return Task.CompletedTask;
         };
@@ -73,14 +86,16 @@ public sealed class MqttTestClient : IAsyncDisposable
 
         try
         {
+            // Subscribe to our unique seqId so the broker only delivers this
+            // request's response here — no cross-talk between concurrent tests.
             var subOptions = _factory.CreateSubscribeOptionsBuilder()
-                .WithTopicFilter(f => f.WithTopic($"{appId}/R/{handler}/#"))
-                .WithTopicFilter(f => f.WithTopic($"{appId}/X/{handler}/#"))
+                .WithTopicFilter(f => f.WithTopic($"{appId}/R/{handler}/*/{seqId}/#"))
+                .WithTopicFilter(f => f.WithTopic($"{appId}/X/{handler}/*/{seqId}/#"))
                 .Build();
             await _client.SubscribeAsync(subOptions, CancellationToken.None);
 
             var message = new MqttApplicationMessageBuilder()
-                .WithTopic($"{appId}/Q/{handler}/*/1")
+                .WithTopic($"{appId}/Q/{handler}/*/{seqId}")
                 .WithPayload(requestJson)
                 .Build();
             await _client.PublishAsync(message, CancellationToken.None);

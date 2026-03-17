@@ -19,7 +19,7 @@ namespace ESB
 
         private readonly ContextData _contextData = new ContextData();
         private EventManager _eventManager;
-        private LegacyEventManager _legacyEventManager;
+        //private LegacyEventManager _legacyEventManager;
         private BusManager _busManager;
         private GameManager _gameManager;
         private ModGameAPI legacyModApi;

@@ -4,7 +4,7 @@ namespace ESB.TopicHandlers
 {
     public interface IApplication
     {
-        Task Subscribe();
+        void Register();
         Task Teleport(string topic, string payload);
         Task DumpMemory(string topic, string payload);
         Task WindowInfo(string topic, string payload);

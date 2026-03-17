@@ -15,6 +15,7 @@ namespace ESBTests.IStructure;
 [Trait("Category", "Integration")]
 public class Test_Structure_Integration
 {
+    
     private const int EID = KnownState.BaseEntityId;
 
     // -------------------------------------------------------------------------
@@ -61,6 +62,7 @@ public class Test_Structure_Integration
 
         Assert.StartsWith($"{KnownState.AppId}/R/Structure.GetAllCustomDeviceNames/", topic);
         var names = payload["DeviceNames"]!.ToObject<string[]>();
+        Assert.NotNull(names);
         Assert.Contains(KnownState.DeviceName1, names);
         Assert.Contains(KnownState.DeviceName2, names);
     }
@@ -95,19 +97,21 @@ public class Test_Structure_Integration
     }
 
     // -------------------------------------------------------------------------
-    // Structure.GetBlock
+    // Structure.AddTankContent — add 0 fuel (safe no-op; confirms handler is wired)
+    // NOTE: positive amounts change game state.
     // -------------------------------------------------------------------------
     [Fact]
-    public async Task GetBlock_LeverSwitchPosition_ReturnsBlockData()
+    public async Task AddTankContent_FuelZero_ReturnsContentAndCapacity()
     {
         await using var mqtt = await MqttTestClient.ConnectAsync();
         var (topic, payload) = await mqtt.RequestAsync(
-            "Structure.GetBlock",
-            $"{{\"EntityId\":{EID},\"Pos\":{KnownState.LeverSwitchBlock}}}");
+            "Structure.AddTankContent",
+            $"{{\"EntityId\":{EID},\"TankType\":\"Fuel\",\"Amount\":0.0}}");
 
-        Assert.StartsWith($"{KnownState.AppId}/R/Structure.GetBlock/", topic);
-        Assert.NotNull(payload["Type"]);
-        Assert.NotNull(payload["Pos"]);
+        Assert.StartsWith($"{KnownState.AppId}/R/Structure.AddTankContent/", topic);
+        Assert.Equal("Fuel", payload["TankType"]!.Value<string>());
+        Assert.NotNull(payload["Content"]);
+        Assert.NotNull(payload["Capacity"]);
     }
 
     // -------------------------------------------------------------------------

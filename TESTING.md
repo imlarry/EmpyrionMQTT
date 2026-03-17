@@ -7,13 +7,14 @@ Testing divides into two tiers with different requirements and tooling:
 | Tier | What | Needs game? | Tooling |
 |------|------|-------------|---------|
 | 1 — Unit | Serialization, helpers, config parsing | No | xUnit / VS Code Test Explorer |
-| 2 — Integration | Live MQTT round-trips against a running game | Yes | mosquitto CLI + payload files |
+| 2 — Integration | Live MQTT round-trips against a running game | Yes | xUnit + MqttTestClient |
 
 ---
 
-## Tier 1 — Unit Tests (ESBTests project)
+## Tier 1 — Unit Tests
 
-The `ESBTests` project targets `net48`, uses xUnit, and is already discoverable by VS Code via the C# extension Test Explorer panel (`Ctrl+Shift+P` → "Test: Focus on Test Explorer View").
+The `ESBTests` project targets `net48`, uses xUnit, and is discoverable by VS Code via the
+C# extension Test Explorer panel (`Ctrl+Shift+P` → "Test: Focus on Test Explorer View").
 
 **Run from the terminal:**
 ```bash
@@ -27,18 +28,33 @@ dotnet test ESBTests/ESBTests.csproj
 - Any pure logic that can be exercised without Unity or the broker
 
 **What does NOT belong here:**
-Anything that touches `IModApi`, `IPlayfield`, `IPlayer`, etc. — those are Unity/game objects and cannot be instantiated outside the game process.
+Anything that touches `IModApi`, `IPlayfield`, `IPlayer`, etc. — those are Unity/game objects
+and cannot be instantiated outside the game process.
 
 ---
 
-## Tier 2 — Integration Tests (mosquitto + live game)
+## Tier 2 — Integration Tests
 
-Integration tests require:
-1. Mosquitto broker running (`mosquitto` — localhost default)
-2. Game running with the ESB mod loaded
-3. A player in the **test save** (see Known State below)
+Integration tests are xUnit facts tagged `[Trait("Category","Integration")]`. They use
+`MqttTestClient` (in `ESBTests/Infrastructure/`) to publish a request and await the
+response or exception over a live broker.
 
-**Capture all traffic in a dedicated terminal before running any test:**
+**Requirements:**
+1. Mosquitto broker running (`mosquitto` — localhost:1883 default)
+2. Game running with ESB mod loaded
+3. A player in the test save (see Known State below)
+
+**Run integration tests:**
+```bash
+dotnet test ESBTests/ESBTests.csproj --filter "Category=Integration"
+```
+
+**Skip integration tests (unit only):**
+```bash
+dotnet test ESBTests/ESBTests.csproj --filter "Category!=Integration"
+```
+
+**Capture all traffic while running (separate terminal):**
 ```bash
 mosquitto_sub -t "Client/#" -v
 ```
@@ -46,133 +62,104 @@ mosquitto_sub -t "Client/#" -v
 ### Directory layout
 
 ```
-tests/
+ESBTests/
+  Infrastructure/
+    KnownState.cs          — entity IDs, block positions, device names for the test save
+    MqttTestClient.cs      — thin MQTT client: ConnectAsync(), RequestAsync()
   IApplication/
-    LocalPlayer.json
-    ShowEntity.json
-    Teleport.json
-    GetPathFor.json
-    SendChatMessage.json
-    ...
+    Test_Application_Integration.cs
+  IBlock/
+    Test_Block_Integration.cs
+  IContainer/
+    Test_Container_Integration.cs
   IGui/
-    ShowGameMessage.json
-    ShowGameMessage-prio.json
-    ShowDialog.json
-    IsWorldVisible.json
-  IPlayfield/
-    Info.json
-    SpawnEntity.json
-    SpawnPrefab.json
-    RemoveEntity.json
-    IsStructureDeviceLocked.json
-    MoveEntity.json
+    Test_Gui_Integration.cs
+  ILcd/
+    Test_Lcd_Integration.cs
   IPlayer/
-    Stats.json
-    SteamId.json
-    Teleport-local.json
-    Teleport-crossplayfield.json
+    Test_Player_Integration.cs
+  IPlayfield/
+    Test_Playfield_Integration.cs
   IStructure/
-    Info.json
-    GetDevicePositions.json
-    GetBlock.json
-    SetFaction.json
-    GetSignalState.json
-    ...
-  scripts/
-    run-all.sh
-    run-IApplication.sh
-    run-IGui.sh
-    run-IPlayfield.sh
-    run-IPlayer.sh
-    run-IStructure.sh
-  known-state.md
+    Test_Structure_Integration.cs
 ```
 
-### Payload file format
+### MqttTestClient usage
 
-Each `.json` file is a valid JSON object passed directly as the MQTT payload via `mosquitto_pub -f`.
-Keys follow the handler's documented schema. All vector fields use structured objects:
+```csharp
+await using var mqtt = await MqttTestClient.ConnectAsync();
+var (topic, payload) = await mqtt.RequestAsync(
+    "Structure.Info", $"{{\"EntityId\":{EID}}}");
 
-```json
-{ "Pos": {"X": 0.0, "Y": 100.0, "Z": 0.0} }
+Assert.StartsWith("Client/R/Structure.Info/", topic);
+Assert.NotNull(payload["IsReady"]);
 ```
 
-### Script convention
+`RequestAsync` publishes to `Client/Q/{handler}/*/1` and awaits the first message on
+`Client/R/{handler}/#` or `Client/X/{handler}/#`. Throws `TimeoutException` after 5 s.
+Each test creates its own client instance (`await using`) so subscriptions do not bleed
+across tests.
 
-Each `run-I<Interface>.sh` follows the same pattern:
+### Mutation tests
 
-```bash
-#!/usr/bin/env bash
-# run-IGui.sh — requires live game + broker
-
-TOPIC_BASE="Client/Q"
-PAYLOAD="tests/IGui"
-PUB() { mosquitto_pub -t "$TOPIC_BASE/$1/*/1" -f "$PAYLOAD/$2"; sleep 0.5; }
-
-# Notify the tester via the game HUD before steps requiring in-game observation
-NOTIFY() { mosquitto_pub -t "$TOPIC_BASE/Gui.ShowGameMessage/*/1" \
-           -m "{\"Text\":\"TEST: $1\",\"Prio\":2,\"Duration\":8}"; sleep 1; }
-
-NOTIFY "Starting IGui tests"
-PUB Gui.IsWorldVisible     IsWorldVisible.json
-PUB Gui.ShowGameMessage    ShowGameMessage.json
-NOTIFY "A dialog should appear now"
-PUB Gui.ShowDialog         ShowDialog.json
-```
-
-For steps that require a player action before the next command (e.g., entering a structure,
-approaching an entity), use `Gui.ShowDialog` to gate progress — the script waits for the
-`Client/I/Gui.ShowDialog/#` event before sending the next request.
+Handlers that change game state are tested with the minimum safe mutation (e.g., `SetDamage`
+with `Damage:0` repairs rather than damages; `AddTankContent` with `Amount:0.0`). Where a
+non-trivial mutation is required, the test accepts either `R` (success) or `X` (exception)
+and verifies only that ESB handled the request without crashing.
 
 ---
 
 ## Known State (test save)
 
-`tests/known-state.md` documents the test save so every run starts from a deterministic baseline.
-Record the following after building the save:
+The test save state is documented in code at `ESBTests/Infrastructure/KnownState.cs`.
+Build the save once, record the constants, and keep them in sync with the actual save.
 
-```markdown
-## Save: ESB_TestWorld
+**Current known state: VNS Akua base on Akua moon**
 
-### Player start
-- Playfield: TestFlats
-- Position: {X:0, Y:100, Z:0}
+| Constant | Value | Description |
+|----------|-------|-------------|
+| `AppId` | `"Client"` | ESB source ID in client/singleplayer mode |
+| `Playfield` | `"Akua"` | Active playfield name |
+| `BaseEntityId` | `5320` | Entity ID of the test base |
+| `BaseName` | `"VNS Akua"` | Structure name |
+| `LeverSwitchBlock` | `{X:2,Y:130,Z:1}` | Struct-space position of a lever switch |
+| `SignalName` | `"Fridge"` | Signal sent by the lever switch |
+| `DeviceName1` | `"Constructor"` | Named constructor device |
+| `DeviceName2` | `"Fridge"` | Named fridge (container) device |
+| `BaseGlobalPos` | `{X:-83.5,Y:52.0,Z:-26.5}` | Approximate global position of the base |
+| `LcdName` | `"InfoLcd"` | Custom name of LCD panel (must be placed on base) |
+| `LcdBlock` | `{X:0,Y:131,Z:0}` | Struct-space position of LCD — **TODO: update** |
+| `FridgeBlock` | `{X:0,Y:130,Z:2}` | Struct-space position of Fridge — **TODO: update** |
 
-### Structures
-| Name | EntityId | StructureId | Notable devices |
-|------|----------|-------------|-----------------|
-| TestBase | 1001 | 2001 | Container at block {X:5,Y:2,Z:3}, LCD at {X:5,Y:3,Z:3} |
-| TestShip | 1002 | 2002 | Fuel tank, teleporter |
-
-### Entities (non-player)
-| Name | EntityId | Type | Position |
-|------|----------|------|----------|
-| TestSlime | 1050 | Animal | {X:10,Y:100,Z:0} |
+To find the actual position of a named device, run:
+```bash
+mosquitto_pub -t "Client/Q/Structure.GetDevicePositions/*/1" \
+  -m "{\"EntityId\":5320,\"DeviceName\":\"Fridge\"}"
 ```
-
-Entity IDs persist in the save file. Build the save once, document it, and commit
-`known-state.md` so the test scripts can reference fixed IDs without discovery steps.
 
 ---
 
-## GUI-driven test prompting
+## Integration test coverage
 
-Because many integration tests require the tester to observe or perform an action in-game,
-use `Gui.ShowGameMessage` (brief status) and `Gui.ShowDialog` (gated confirmation) to close
-the loop without leaving the game window:
-
-- **Before** a step that spawns or moves something visible: send a `ShowGameMessage` warning
-- **After** the action: send another message confirming what the expected result is
-- **For branching** (pass/fail confirmation from the tester): send a `ShowDialog` with
-  Yes/No buttons; the script listens for the `Client/I/Gui.ShowDialog/#` event and branches
-
-This keeps the tester in-game and minimises context-switching to the terminal.
+| Test class | Tests | Handler prefix |
+|------------|-------|----------------|
+| `ESBTests.IApplication.Test_Application_Integration` | 12 | `Application.*` |
+| `ESBTests.IBlock.Test_Block_Integration` | 7 | `Block.*` |
+| `ESBTests.IContainer.Test_Container_Integration` | 5 | `Container.*` |
+| `ESBTests.IGui.Test_Gui_Integration` | 4 | `Gui.*` |
+| `ESBTests.ILcd.Test_Lcd_Integration` | 4 | `Lcd.*` |
+| `ESBTests.IPlayer.Test_Player_Integration` | 3 | `Player.*` |
+| `ESBTests.IPlayfield.Test_Playfield_Integration` | 3 | `Playfield.*` |
+| `ESBTests.IStructure.Test_Structure_Integration` | 17 | `Structure.*` |
 
 ---
 
 ## Adding tests for a new handler
 
-1. Create the payload file(s) under `tests/I<Interface>/`
-2. Add a `PUB` line to the corresponding `run-I<Interface>.sh`
-3. If the handler has pure logic (parsing, serialization), add a Tier 1 xUnit fact to `ESBTests`
-4. Update `tests/known-state.md` if the test requires a specific entity or structure
+1. Create `ESBTests/I<Interface>/Test_<Interface>_Integration.cs`
+2. Tag the class `[Trait("Category","Integration")]`
+3. Add any required position or name constants to `KnownState.cs`
+4. Use `MqttTestClient.RequestAsync()` — one client instance per test (`await using`)
+5. Assert on `topic` prefix (`Client/R/` for success, `Client/X/` for exception)
+6. Assert on `payload` keys — presence and type, not specific values where game state varies
+7. For mutation handlers: use the minimum safe mutation or accept R|X and verify ESB handled it

@@ -16,12 +16,12 @@ namespace ESB.TopicHandlers
             _ctx = ctx;
         }
 
-        public async Task Subscribe()
+        public void Register()
         {
-            await _ctx.Messenger.SubscribeAsync("Edna.TestSelf", Edna_Selftest);
-            await _ctx.Messenger.SubscribeAsync("Gui.ShowGameMessage", ShowGameMessage);
-            await _ctx.Messenger.SubscribeAsync("Gui.ShowDialog", ShowDialog);
-            await _ctx.Messenger.SubscribeAsync("Gui.IsWorldVisible", IsWorldVisible);
+            _ctx.Messenger.RegisterHandler("Edna.TestSelf",       Edna_Selftest);
+            _ctx.Messenger.RegisterHandler("Gui.ShowGameMessage", ShowGameMessage);
+            _ctx.Messenger.RegisterHandler("Gui.ShowDialog",      ShowDialog);
+            _ctx.Messenger.RegisterHandler("Gui.IsWorldVisible",  IsWorldVisible);
         }
 
         public async Task Edna_Selftest(string topic, string payload)
@@ -67,7 +67,7 @@ namespace ESB.TopicHandlers
                 new JProperty("CustomValue", customValue)
             );
 
-            _ = _ctx.Messenger.SendAsync(MessageClass.Information, "Gui.ShowDialog", json.ToString(Newtonsoft.Json.Formatting.None));
+            _ = _ctx.Messenger.SendAsync(MessageClass.Event, "Gui.ShowDialog", json.ToString(Newtonsoft.Json.Formatting.None));
         }
 
         public async Task ShowDialog(string topic, string payload)
@@ -100,7 +100,7 @@ namespace ESB.TopicHandlers
             }
             catch (Exception ex)
             {
-                _ = _ctx.Messenger.SendAsync(MessageClass.Exception, topic, MessageHelpers.ExceptionJson(ex));
+                await _ctx.Messenger.SendAsync(MessageClass.Exception, topic, MessageHelpers.ExceptionJson(ex));
             }
         }
 
