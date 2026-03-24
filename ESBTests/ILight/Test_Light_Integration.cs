@@ -46,7 +46,7 @@ public class Test_Light_Integration : IAsyncLifetime
             _lightPos = await GetLightPosAsync(_mqtt);
 
             var (_, getPayload) = await _mqtt.RequestAsync(
-                "Light.Get",
+                "V2.Light.Get",
                 $"{{\"EntityId\":{EID},\"Pos\":{_lightPos}}}");
 
             _currentIntensity = getPayload["Intensity"]?.Value<float>() ?? 1f;
@@ -70,7 +70,7 @@ public class Test_Light_Integration : IAsyncLifetime
     private static async Task<string> GetLightPosAsync(MqttTestClient mqtt)
     {
         var (_, payload) = await mqtt.RequestAsync(
-            "Structure.GetDevicePositions",
+            "V2.Structure.GetDevicePositions",
             $"{{\"EntityId\":{KnownState.BaseEntityId},\"DeviceName\":\"{KnownState.LightName}\"}}");
 
         var positions = payload["Positions"] as JArray
@@ -89,10 +89,10 @@ public class Test_Light_Integration : IAsyncLifetime
     {
         Skip.If(_skipReason != null, _skipReason ?? string.Empty);
         var (topic, payload) = await _mqtt.RequestAsync(
-            "Light.Get",
+            "V2.Light.Get",
             $"{{\"EntityId\":{EID},\"Pos\":{_lightPos}}}");
 
-        Assert.StartsWith($"{KnownState.AppId}/R/Light.Get/", topic);
+        Assert.StartsWith($"{KnownState.AppId}/R/V2.Light.Get/", topic);
         Assert.NotNull(payload["Color"]);
         Assert.NotNull(payload["Color"]!["R"]);
         Assert.NotNull(payload["Color"]!["G"]);
@@ -115,10 +115,10 @@ public class Test_Light_Integration : IAsyncLifetime
     {
         Skip.If(_skipReason != null, _skipReason ?? string.Empty);
         var (topic, payload) = await _mqtt.RequestAsync(
-            "Light.SetColor",
+            "V2.Light.SetColor",
             $"{{\"EntityId\":{EID},\"Pos\":{_lightPos},\"Color\":{{\"R\":1.0,\"G\":1.0,\"B\":1.0,\"A\":1.0}}}}");
 
-        Assert.StartsWith($"{KnownState.AppId}/R/Light.SetColor/", topic);
+        Assert.StartsWith($"{KnownState.AppId}/R/V2.Light.SetColor/", topic);
         Assert.NotNull(payload["Color"]);
     }
 
@@ -130,10 +130,10 @@ public class Test_Light_Integration : IAsyncLifetime
     {
         Skip.If(_skipReason != null, _skipReason ?? string.Empty);
         var (topic, payload) = await _mqtt.RequestAsync(
-            "Light.SetIntensity",
+            "V2.Light.SetIntensity",
             $"{{\"EntityId\":{EID},\"Pos\":{_lightPos},\"Intensity\":{_currentIntensity}}}");
 
-        Assert.StartsWith($"{KnownState.AppId}/R/Light.SetIntensity/", topic);
+        Assert.StartsWith($"{KnownState.AppId}/R/V2.Light.SetIntensity/", topic);
         Assert.Equal(_currentIntensity, payload["Intensity"]!.Value<float>());
     }
 
@@ -145,10 +145,10 @@ public class Test_Light_Integration : IAsyncLifetime
     {
         Skip.If(_skipReason != null, _skipReason ?? string.Empty);
         var (topic, payload) = await _mqtt.RequestAsync(
-            "Light.SetRange",
+            "V2.Light.SetRange",
             $"{{\"EntityId\":{EID},\"Pos\":{_lightPos},\"Range\":{_currentRange}}}");
 
-        Assert.StartsWith($"{KnownState.AppId}/R/Light.SetRange/", topic);
+        Assert.StartsWith($"{KnownState.AppId}/R/V2.Light.SetRange/", topic);
         Assert.Equal(_currentRange, payload["Range"]!.Value<float>());
     }
 
@@ -160,10 +160,10 @@ public class Test_Light_Integration : IAsyncLifetime
     {
         Skip.If(_skipReason != null, _skipReason ?? string.Empty);
         var (topic, payload) = await _mqtt.RequestAsync(
-            "Light.SetLightType",
+            "V2.Light.SetLightType",
             $"{{\"EntityId\":{EID},\"Pos\":{_lightPos},\"LightType\":\"{_currentLightType}\"}}");
 
-        Assert.StartsWith($"{KnownState.AppId}/R/Light.SetLightType/", topic);
+        Assert.StartsWith($"{KnownState.AppId}/R/V2.Light.SetLightType/", topic);
         Assert.Equal(_currentLightType, payload["LightType"]!.Value<string>());
     }
 
@@ -175,10 +175,10 @@ public class Test_Light_Integration : IAsyncLifetime
     {
         Skip.If(_skipReason != null, _skipReason ?? string.Empty);
         var (topic, payload) = await _mqtt.RequestAsync(
-            "Light.SetBlinkData",
+            "V2.Light.SetBlinkData",
             $"{{\"EntityId\":{EID},\"Pos\":{_lightPos},\"BlinkInterval\":0.0,\"BlinkLength\":0.0,\"BlinkOffset\":0.0}}");
 
-        Assert.StartsWith($"{KnownState.AppId}/R/Light.SetBlinkData/", topic);
+        Assert.StartsWith($"{KnownState.AppId}/R/V2.Light.SetBlinkData/", topic);
         Assert.Equal(0f, payload["BlinkInterval"]!.Value<float>());
         Assert.Equal(0f, payload["BlinkLength"]!.Value<float>());
         Assert.Equal(0f, payload["BlinkOffset"]!.Value<float>());
@@ -192,10 +192,10 @@ public class Test_Light_Integration : IAsyncLifetime
     {
         Skip.If(_skipReason != null, _skipReason ?? string.Empty);
         var (topic, payload) = await _mqtt.RequestAsync(
-            "Light.SetSpotAngle",
+            "V2.Light.SetSpotAngle",
             $"{{\"EntityId\":{EID},\"Pos\":{_lightPos},\"SpotAngle\":{_currentSpotAngle}}}");
 
-        Assert.StartsWith($"{KnownState.AppId}/R/Light.SetSpotAngle/", topic);
+        Assert.StartsWith($"{KnownState.AppId}/R/V2.Light.SetSpotAngle/", topic);
         Assert.Equal(_currentSpotAngle, payload["SpotAngle"]!.Value<float>());
     }
 
@@ -207,10 +207,10 @@ public class Test_Light_Integration : IAsyncLifetime
     {
         Skip.If(_skipReason != null, _skipReason ?? string.Empty);
         var (topic, payload) = await _mqtt.RequestAsync(
-            "Light.Get",
+            "V2.Light.Get",
             $"{{\"EntityId\":{EID},\"Pos\":{KnownState.LeverSwitchBlock}}}");
 
-        Assert.StartsWith($"{KnownState.AppId}/X/Light.Get/", topic);
+        Assert.StartsWith($"{KnownState.AppId}/X/V2.Light.Get/", topic);
         Assert.NotNull(payload["Error"]);
     }
 
@@ -222,10 +222,10 @@ public class Test_Light_Integration : IAsyncLifetime
     {
         Skip.If(_skipReason != null, _skipReason ?? string.Empty);
         var (topic, payload) = await _mqtt.RequestAsync(
-            "Light.Get",
+            "V2.Light.Get",
             $"{{\"EntityId\":999999,\"Pos\":{_lightPos}}}");
 
-        Assert.StartsWith($"{KnownState.AppId}/X/Light.Get/", topic);
+        Assert.StartsWith($"{KnownState.AppId}/X/V2.Light.Get/", topic);
         Assert.NotNull(payload["Error"]);
     }
 }

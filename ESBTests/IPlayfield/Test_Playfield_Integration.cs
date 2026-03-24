@@ -24,9 +24,9 @@ public class Test_Playfield_Integration
     public async Task Info_ReturnsPlayfieldProperties()
     {
         await using var mqtt = await MqttTestClient.ConnectAsync();
-        var (topic, payload) = await mqtt.RequestAsync("Playfield.Info", "{}");
+        var (topic, payload) = await mqtt.RequestAsync("V2.Playfield.Info", "{}");
 
-        Assert.StartsWith($"{KnownState.AppId}/R/Playfield.Info/", topic);
+        Assert.StartsWith($"{KnownState.AppId}/R/V2.Playfield.Info/", topic);
         Assert.NotNull(payload["Name"]);
         Assert.NotNull(payload["PlayfieldType"]);
         Assert.NotNull(payload["IsPvP"]);
@@ -44,10 +44,10 @@ public class Test_Playfield_Integration
     {
         await using var mqtt = await MqttTestClient.ConnectAsync();
         var (topic, payload) = await mqtt.RequestAsync(
-            "Playfield.IsStructureDeviceLocked",
+            "V2.Playfield.IsStructureDeviceLocked",
             $"{{\"StructureId\":{EID},\"PosInStructure\":{KnownState.LeverSwitchBlock}}}");
 
-        Assert.StartsWith($"{KnownState.AppId}/R/Playfield.IsStructureDeviceLocked/", topic);
+        Assert.StartsWith($"{KnownState.AppId}/R/V2.Playfield.IsStructureDeviceLocked/", topic);
         Assert.Equal(EID, payload["StructureId"]!.Value<int>());
         Assert.NotNull(payload["IsStructureDeviceLocked"]);
         // Must be a bool
@@ -64,13 +64,13 @@ public class Test_Playfield_Integration
     {
         await using var mqtt = await MqttTestClient.ConnectAsync();
         var (topic, payload) = await mqtt.RequestAsync(
-            "Playfield.MoveEntity",
+            "V2.Playfield.MoveEntity",
             $"{{\"EntityId\":{EID},\"Pos\":{KnownState.BaseGlobalPos}}}");
 
         // R (cached, moved) or X (not in LoadedEntity cache — valid in non-SP modes)
         Assert.True(
-            topic.StartsWith($"{KnownState.AppId}/R/Playfield.MoveEntity/") ||
-            topic.StartsWith($"{KnownState.AppId}/X/Playfield.MoveEntity/"),
+            topic.StartsWith($"{KnownState.AppId}/R/V2.Playfield.MoveEntity/") ||
+            topic.StartsWith($"{KnownState.AppId}/X/V2.Playfield.MoveEntity/"),
             $"Unexpected topic: {topic}");
 
         if (topic.StartsWith($"{KnownState.AppId}/R/"))

@@ -1,4 +1,5 @@
-﻿using ESB.TopicHandlers;
+﻿using ESB.TopicHandlers.V2;
+using ESB.TopicHandlers.V1;
 using ESB.Common;
 using System.Threading.Tasks;
 
@@ -18,7 +19,7 @@ namespace ESB
             new Application(_cntxt).Register();
             new Playfield(_cntxt).Register();
             new Gui(_cntxt).Register();
-            new Player(_cntxt).Register();
+            new ESB.TopicHandlers.V2.Player(_cntxt).Register();
             new Structure(_cntxt).Register();
             new Block(_cntxt).Register();
             new Lcd(_cntxt).Register();
@@ -26,6 +27,8 @@ namespace ESB
             new Light(_cntxt).Register();
             new Teleporter(_cntxt).Register();
             new Pda(_cntxt).Register();
+            new Utilities(_cntxt).Register();
+            new ESB.TopicHandlers.V1.Player(_cntxt).Register();
 
             await _cntxt.Messenger.SubscribeRequestsAsync();
         }

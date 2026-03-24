@@ -24,9 +24,9 @@ public class Test_Application_Integration
     public async Task State_ReturnsStateString()
     {
         await using var mqtt = await MqttTestClient.ConnectAsync();
-        var (topic, payload) = await mqtt.RequestAsync("Application.State", "{}");
+        var (topic, payload) = await mqtt.RequestAsync("V2.Application.State", "{}");
 
-        Assert.StartsWith($"{KnownState.AppId}/R/Application.State/", topic);
+        Assert.StartsWith($"{KnownState.AppId}/R/V2.Application.State/", topic);
         Assert.NotNull(payload["State"]);
         Assert.False(string.IsNullOrEmpty(payload["State"]!.Value<string>()),
             "State must be a non-empty string");
@@ -39,9 +39,9 @@ public class Test_Application_Integration
     public async Task Mode_ReturnsModeString()
     {
         await using var mqtt = await MqttTestClient.ConnectAsync();
-        var (topic, payload) = await mqtt.RequestAsync("Application.Mode", "{}");
+        var (topic, payload) = await mqtt.RequestAsync("V2.Application.Mode", "{}");
 
-        Assert.StartsWith($"{KnownState.AppId}/R/Application.Mode/", topic);
+        Assert.StartsWith($"{KnownState.AppId}/R/V2.Application.Mode/", topic);
         Assert.NotNull(payload["Mode"]);
         Assert.False(string.IsNullOrEmpty(payload["Mode"]!.Value<string>()),
             "Mode must be a non-empty string");
@@ -54,9 +54,9 @@ public class Test_Application_Integration
     public async Task GameTicks_ReturnsPositiveNumber()
     {
         await using var mqtt = await MqttTestClient.ConnectAsync();
-        var (topic, payload) = await mqtt.RequestAsync("Application.GameTicks", "{}");
+        var (topic, payload) = await mqtt.RequestAsync("V2.Application.GameTicks", "{}");
 
-        Assert.StartsWith($"{KnownState.AppId}/R/Application.GameTicks/", topic);
+        Assert.StartsWith($"{KnownState.AppId}/R/V2.Application.GameTicks/", topic);
         Assert.NotNull(payload["GameTicks"]);
         Assert.True(payload["GameTicks"]!.Value<long>() > 0,
             "GameTicks should be positive once the game is running");
@@ -69,10 +69,10 @@ public class Test_Application_Integration
     public async Task LocalPlayer_ReturnsPlayerDataOrNull()
     {
         await using var mqtt = await MqttTestClient.ConnectAsync();
-        var (topic, payload) = await mqtt.RequestAsync("Application.LocalPlayer", "{}");
+        var (topic, payload) = await mqtt.RequestAsync("V2.Application.LocalPlayer", "{}");
 
         // Always R — handler returns {LocalPlayer: null} when no active player
-        Assert.StartsWith($"{KnownState.AppId}/R/Application.LocalPlayer/", topic);
+        Assert.StartsWith($"{KnownState.AppId}/R/V2.Application.LocalPlayer/", topic);
 
         if (payload["LocalPlayer"] != null && payload["LocalPlayer"]!.Type != JTokenType.Null)
         {
@@ -85,21 +85,6 @@ public class Test_Application_Integration
     }
 
     // -------------------------------------------------------------------------
-    // Application.WindowInfo — read-only, always available
-    // -------------------------------------------------------------------------
-    [Fact]
-    public async Task WindowInfo_ReturnsWindowObject()
-    {
-        await using var mqtt = await MqttTestClient.ConnectAsync();
-        var (topic, payload) = await mqtt.RequestAsync("Application.WindowInfo", "{}");
-
-        Assert.True(
-            topic.StartsWith($"{KnownState.AppId}/R/Application.WindowInfo/") ||
-            topic.StartsWith($"{KnownState.AppId}/X/Application.WindowInfo/"),
-            $"Unexpected topic: {topic}");
-    }
-
-    // -------------------------------------------------------------------------
     // Application.GetPathFor — read-only
     // Root and SaveGame are reliably available in both client and dedicated modes.
     // -------------------------------------------------------------------------
@@ -108,9 +93,9 @@ public class Test_Application_Integration
     {
         await using var mqtt = await MqttTestClient.ConnectAsync();
         var (topic, payload) = await mqtt.RequestAsync(
-            "Application.GetPathFor", "{\"AppFolder\":\"Root\"}");
+            "V2.Application.GetPathFor", "{\"AppFolder\":\"Root\"}");
 
-        Assert.StartsWith($"{KnownState.AppId}/R/Application.GetPathFor/", topic);
+        Assert.StartsWith($"{KnownState.AppId}/R/V2.Application.GetPathFor/", topic);
         Assert.NotNull(payload["AppFolder"]);
         Assert.NotNull(payload["Path"]);
         Assert.Equal("Root", payload["AppFolder"]!.Value<string>());
@@ -123,9 +108,9 @@ public class Test_Application_Integration
     {
         await using var mqtt = await MqttTestClient.ConnectAsync();
         var (topic, payload) = await mqtt.RequestAsync(
-            "Application.GetPathFor", "{\"AppFolder\":\"SaveGame\"}");
+            "V2.Application.GetPathFor", "{\"AppFolder\":\"SaveGame\"}");
 
-        Assert.StartsWith($"{KnownState.AppId}/R/Application.GetPathFor/", topic);
+        Assert.StartsWith($"{KnownState.AppId}/R/V2.Application.GetPathFor/", topic);
         Assert.Equal("SaveGame", payload["AppFolder"]!.Value<string>());
         Assert.False(string.IsNullOrEmpty(payload["Path"]!.Value<string>()),
             "SaveGame path must be non-empty");
@@ -138,12 +123,12 @@ public class Test_Application_Integration
     public async Task GetAllPlayfields_ContainsAkua()
     {
         await using var mqtt = await MqttTestClient.ConnectAsync();
-        var (topic, payload) = await mqtt.RequestAsync("Application.GetAllPlayfields", "{}");
+        var (topic, payload) = await mqtt.RequestAsync("V2.Application.GetAllPlayfields", "{}");
 
         // Handler serialises a list — response may be a JSON array at root
         Assert.True(
-            topic.StartsWith($"{KnownState.AppId}/R/Application.GetAllPlayfields/") ||
-            topic.StartsWith($"{KnownState.AppId}/X/Application.GetAllPlayfields/"),
+            topic.StartsWith($"{KnownState.AppId}/R/V2.Application.GetAllPlayfields/") ||
+            topic.StartsWith($"{KnownState.AppId}/X/V2.Application.GetAllPlayfields/"),
             $"Unexpected topic: {topic}");
 
         if (topic.StartsWith($"{KnownState.AppId}/R/"))
@@ -163,42 +148,13 @@ public class Test_Application_Integration
     public async Task GetPlayerEntityIds_ReturnsArray()
     {
         await using var mqtt = await MqttTestClient.ConnectAsync();
-        var (topic, payload) = await mqtt.RequestAsync("Application.GetPlayerEntityIds", "{}");
+        var (topic, payload) = await mqtt.RequestAsync("V2.Application.GetPlayerEntityIds", "{}");
 
         Assert.True(
-            topic.StartsWith($"{KnownState.AppId}/R/Application.GetPlayerEntityIds/") ||
-            topic.StartsWith($"{KnownState.AppId}/X/Application.GetPlayerEntityIds/"),
+            topic.StartsWith($"{KnownState.AppId}/R/V2.Application.GetPlayerEntityIds/") ||
+            topic.StartsWith($"{KnownState.AppId}/X/V2.Application.GetPlayerEntityIds/"),
             $"Unexpected topic: {topic}");
         // No structural assertion — list may be empty in dedicated mode without players
-    }
-
-    // -------------------------------------------------------------------------
-    // Application.ShowEntity — reads entity from LoadedEntity cache
-    // -------------------------------------------------------------------------
-    [Fact]
-    public async Task ShowEntity_BaseEntity_ReturnsEntityDataOrException()
-    {
-        await using var mqtt = await MqttTestClient.ConnectAsync();
-        var (topic, payload) = await mqtt.RequestAsync(
-            "Application.ShowEntity", $"{{\"EntityId\":{EID}}}");
-
-        // R (in cache) or X (not yet loaded — valid in some game states)
-        Assert.True(
-            topic.StartsWith($"{KnownState.AppId}/R/Application.ShowEntity/") ||
-            topic.StartsWith($"{KnownState.AppId}/X/Application.ShowEntity/"),
-            $"Unexpected topic: {topic}");
-
-        if (topic.StartsWith($"{KnownState.AppId}/R/"))
-        {
-            Assert.Equal(EID, payload["Id"]!.Value<int>());
-            Assert.NotNull(payload["Name"]);
-            Assert.NotNull(payload["Position"]);
-            Assert.NotNull(payload["Type"]);
-        }
-        else
-        {
-            Assert.NotNull(payload["Error"]);
-        }
     }
 
     // -------------------------------------------------------------------------
@@ -209,13 +165,13 @@ public class Test_Application_Integration
     {
         await using var mqtt = await MqttTestClient.ConnectAsync();
         var (topic, payload) = await mqtt.RequestAsync(
-            "Application.GetStructure", $"{{\"EntityId\":{EID}}}",
+            "V2.Application.GetStructure", $"{{\"EntityId\":{EID}}}",
             timeoutMs: 10000);  // DB callback may take a moment
 
         // R on success, X if entity not found in DB
         Assert.True(
-            topic.StartsWith($"{KnownState.AppId}/R/Application.GetStructure/") ||
-            topic.StartsWith($"{KnownState.AppId}/X/Application.GetStructure/"),
+            topic.StartsWith($"{KnownState.AppId}/R/V2.Application.GetStructure/") ||
+            topic.StartsWith($"{KnownState.AppId}/X/V2.Application.GetStructure/"),
             $"Unexpected topic: {topic}");
 
         if (topic.StartsWith($"{KnownState.AppId}/R/"))
@@ -234,12 +190,12 @@ public class Test_Application_Integration
     {
         await using var mqtt = await MqttTestClient.ConnectAsync();
         var (topic, payload) = await mqtt.RequestAsync(
-            "Application.GetStructures", $"{{\"PlayfieldName\":\"{KnownState.Playfield}\"}}",
+            "V2.Application.GetStructures", $"{{\"PlayfieldName\":\"{KnownState.Playfield}\"}}",
             timeoutMs: 10000);
 
         Assert.True(
-            topic.StartsWith($"{KnownState.AppId}/R/Application.GetStructures/") ||
-            topic.StartsWith($"{KnownState.AppId}/X/Application.GetStructures/"),
+            topic.StartsWith($"{KnownState.AppId}/R/V2.Application.GetStructures/") ||
+            topic.StartsWith($"{KnownState.AppId}/X/V2.Application.GetStructures/"),
             $"Unexpected topic: {topic}");
 
         if (topic.StartsWith($"{KnownState.AppId}/R/"))

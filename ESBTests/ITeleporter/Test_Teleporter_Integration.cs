@@ -48,7 +48,7 @@ public class Test_Teleporter_Integration : IAsyncLifetime
             _teleporterPos = await GetTeleporterPosAsync(_mqtt);
 
             var (_, payload) = await _mqtt.RequestAsync(
-                "Teleporter.Get",
+                "V2.Teleporter.Get",
                 $"{{\"EntityId\":{EID},\"Pos\":{_teleporterPos}}}");
 
             _targetEntityNameOrGroup = payload["TargetEntityNameOrGroup"]?.Value<string>() ?? string.Empty;
@@ -72,7 +72,7 @@ public class Test_Teleporter_Integration : IAsyncLifetime
     private static async Task<string> GetTeleporterPosAsync(MqttTestClient mqtt)
     {
         var (_, payload) = await mqtt.RequestAsync(
-            "Structure.GetDevicePositions",
+            "V2.Structure.GetDevicePositions",
             $"{{\"EntityId\":{KnownState.BaseEntityId},\"DeviceName\":\"{KnownState.TeleporterName}\"}}");
 
         var positions = payload["Positions"] as JArray
@@ -91,10 +91,10 @@ public class Test_Teleporter_Integration : IAsyncLifetime
     {
         Skip.If(_skipReason != null, _skipReason ?? string.Empty);
         var (topic, payload) = await _mqtt.RequestAsync(
-            "Teleporter.Get",
+            "V2.Teleporter.Get",
             $"{{\"EntityId\":{EID},\"Pos\":{_teleporterPos}}}");
 
-        Assert.StartsWith($"{KnownState.AppId}/R/Teleporter.Get/", topic);
+        Assert.StartsWith($"{KnownState.AppId}/R/V2.Teleporter.Get/", topic);
         Assert.NotNull(payload["TargetEntityNameOrGroup"]);
         Assert.NotNull(payload["TargetPlayfield"]);
         Assert.NotNull(payload["TargetSolarSystemName"]);
@@ -120,14 +120,14 @@ public class Test_Teleporter_Integration : IAsyncLifetime
             : $"\"{_targetSolarSystemName}\"";
 
         var (topic, payload) = await _mqtt.RequestAsync(
-            "Teleporter.Set",
+            "V2.Teleporter.Set",
             $"{{\"EntityId\":{EID},\"Pos\":{_teleporterPos}," +
             $"\"TargetEntityNameOrGroup\":{nameOrGroupJson}," +
             $"\"TargetPlayfield\":{playfieldJson}," +
             $"\"TargetSolarSystemName\":{solarSystemJson}," +
             $"\"Origin\":{_origin}}}");
 
-        Assert.StartsWith($"{KnownState.AppId}/R/Teleporter.Set/", topic);
+        Assert.StartsWith($"{KnownState.AppId}/R/V2.Teleporter.Set/", topic);
         Assert.Equal(_origin, payload["Origin"]!.Value<int>());
     }
 
@@ -139,10 +139,10 @@ public class Test_Teleporter_Integration : IAsyncLifetime
     {
         Skip.If(_skipReason != null, _skipReason ?? string.Empty);
         var (topic, payload) = await _mqtt.RequestAsync(
-            "Teleporter.Get",
+            "V2.Teleporter.Get",
             $"{{\"EntityId\":{EID},\"Pos\":{KnownState.LeverSwitchBlock}}}");
 
-        Assert.StartsWith($"{KnownState.AppId}/X/Teleporter.Get/", topic);
+        Assert.StartsWith($"{KnownState.AppId}/X/V2.Teleporter.Get/", topic);
         Assert.NotNull(payload["Error"]);
     }
 
@@ -154,10 +154,10 @@ public class Test_Teleporter_Integration : IAsyncLifetime
     {
         Skip.If(_skipReason != null, _skipReason ?? string.Empty);
         var (topic, payload) = await _mqtt.RequestAsync(
-            "Teleporter.Get",
+            "V2.Teleporter.Get",
             $"{{\"EntityId\":999999,\"Pos\":{_teleporterPos}}}");
 
-        Assert.StartsWith($"{KnownState.AppId}/X/Teleporter.Get/", topic);
+        Assert.StartsWith($"{KnownState.AppId}/X/V2.Teleporter.Get/", topic);
         Assert.NotNull(payload["Error"]);
     }
 }

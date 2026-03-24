@@ -15,7 +15,7 @@ namespace ESBTests.IStructure;
 [Trait("Category", "Integration")]
 public class Test_Structure_Integration
 {
-    
+
     private const int EID = KnownState.BaseEntityId;
 
     // -------------------------------------------------------------------------
@@ -26,9 +26,9 @@ public class Test_Structure_Integration
     {
         await using var mqtt = await MqttTestClient.ConnectAsync();
         var (topic, payload) = await mqtt.RequestAsync(
-            "Structure.Info", $"{{\"EntityId\":{EID}}}");
+            "V2.Structure.Info", $"{{\"EntityId\":{EID}}}");
 
-        Assert.StartsWith($"{KnownState.AppId}/R/Structure.Info/", topic);
+        Assert.StartsWith($"{KnownState.AppId}/R/V2.Structure.Info/", topic);
         Assert.Equal(EID,  payload["EntityId"]!.Value<int>());
         Assert.NotNull(payload["IsReady"]);
         Assert.NotNull(payload["Id"]);
@@ -42,9 +42,9 @@ public class Test_Structure_Integration
     {
         await using var mqtt = await MqttTestClient.ConnectAsync();
         var (topic, payload) = await mqtt.RequestAsync(
-            "Structure.Tanks", $"{{\"EntityId\":{EID}}}");
+            "V2.Structure.Tanks", $"{{\"EntityId\":{EID}}}");
 
-        Assert.StartsWith($"{KnownState.AppId}/R/Structure.Tanks/", topic);
+        Assert.StartsWith($"{KnownState.AppId}/R/V2.Structure.Tanks/", topic);
         Assert.NotNull(payload["FuelTank"]);
         Assert.NotNull(payload["OxygenTank"]);
         Assert.NotNull(payload["PentaxidTank"]);
@@ -58,9 +58,9 @@ public class Test_Structure_Integration
     {
         await using var mqtt = await MqttTestClient.ConnectAsync();
         var (topic, payload) = await mqtt.RequestAsync(
-            "Structure.GetAllCustomDeviceNames", $"{{\"EntityId\":{EID}}}");
+            "V2.Structure.GetAllCustomDeviceNames", $"{{\"EntityId\":{EID}}}");
 
-        Assert.StartsWith($"{KnownState.AppId}/R/Structure.GetAllCustomDeviceNames/", topic);
+        Assert.StartsWith($"{KnownState.AppId}/R/V2.Structure.GetAllCustomDeviceNames/", topic);
         var names = payload["DeviceNames"]!.ToObject<string[]>();
         Assert.NotNull(names);
         Assert.Contains(KnownState.DeviceName1, names);
@@ -75,10 +75,10 @@ public class Test_Structure_Integration
     {
         await using var mqtt = await MqttTestClient.ConnectAsync();
         var (topic, payload) = await mqtt.RequestAsync(
-            "Structure.GetDevicePositions",
+            "V2.Structure.GetDevicePositions",
             $"{{\"EntityId\":{EID},\"DeviceName\":\"{KnownState.DeviceName1}\"}}");
 
-        Assert.StartsWith($"{KnownState.AppId}/R/Structure.GetDevicePositions/", topic);
+        Assert.StartsWith($"{KnownState.AppId}/R/V2.Structure.GetDevicePositions/", topic);
         Assert.NotNull(payload["Positions"]);
         Assert.NotEmpty(payload["Positions"]!.ToObject<JArray>()!);
     }
@@ -88,10 +88,10 @@ public class Test_Structure_Integration
     {
         await using var mqtt = await MqttTestClient.ConnectAsync();
         var (topic, payload) = await mqtt.RequestAsync(
-            "Structure.GetDevicePositions",
+            "V2.Structure.GetDevicePositions",
             $"{{\"EntityId\":{EID},\"DeviceName\":\"{KnownState.DeviceName2}\"}}");
 
-        Assert.StartsWith($"{KnownState.AppId}/R/Structure.GetDevicePositions/", topic);
+        Assert.StartsWith($"{KnownState.AppId}/R/V2.Structure.GetDevicePositions/", topic);
         Assert.NotNull(payload["Positions"]);
         Assert.NotEmpty(payload["Positions"]!.ToObject<JArray>()!);
     }
@@ -105,10 +105,10 @@ public class Test_Structure_Integration
     {
         await using var mqtt = await MqttTestClient.ConnectAsync();
         var (topic, payload) = await mqtt.RequestAsync(
-            "Structure.AddTankContent",
+            "V2.Structure.AddTankContent",
             $"{{\"EntityId\":{EID},\"TankType\":\"Fuel\",\"Amount\":0.0}}");
 
-        Assert.StartsWith($"{KnownState.AppId}/R/Structure.AddTankContent/", topic);
+        Assert.StartsWith($"{KnownState.AppId}/R/V2.Structure.AddTankContent/", topic);
         Assert.Equal("Fuel", payload["TankType"]!.Value<string>());
         Assert.NotNull(payload["Content"]);
         Assert.NotNull(payload["Capacity"]);
@@ -122,9 +122,9 @@ public class Test_Structure_Integration
     {
         await using var mqtt = await MqttTestClient.ConnectAsync();
         var (topic, payload) = await mqtt.RequestAsync(
-            "Structure.GetDockedVessels", $"{{\"EntityId\":{EID}}}");
+            "V2.Structure.GetDockedVessels", $"{{\"EntityId\":{EID}}}");
 
-        Assert.StartsWith($"{KnownState.AppId}/R/Structure.GetDockedVessels/", topic);
+        Assert.StartsWith($"{KnownState.AppId}/R/V2.Structure.GetDockedVessels/", topic);
         Assert.NotNull(payload["DockedVessels"]);
     }
 
@@ -136,9 +136,9 @@ public class Test_Structure_Integration
     {
         await using var mqtt = await MqttTestClient.ConnectAsync();
         var (topic, payload) = await mqtt.RequestAsync(
-            "Structure.GetPassengers", $"{{\"EntityId\":{EID}}}");
+            "V2.Structure.GetPassengers", $"{{\"EntityId\":{EID}}}");
 
-        Assert.StartsWith($"{KnownState.AppId}/R/Structure.GetPassengers/", topic);
+        Assert.StartsWith($"{KnownState.AppId}/R/V2.Structure.GetPassengers/", topic);
         Assert.NotNull(payload["Passengers"]);
     }
 
@@ -150,10 +150,10 @@ public class Test_Structure_Integration
     {
         await using var mqtt = await MqttTestClient.ConnectAsync();
         var (topic, payload) = await mqtt.RequestAsync(
-            "Structure.GetBlockSignals",
+            "V2.Structure.GetBlockSignals",
             $"{{\"EntityId\":{EID},\"BlockPos\":{KnownState.LeverSwitchBlock}}}");
 
-        Assert.StartsWith($"{KnownState.AppId}/R/Structure.GetBlockSignals/", topic);
+        Assert.StartsWith($"{KnownState.AppId}/R/V2.Structure.GetBlockSignals/", topic);
         Assert.NotNull(payload["Signals"]);
         // Lever switch at this position should have at least one signal
         Assert.NotEmpty(payload["Signals"]!.ToObject<JArray>()!);
@@ -167,9 +167,9 @@ public class Test_Structure_Integration
     {
         await using var mqtt = await MqttTestClient.ConnectAsync();
         var (topic, payload) = await mqtt.RequestAsync(
-            "Structure.GetControlPanelSignals", $"{{\"EntityId\":{EID}}}");
+            "V2.Structure.GetControlPanelSignals", $"{{\"EntityId\":{EID}}}");
 
-        Assert.StartsWith($"{KnownState.AppId}/R/Structure.GetControlPanelSignals/", topic);
+        Assert.StartsWith($"{KnownState.AppId}/R/V2.Structure.GetControlPanelSignals/", topic);
         Assert.NotNull(payload["Signals"]);
     }
 
@@ -181,10 +181,10 @@ public class Test_Structure_Integration
     {
         await using var mqtt = await MqttTestClient.ConnectAsync();
         var (topic, payload) = await mqtt.RequestAsync(
-            "Structure.GetSignalState",
+            "V2.Structure.GetSignalState",
             $"{{\"EntityId\":{EID},\"SignalName\":\"{KnownState.SignalName}\"}}");
 
-        Assert.StartsWith($"{KnownState.AppId}/R/Structure.GetSignalState/", topic);
+        Assert.StartsWith($"{KnownState.AppId}/R/V2.Structure.GetSignalState/", topic);
         Assert.Equal(KnownState.SignalName, payload["SignalName"]!.Value<string>());
         Assert.NotNull(payload["State"]);  // bool
     }
@@ -197,10 +197,10 @@ public class Test_Structure_Integration
     {
         await using var mqtt = await MqttTestClient.ConnectAsync();
         var (topic, payload) = await mqtt.RequestAsync(
-            "Structure.GetSignalReceivers",
+            "V2.Structure.GetSignalReceivers",
             $"{{\"EntityId\":{EID},\"SignalName\":\"{KnownState.SignalName}\"}}");
 
-        Assert.StartsWith($"{KnownState.AppId}/R/Structure.GetSignalReceivers/", topic);
+        Assert.StartsWith($"{KnownState.AppId}/R/V2.Structure.GetSignalReceivers/", topic);
         Assert.NotNull(payload["Receivers"]);
     }
 
@@ -212,10 +212,10 @@ public class Test_Structure_Integration
     {
         await using var mqtt = await MqttTestClient.ConnectAsync();
         var (topic, payload) = await mqtt.RequestAsync(
-            "Structure.GetSendSignalName",
+            "V2.Structure.GetSendSignalName",
             $"{{\"EntityId\":{EID},\"Pos\":{KnownState.LeverSwitchBlock}}}");
 
-        Assert.StartsWith($"{KnownState.AppId}/R/Structure.GetSendSignalName/", topic);
+        Assert.StartsWith($"{KnownState.AppId}/R/V2.Structure.GetSendSignalName/", topic);
         Assert.Equal(KnownState.SignalName, payload["SignalName"]!.Value<string>());
     }
 
@@ -227,10 +227,10 @@ public class Test_Structure_Integration
     {
         await using var mqtt = await MqttTestClient.ConnectAsync();
         var (topic, payload) = await mqtt.RequestAsync(
-            "Structure.StructToGlobalPos",
+            "V2.Structure.StructToGlobalPos",
             $"{{\"EntityId\":{EID},\"StructPos\":{{\"X\":0,\"Y\":0,\"Z\":0}}}}");
 
-        Assert.StartsWith($"{KnownState.AppId}/R/Structure.StructToGlobalPos/", topic);
+        Assert.StartsWith($"{KnownState.AppId}/R/V2.Structure.StructToGlobalPos/", topic);
         var globalPos = payload["GlobalPos"]!;
         Assert.NotNull(globalPos["X"]);
         Assert.NotNull(globalPos["Y"]);
@@ -251,10 +251,10 @@ public class Test_Structure_Integration
     {
         await using var mqtt = await MqttTestClient.ConnectAsync();
         var (topic, payload) = await mqtt.RequestAsync(
-            "Structure.GlobalToStructPos",
+            "V2.Structure.GlobalToStructPos",
             $"{{\"EntityId\":{EID},\"Pos\":{KnownState.BaseGlobalPos}}}");
 
-        Assert.StartsWith($"{KnownState.AppId}/R/Structure.GlobalToStructPos/", topic);
+        Assert.StartsWith($"{KnownState.AppId}/R/V2.Structure.GlobalToStructPos/", topic);
         var structPos = payload["StructPos"]!;
         Assert.NotNull(structPos["X"]);
         Assert.NotNull(structPos["Y"]);
@@ -273,13 +273,13 @@ public class Test_Structure_Integration
     {
         await using var mqtt = await MqttTestClient.ConnectAsync();
         var (topic, payload) = await mqtt.RequestAsync(
-            "Structure.SetFaction",
+            "V2.Structure.SetFaction",
             $"{{\"EntityId\":{EID},\"FactionId\":0}}");
 
         // Accept either R (success) or X (exception) — just ensure ESB handled it
         Assert.True(
-            topic.StartsWith($"{KnownState.AppId}/R/Structure.SetFaction/") ||
-            topic.StartsWith($"{KnownState.AppId}/X/Structure.SetFaction/"),
+            topic.StartsWith($"{KnownState.AppId}/R/V2.Structure.SetFaction/") ||
+            topic.StartsWith($"{KnownState.AppId}/X/V2.Structure.SetFaction/"),
             $"Unexpected topic: {topic}");
     }
 
@@ -291,9 +291,9 @@ public class Test_Structure_Integration
     {
         await using var mqtt = await MqttTestClient.ConnectAsync();
         var (topic, payload) = await mqtt.RequestAsync(
-            "Structure.Info", "{\"EntityId\":999999}");
+            "V2.Structure.Info", "{\"EntityId\":999999}");
 
-        Assert.StartsWith($"{KnownState.AppId}/X/Structure.Info/", topic);
+        Assert.StartsWith($"{KnownState.AppId}/X/V2.Structure.Info/", topic);
         Assert.NotNull(payload["Error"]);
     }
 }

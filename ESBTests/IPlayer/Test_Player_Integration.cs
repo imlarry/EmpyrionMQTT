@@ -25,12 +25,12 @@ public class Test_Player_Integration
     public async Task SteamId_ReturnsSteamIdOrException()
     {
         await using var mqtt = await MqttTestClient.ConnectAsync();
-        var (topic, payload) = await mqtt.RequestAsync("Player.SteamId", "{}");
+        var (topic, payload) = await mqtt.RequestAsync("V2.Player.SteamId", "{}");
 
         // R (LocalPlayer present) or X (dedicated / no active player)
         Assert.True(
-            topic.StartsWith($"{KnownState.AppId}/R/Player.SteamId/") ||
-            topic.StartsWith($"{KnownState.AppId}/X/Player.SteamId/"),
+            topic.StartsWith($"{KnownState.AppId}/R/V2.Player.SteamId/") ||
+            topic.StartsWith($"{KnownState.AppId}/X/V2.Player.SteamId/"),
             $"Unexpected topic: {topic}");
 
         if (topic.StartsWith($"{KnownState.AppId}/R/"))
@@ -52,12 +52,12 @@ public class Test_Player_Integration
     public async Task Stats_ReturnsVitalStats()
     {
         await using var mqtt = await MqttTestClient.ConnectAsync();
-        var (topic, payload) = await mqtt.RequestAsync("Player.Stats", "{}");
+        var (topic, payload) = await mqtt.RequestAsync("V2.Player.Stats", "{}");
 
         // R (LocalPlayer present) or X (dedicated / no active player)
         Assert.True(
-            topic.StartsWith($"{KnownState.AppId}/R/Player.Stats/") ||
-            topic.StartsWith($"{KnownState.AppId}/X/Player.Stats/"),
+            topic.StartsWith($"{KnownState.AppId}/R/V2.Player.Stats/") ||
+            topic.StartsWith($"{KnownState.AppId}/X/V2.Player.Stats/"),
             $"Unexpected topic: {topic}");
 
         if (topic.StartsWith($"{KnownState.AppId}/R/"))
@@ -86,13 +86,13 @@ public class Test_Player_Integration
         await using var mqtt = await MqttTestClient.ConnectAsync();
         // Teleport to the base location — safe to re-enter repeatedly
         var (topic, payload) = await mqtt.RequestAsync(
-            "Player.Teleport",
+            "V2.Player.Teleport",
             $"{{\"Pos\":{KnownState.BaseGlobalPos}}}");
 
         // R (success) or X (no LocalPlayer in dedicated mode)
         Assert.True(
-            topic.StartsWith($"{KnownState.AppId}/R/Player.Teleport/") ||
-            topic.StartsWith($"{KnownState.AppId}/X/Player.Teleport/"),
+            topic.StartsWith($"{KnownState.AppId}/R/V2.Player.Teleport/") ||
+            topic.StartsWith($"{KnownState.AppId}/X/V2.Player.Teleport/"),
             $"Unexpected topic: {topic}");
 
         if (topic.StartsWith($"{KnownState.AppId}/R/"))

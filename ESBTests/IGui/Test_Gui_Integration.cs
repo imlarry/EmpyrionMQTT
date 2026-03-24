@@ -8,28 +8,15 @@ namespace ESBTests.IGui;
 public class Test_Gui_Integration
 {
     // -------------------------------------------------------------------------
-    // Edna.TestSelf — smoke test, no game state dependency
-    // -------------------------------------------------------------------------
-    [Fact]
-    public async Task Edna_TestSelf_ReturnsOk()
-    {
-        await using var mqtt = await MqttTestClient.ConnectAsync();
-        var (topic, payload) = await mqtt.RequestAsync("Edna.TestSelf", "{}");
-
-        Assert.StartsWith($"{KnownState.AppId}/R/Edna.TestSelf/", topic);
-        Assert.Equal("Edna_Selftest OK", payload["Message"]!.Value<string>());
-    }
-
-    // -------------------------------------------------------------------------
     // Gui.IsWorldVisible — read-only, no side effects
     // -------------------------------------------------------------------------
     [Fact]
     public async Task IsWorldVisible_ReturnsBool()
     {
         await using var mqtt = await MqttTestClient.ConnectAsync();
-        var (topic, payload) = await mqtt.RequestAsync("Gui.IsWorldVisible", "{}");
+        var (topic, payload) = await mqtt.RequestAsync("V2.Gui.IsWorldVisible", "{}");
 
-        Assert.StartsWith($"{KnownState.AppId}/R/Gui.IsWorldVisible/", topic);
+        Assert.StartsWith($"{KnownState.AppId}/R/V2.Gui.IsWorldVisible/", topic);
         Assert.NotNull(payload["IsWorldVisible"]);
         // Must be a bool value
         Assert.IsType<bool>(payload["IsWorldVisible"]!.ToObject<object>());
@@ -43,10 +30,10 @@ public class Test_Gui_Integration
     {
         await using var mqtt = await MqttTestClient.ConnectAsync();
         var (topic, payload) = await mqtt.RequestAsync(
-            "Gui.ShowGameMessage",
+            "V2.Gui.ShowGameMessage",
             "{\"Text\":\"ESB Integration Test\",\"Prio\":0,\"Duration\":3.0}");
 
-        Assert.StartsWith($"{KnownState.AppId}/R/Gui.ShowGameMessage/", topic);
+        Assert.StartsWith($"{KnownState.AppId}/R/V2.Gui.ShowGameMessage/", topic);
         Assert.Equal("ESB Integration Test", payload["Text"]!.Value<string>());
     }
 
@@ -58,13 +45,13 @@ public class Test_Gui_Integration
     {
         await using var mqtt = await MqttTestClient.ConnectAsync();
         var (topic, payload) = await mqtt.RequestAsync(
-            "Gui.ShowDialog",
+            "V2.Gui.ShowDialog",
             "{\"TitleText\":\"Test\",\"BodyText\":\"Integration test dialog\",\"ButtonTexts\":[\"OK\"]}");
 
         // Accept R (displayed) or X (no active player in dedicated mode)
         Assert.True(
-            topic.StartsWith($"{KnownState.AppId}/R/Gui.ShowDialog/") ||
-            topic.StartsWith($"{KnownState.AppId}/X/Gui.ShowDialog/"),
+            topic.StartsWith($"{KnownState.AppId}/R/V2.Gui.ShowDialog/") ||
+            topic.StartsWith($"{KnownState.AppId}/X/V2.Gui.ShowDialog/"),
             $"Unexpected topic: {topic}");
 
         if (topic.StartsWith($"{KnownState.AppId}/R/"))

@@ -44,13 +44,13 @@ public class Test_Lcd_Integration : IAsyncLifetime
             // Write a timestamp so the LCD is initialized and human-readable in-game.
             string initText = $"ESB {DateTime.Now:HH:mm:ss}";
             await _mqtt.RequestAsync(
-                "Lcd.SetText",
+                "V2.Lcd.SetText",
                 $"{{\"EntityId\":{EID},\"Pos\":{_lcdPos},\"Text\":\"{initText}\"}}");
 
             // Read back current font size — whatever the game reports is a valid value
             // we can safely pass back to SetFontSize.
             var (_, getPayload) = await _mqtt.RequestAsync(
-                "Lcd.Get",
+                "V2.Lcd.Get",
                 $"{{\"EntityId\":{EID},\"Pos\":{_lcdPos}}}");
             _currentFontSize = getPayload["FontSize"]?.Value<int>() ?? 1;
         }
@@ -70,7 +70,7 @@ public class Test_Lcd_Integration : IAsyncLifetime
     private static async Task<string> GetLcdPosAsync(MqttTestClient mqtt)
     {
         var (_, payload) = await mqtt.RequestAsync(
-            "Structure.GetDevicePositions",
+            "V2.Structure.GetDevicePositions",
             $"{{\"EntityId\":{EID},\"DeviceName\":\"{KnownState.LcdName}\"}}");
 
         var positions = payload["Positions"] as JArray
@@ -90,10 +90,10 @@ public class Test_Lcd_Integration : IAsyncLifetime
         Skip.If(_skipReason != null, _skipReason ?? string.Empty);
         string text = $"ESB {DateTime.Now:HH:mm:ss}";
         var (topic, payload) = await _mqtt.RequestAsync(
-            "Lcd.SetText",
+            "V2.Lcd.SetText",
             $"{{\"EntityId\":{EID},\"Pos\":{_lcdPos},\"Text\":\"{text}\"}}");
 
-        Assert.StartsWith($"{KnownState.AppId}/R/Lcd.SetText/", topic);
+        Assert.StartsWith($"{KnownState.AppId}/R/V2.Lcd.SetText/", topic);
         Assert.Equal(text, payload["Text"]!.Value<string>());
     }
 
@@ -105,10 +105,10 @@ public class Test_Lcd_Integration : IAsyncLifetime
     {
         Skip.If(_skipReason != null, _skipReason ?? string.Empty);
         var (topic, payload) = await _mqtt.RequestAsync(
-            "Lcd.Get",
+            "V2.Lcd.Get",
             $"{{\"EntityId\":{EID},\"Pos\":{_lcdPos}}}");
 
-        Assert.StartsWith($"{KnownState.AppId}/R/Lcd.Get/", topic);
+        Assert.StartsWith($"{KnownState.AppId}/R/V2.Lcd.Get/", topic);
         Assert.NotNull(payload["Text"]);
         Assert.NotNull(payload["TextColor"]);
         Assert.NotNull(payload["BackgroundColor"]);
@@ -131,10 +131,10 @@ public class Test_Lcd_Integration : IAsyncLifetime
     {
         Skip.If(_skipReason != null, _skipReason ?? string.Empty);
         var (topic, payload) = await _mqtt.RequestAsync(
-            "Lcd.SetFontSize",
+            "V2.Lcd.SetFontSize",
             $"{{\"EntityId\":{EID},\"Pos\":{_lcdPos},\"FontSize\":{_currentFontSize}}}");
 
-        Assert.StartsWith($"{KnownState.AppId}/R/Lcd.SetFontSize/", topic);
+        Assert.StartsWith($"{KnownState.AppId}/R/V2.Lcd.SetFontSize/", topic);
         Assert.Equal(_currentFontSize, payload["FontSize"]!.Value<int>());
     }
 
@@ -147,10 +147,10 @@ public class Test_Lcd_Integration : IAsyncLifetime
         Skip.If(_skipReason != null, _skipReason ?? string.Empty);
         // Use the lever switch position — a switch block, not an LCD
         var (topic, payload) = await _mqtt.RequestAsync(
-            "Lcd.Get",
+            "V2.Lcd.Get",
             $"{{\"EntityId\":{EID},\"Pos\":{KnownState.LeverSwitchBlock}}}");
 
-        Assert.StartsWith($"{KnownState.AppId}/X/Lcd.Get/", topic);
+        Assert.StartsWith($"{KnownState.AppId}/X/V2.Lcd.Get/", topic);
         Assert.NotNull(payload["Error"]);
     }
 
@@ -162,10 +162,10 @@ public class Test_Lcd_Integration : IAsyncLifetime
     {
         Skip.If(_skipReason != null, _skipReason ?? string.Empty);
         var (topic, payload) = await _mqtt.RequestAsync(
-            "Lcd.Get",
+            "V2.Lcd.Get",
             $"{{\"EntityId\":999999,\"Pos\":{_lcdPos}}}");
 
-        Assert.StartsWith($"{KnownState.AppId}/X/Lcd.Get/", topic);
+        Assert.StartsWith($"{KnownState.AppId}/X/V2.Lcd.Get/", topic);
         Assert.NotNull(payload["Error"]);
     }
 }

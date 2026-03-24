@@ -25,7 +25,7 @@ public class Test_Container_Integration
     private static async Task<string> GetFridgePosAsync(MqttTestClient mqtt)
     {
         var (_, payload) = await mqtt.RequestAsync(
-            "Structure.GetDevicePositions",
+            "V2.Structure.GetDevicePositions",
             $"{{\"EntityId\":{EID},\"DeviceName\":\"{KnownState.DeviceName2}\"}}");
 
         var positions = payload["Positions"] as JArray
@@ -46,10 +46,10 @@ public class Test_Container_Integration
         string pos = await GetFridgePosAsync(mqtt);
 
         var (topic, payload) = await mqtt.RequestAsync(
-            "Container.Get",
+            "V2.Container.Get",
             $"{{\"EntityId\":{EID},\"Pos\":{pos}}}");
 
-        Assert.StartsWith($"{KnownState.AppId}/R/Container.Get/", topic);
+        Assert.StartsWith($"{KnownState.AppId}/R/V2.Container.Get/", topic);
         Assert.NotNull(payload["VolumeCapacity"]);
         Assert.NotNull(payload["DecayFactor"]);
         Assert.NotNull(payload["Content"]);
@@ -67,7 +67,7 @@ public class Test_Container_Integration
 
         // Discover a valid item type from the current fridge content.
         var (_, getPayload) = await mqtt.RequestAsync(
-            "Container.Get",
+            "V2.Container.Get",
             $"{{\"EntityId\":{EID},\"Pos\":{pos}}}");
 
         var content = getPayload["Content"] as JArray;
@@ -75,21 +75,21 @@ public class Test_Container_Integration
         {
             // Fridge is empty — verify Contains handler responds (R or X for type 0).
             var (topic, _) = await mqtt.RequestAsync(
-                "Container.Contains",
+                "V2.Container.Contains",
                 $"{{\"EntityId\":{EID},\"Pos\":{pos},\"Type\":0}}");
             Assert.True(
-                topic.StartsWith($"{KnownState.AppId}/R/Container.Contains/") ||
-                topic.StartsWith($"{KnownState.AppId}/X/Container.Contains/"),
+                topic.StartsWith($"{KnownState.AppId}/R/V2.Container.Contains/") ||
+                topic.StartsWith($"{KnownState.AppId}/X/V2.Container.Contains/"),
                 $"Handler did not respond: {topic}");
             return;
         }
 
         int type = content[0]["Id"]!.Value<int>();
         var (responseTopic, responsePayload) = await mqtt.RequestAsync(
-            "Container.Contains",
+            "V2.Container.Contains",
             $"{{\"EntityId\":{EID},\"Pos\":{pos},\"Type\":{type}}}");
 
-        Assert.StartsWith($"{KnownState.AppId}/R/Container.Contains/", responseTopic);
+        Assert.StartsWith($"{KnownState.AppId}/R/V2.Container.Contains/", responseTopic);
         Assert.Equal(type, responsePayload["Type"]!.Value<int>());
         Assert.NotNull(responsePayload["Contains"]);
     }
@@ -106,7 +106,7 @@ public class Test_Container_Integration
 
         // Discover a valid item type from the current fridge content.
         var (_, getPayload) = await mqtt.RequestAsync(
-            "Container.Get",
+            "V2.Container.Get",
             $"{{\"EntityId\":{EID},\"Pos\":{pos}}}");
 
         var content = getPayload["Content"] as JArray;
@@ -114,21 +114,21 @@ public class Test_Container_Integration
         {
             // Fridge is empty — verify GetTotalItems handler responds (R or X).
             var (topic, _) = await mqtt.RequestAsync(
-                "Container.GetTotalItems",
+                "V2.Container.GetTotalItems",
                 $"{{\"EntityId\":{EID},\"Pos\":{pos},\"Type\":0}}");
             Assert.True(
-                topic.StartsWith($"{KnownState.AppId}/R/Container.GetTotalItems/") ||
-                topic.StartsWith($"{KnownState.AppId}/X/Container.GetTotalItems/"),
+                topic.StartsWith($"{KnownState.AppId}/R/V2.Container.GetTotalItems/") ||
+                topic.StartsWith($"{KnownState.AppId}/X/V2.Container.GetTotalItems/"),
                 $"Handler did not respond: {topic}");
             return;
         }
 
         int type = content[0]["Id"]!.Value<int>();
         var (responseTopic, responsePayload) = await mqtt.RequestAsync(
-            "Container.GetTotalItems",
+            "V2.Container.GetTotalItems",
             $"{{\"EntityId\":{EID},\"Pos\":{pos},\"Type\":{type}}}");
 
-        Assert.StartsWith($"{KnownState.AppId}/R/Container.GetTotalItems/", responseTopic);
+        Assert.StartsWith($"{KnownState.AppId}/R/V2.Container.GetTotalItems/", responseTopic);
         Assert.Equal(type, responsePayload["Type"]!.Value<int>());
         Assert.NotNull(responsePayload["Count"]);
     }
@@ -146,7 +146,7 @@ public class Test_Container_Integration
 
         // Discover a valid item type from the current fridge content.
         var (_, getPayload) = await mqtt.RequestAsync(
-            "Container.Get",
+            "V2.Container.Get",
             $"{{\"EntityId\":{EID},\"Pos\":{pos}}}");
 
         var content = getPayload["Content"] as JArray;
@@ -154,21 +154,21 @@ public class Test_Container_Integration
         {
             // Fridge is empty — verify AddItems handler responds (R or X).
             var (topic, _) = await mqtt.RequestAsync(
-                "Container.AddItems",
+                "V2.Container.AddItems",
                 $"{{\"EntityId\":{EID},\"Pos\":{pos},\"Type\":0,\"Count\":0}}");
             Assert.True(
-                topic.StartsWith($"{KnownState.AppId}/R/Container.AddItems/") ||
-                topic.StartsWith($"{KnownState.AppId}/X/Container.AddItems/"),
+                topic.StartsWith($"{KnownState.AppId}/R/V2.Container.AddItems/") ||
+                topic.StartsWith($"{KnownState.AppId}/X/V2.Container.AddItems/"),
                 $"Handler did not respond: {topic}");
             return;
         }
 
         int type = content[0]["Id"]!.Value<int>();
         var (responseTopic, responsePayload) = await mqtt.RequestAsync(
-            "Container.AddItems",
+            "V2.Container.AddItems",
             $"{{\"EntityId\":{EID},\"Pos\":{pos},\"Type\":{type},\"Count\":0}}");
 
-        Assert.StartsWith($"{KnownState.AppId}/R/Container.AddItems/", responseTopic);
+        Assert.StartsWith($"{KnownState.AppId}/R/V2.Container.AddItems/", responseTopic);
         Assert.NotNull(responsePayload["CouldNotAdd"]);
     }
 
@@ -182,10 +182,10 @@ public class Test_Container_Integration
 
         // Use the lever switch position — a switch block, not a container
         var (topic, payload) = await mqtt.RequestAsync(
-            "Container.Get",
+            "V2.Container.Get",
             $"{{\"EntityId\":{EID},\"Pos\":{KnownState.LeverSwitchBlock}}}");
 
-        Assert.StartsWith($"{KnownState.AppId}/X/Container.Get/", topic);
+        Assert.StartsWith($"{KnownState.AppId}/X/V2.Container.Get/", topic);
         Assert.NotNull(payload["Error"]);
     }
 
@@ -199,10 +199,10 @@ public class Test_Container_Integration
         string pos = await GetFridgePosAsync(mqtt);
 
         var (topic, payload) = await mqtt.RequestAsync(
-            "Container.Get",
+            "V2.Container.Get",
             $"{{\"EntityId\":999999,\"Pos\":{pos}}}");
 
-        Assert.StartsWith($"{KnownState.AppId}/X/Container.Get/", topic);
+        Assert.StartsWith($"{KnownState.AppId}/X/V2.Container.Get/", topic);
         Assert.NotNull(payload["Error"]);
     }
 }

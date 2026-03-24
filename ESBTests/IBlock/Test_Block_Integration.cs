@@ -25,10 +25,10 @@ public class Test_Block_Integration
     {
         await using var mqtt = await MqttTestClient.ConnectAsync();
         var (topic, payload) = await mqtt.RequestAsync(
-            "Block.Get",
+            "V2.Block.Get",
             $"{{\"EntityId\":{EID},\"Pos\":{KnownState.LeverSwitchBlock}}}");
 
-        Assert.StartsWith($"{KnownState.AppId}/R/Block.Get/", topic);
+        Assert.StartsWith($"{KnownState.AppId}/R/V2.Block.Get/", topic);
         Assert.NotNull(payload["Type"]);
         Assert.NotNull(payload["Pos"]);
         Assert.NotNull(payload["Shape"]);
@@ -46,10 +46,10 @@ public class Test_Block_Integration
     {
         await using var mqtt = await MqttTestClient.ConnectAsync();
         var (topic, payload) = await mqtt.RequestAsync(
-            "Block.GetSwitchState",
+            "V2.Block.GetSwitchState",
             $"{{\"EntityId\":{EID},\"Pos\":{KnownState.LeverSwitchBlock}}}");
 
-        Assert.StartsWith($"{KnownState.AppId}/R/Block.GetSwitchState/", topic);
+        Assert.StartsWith($"{KnownState.AppId}/R/V2.Block.GetSwitchState/", topic);
         Assert.NotNull(payload["State"]);
         Assert.Equal(0, payload["Index"]!.Value<int>());
     }
@@ -65,16 +65,16 @@ public class Test_Block_Integration
 
         // Read current state
         var (_, readPayload) = await mqtt.RequestAsync(
-            "Block.GetSwitchState",
+            "V2.Block.GetSwitchState",
             $"{{\"EntityId\":{EID},\"Pos\":{KnownState.LeverSwitchBlock}}}");
         bool current = readPayload["State"]?.Value<bool>() ?? false;
 
         // Toggle it
         var (topic, payload) = await mqtt.RequestAsync(
-            "Block.SetSwitchState",
+            "V2.Block.SetSwitchState",
             $"{{\"EntityId\":{EID},\"Pos\":{KnownState.LeverSwitchBlock},\"State\":{(!current).ToString().ToLower()}}}");
 
-        Assert.StartsWith($"{KnownState.AppId}/R/Block.SetSwitchState/", topic);
+        Assert.StartsWith($"{KnownState.AppId}/R/V2.Block.SetSwitchState/", topic);
         // State returned should reflect the new value (or null if block doesn't support it)
         Assert.NotNull(payload["State"]);
     }
@@ -87,10 +87,10 @@ public class Test_Block_Integration
     {
         await using var mqtt = await MqttTestClient.ConnectAsync();
         var (topic, payload) = await mqtt.RequestAsync(
-            "Block.GetTextures",
+            "V2.Block.GetTextures",
             $"{{\"EntityId\":{EID},\"Pos\":{KnownState.LeverSwitchBlock}}}");
 
-        Assert.StartsWith($"{KnownState.AppId}/R/Block.GetTextures/", topic);
+        Assert.StartsWith($"{KnownState.AppId}/R/V2.Block.GetTextures/", topic);
         Assert.NotNull(payload["Top"]);
         Assert.NotNull(payload["Bottom"]);
         Assert.NotNull(payload["North"]);
@@ -107,10 +107,10 @@ public class Test_Block_Integration
     {
         await using var mqtt = await MqttTestClient.ConnectAsync();
         var (topic, payload) = await mqtt.RequestAsync(
-            "Block.GetColors",
+            "V2.Block.GetColors",
             $"{{\"EntityId\":{EID},\"Pos\":{KnownState.LeverSwitchBlock}}}");
 
-        Assert.StartsWith($"{KnownState.AppId}/R/Block.GetColors/", topic);
+        Assert.StartsWith($"{KnownState.AppId}/R/V2.Block.GetColors/", topic);
         Assert.NotNull(payload["Top"]);
         Assert.NotNull(payload["Bottom"]);
         Assert.NotNull(payload["North"]);
@@ -128,10 +128,10 @@ public class Test_Block_Integration
     {
         await using var mqtt = await MqttTestClient.ConnectAsync();
         var (topic, payload) = await mqtt.RequestAsync(
-            "Block.SetDamage",
+            "V2.Block.SetDamage",
             $"{{\"EntityId\":{EID},\"Pos\":{KnownState.LeverSwitchBlock},\"Damage\":0}}");
 
-        Assert.StartsWith($"{KnownState.AppId}/R/Block.SetDamage/", topic);
+        Assert.StartsWith($"{KnownState.AppId}/R/V2.Block.SetDamage/", topic);
         Assert.Equal(EID, payload["EntityId"]!.Value<int>());
         Assert.Equal(0, payload["Damage"]!.Value<int>());
     }
@@ -144,10 +144,10 @@ public class Test_Block_Integration
     {
         await using var mqtt = await MqttTestClient.ConnectAsync();
         var (topic, payload) = await mqtt.RequestAsync(
-            "Block.Get",
+            "V2.Block.Get",
             $"{{\"EntityId\":999999,\"Pos\":{KnownState.LeverSwitchBlock}}}");
 
-        Assert.StartsWith($"{KnownState.AppId}/X/Block.Get/", topic);
+        Assert.StartsWith($"{KnownState.AppId}/X/V2.Block.Get/", topic);
         Assert.NotNull(payload["Error"]);
     }
 }
