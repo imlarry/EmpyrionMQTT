@@ -1,6 +1,23 @@
 <Application x:Class="EDNAClient.App"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:sys="clr-namespace:System;assembly=mscorlib">
     <Application.Resources>
+
+        <!-- Colours -->
+        <SolidColorBrush x:Key="PillBackground"   Color="#CC111111"/>
+        <SolidColorBrush x:Key="ThreatAmber"      Color="#FFFFA500"/>
+        <SolidColorBrush x:Key="IndicatorHealthy" Color="#FF00FF88"/>
+        <SolidColorBrush x:Key="IndicatorWarning" Color="#FFFFA500"/>
+        <SolidColorBrush x:Key="IndicatorError"   Color="#FFFF4444"/>
+        <SolidColorBrush x:Key="IndicatorOffline" Color="#FF666666"/>
+
+        <!-- Dimensions -->
+        <sys:Double  x:Key="PillWidth">100</sys:Double>
+        <sys:Double  x:Key="PillHeight">28</sys:Double>
+        <sys:Double  x:Key="IndicatorSize">14</sys:Double>
+        <sys:Double  x:Key="PillEdgeInset">2</sys:Double>
+        <CornerRadius x:Key="PillCorner">14</CornerRadius>
+
     </Application.Resources>
 </Application>

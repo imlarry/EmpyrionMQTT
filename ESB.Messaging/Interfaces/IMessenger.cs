@@ -12,8 +12,8 @@ namespace ESB.Messaging
         string AvailableTopics();
         ParsedTopic ParseTopic(string topic);
         char MsgClass(MessageClass messageClass);
-        MqttClientOptions CreateMqttClientOptions(string withTcpServer = "localhost", string username = null, string password = null, string caFilePath = null);
-        Task ConnectAsync(BaseContextData ctx, string applicationId, string withTcpServer = "localhost", string username = null, string password = null, string caFilePath = null);
+        MqttClientOptions CreateMqttClientOptions(string withTcpServer = "localhost", int port = 0, string username = null, string password = null, string caFilePath = null);
+        Task ConnectAsync(BaseContextData ctx, string applicationId, string withTcpServer = "localhost", int port = 1883, string username = null, string password = null, string caFilePath = null);
         Task DisconnectAsync();
         void RegisterHandler(string subjectId, Func<string, string, Task> handler);
         Task SubscribeRequestsAsync();

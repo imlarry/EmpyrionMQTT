@@ -5,6 +5,7 @@
     <TargetFramework>net8.0-windows</TargetFramework>
     <Nullable>enable</Nullable>
     <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
     <ImplicitUsings>enable</ImplicitUsings>
     <ApplicationIcon>Resources\edna.ico</ApplicationIcon>
   </PropertyGroup>
@@ -14,9 +15,21 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Lua library modules shipped with EDNA. Copied to {OutputDir}/lib/edna/.
+         Scripts access them via require("edna.bt"), require("edna.drone"), etc. -->
+    <Content Include="Scripting\lib\**\*.lua">
+      <Link>lib\%(RecursiveDir)%(Filename)%(Extension)</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="CommandLineParser" Version="2.9.1" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
     <PackageReference Include="Microsoft.Data.Sqlite" Version="8.0.0" />
+    <PackageReference Include="MoonSharp" Version="2.0.0" />
     <PackageReference Include="SkiaSharp.Views.WPF" Version="2.88.8" />
+    <PackageReference Include="YamlDotNet" Version="15.1.0" />
   </ItemGroup>
 
   <ItemGroup>

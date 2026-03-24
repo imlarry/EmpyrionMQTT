@@ -80,12 +80,12 @@ namespace ESB.Messaging
         }
 
         // MqttClientOptions ... function used to create an MQTT client options object
-        public MqttClientOptions CreateMqttClientOptions(string withTcpServer = "localhost", string username = null, string password = null, string caFilePath = null)
+        public MqttClientOptions CreateMqttClientOptions(string withTcpServer = "localhost", int port = 0, string username = null, string password = null, string caFilePath = null)
         {
-            int? port = null;
             int defaultPort = caFilePath != null ? 8883 : 1883;
+            int resolvedPort = port > 0 ? port : defaultPort;
             var optionsBuilder = new MqttClientOptionsBuilder()
-                .WithTcpServer(withTcpServer ?? "localhost", port ?? defaultPort)
+                .WithTcpServer(withTcpServer ?? "localhost", resolvedPort)
                 .WithProtocolVersion(MqttProtocolVersion.V500); // Use MQTT v5.0
 
             if (!string.IsNullOrEmpty(username) && !string.IsNullOrEmpty(password))
@@ -142,7 +142,7 @@ namespace ESB.Messaging
         }
 
         // ConnectAsync ... build client and connect to broker
-        public async Task ConnectAsync(BaseContextData ctx, string applicationId, string withTcpServer = "localhost", string username = null, string password = null, string caFilePath = null)
+        public async Task ConnectAsync(BaseContextData ctx, string applicationId, string withTcpServer = "localhost", int port = 1883, string username = null, string password = null, string caFilePath = null)
         {
             _ctx = ctx;
             _applicationId = applicationId;
@@ -155,15 +155,15 @@ namespace ESB.Messaging
             MqttClientOptions mqttClientOptions;
             if (string.IsNullOrEmpty(username) && string.IsNullOrEmpty(password) && string.IsNullOrEmpty(caFilePath))
             {
-                mqttClientOptions = CreateMqttClientOptions(withTcpServer);
+                mqttClientOptions = CreateMqttClientOptions(withTcpServer, port);
             }
             else if (string.IsNullOrEmpty(caFilePath))
             {
-                mqttClientOptions = CreateMqttClientOptions(withTcpServer, username, password);
+                mqttClientOptions = CreateMqttClientOptions(withTcpServer, port, username, password);
             }
             else
             {
-                mqttClientOptions = CreateMqttClientOptions(withTcpServer, username, password, caFilePath);
+                mqttClientOptions = CreateMqttClientOptions(withTcpServer, port, username, password, caFilePath);
             }
 
             await _mqttClient.ConnectAsync(mqttClientOptions, CancellationToken.None);

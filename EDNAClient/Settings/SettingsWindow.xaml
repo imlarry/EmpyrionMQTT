@@ -1,0 +1,43 @@
+<Window x:Class="EDNAClient.Settings.SettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="EDNA Settings"
+        Width="340"
+        Height="210"
+        ResizeMode="NoResize"
+        WindowStartupLocation="CenterScreen"
+        ShowInTaskbar="True">
+
+    <StackPanel Margin="16">
+
+        <TextBlock Text="MQTT Broker" FontWeight="SemiBold" Margin="0,0,0,6"/>
+
+        <Grid Margin="0,0,0,4">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="12"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="60"/>
+            </Grid.ColumnDefinitions>
+            <TextBlock Grid.Column="0" Text="Host" VerticalAlignment="Center" Margin="0,0,8,0" Foreground="Gray"/>
+            <TextBlock Grid.Column="1" x:Name="HostLabel" VerticalAlignment="Center" Foreground="Gray"/>
+            <TextBlock Grid.Column="3" Text="Port" VerticalAlignment="Center" Margin="0,0,8,0" Foreground="Gray"/>
+            <TextBlock Grid.Column="4" x:Name="PortLabel"  VerticalAlignment="Center" Foreground="Gray"/>
+        </Grid>
+        <TextBlock Text="Connection settings are managed in ESB_Info.yaml" FontStyle="Italic"
+                   Foreground="Gray" FontSize="10" Margin="0,2,0,0"/>
+
+        <Separator Margin="0,12,0,12"/>
+
+        <TextBlock Text="Startup" FontWeight="SemiBold" Margin="0,0,0,8"/>
+
+        <CheckBox x:Name="StartupCheck" Content="Run EDNA when Windows starts" Margin="0,0,0,16"/>
+
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+            <Button Content="OK"     Width="72" Margin="0,0,8,0" IsDefault="True" Click="Ok_Click"/>
+            <Button Content="Cancel" Width="72"                   IsCancel="True"  Click="Cancel_Click"/>
+        </StackPanel>
+
+    </StackPanel>
+</Window>
