@@ -1,8 +1,10 @@
+using ESB.Common;
 using MQTTnet;
 using MQTTnet.Client;
 using MQTTnet.Formatter;
 using Newtonsoft.Json.Linq;
 using System;
+using System.IO;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -12,6 +14,7 @@ namespace ESBTests.Infrastructure;
 /// <summary>
 /// Thin MQTT client for integration testing. Each test should create its own
 /// instance (await using) so topic subscriptions don't bleed across tests.
+/// Connection settings are read from Configuration/ESB_Info.yaml in the test output directory.
 ///
 /// Usage:
 ///   await using var mqtt = await MqttTestClient.ConnectAsync();
@@ -23,24 +26,28 @@ public sealed class MqttTestClient : IAsyncDisposable
     private readonly IMqttClient _client;
     private readonly MqttFactory _factory;
 
-
     private MqttTestClient(IMqttClient client, MqttFactory factory)
     {
         _client = client;
         _factory = factory;
     }
 
-    public static async Task<MqttTestClient> ConnectAsync(string host = "localhost", int port = 1883)
+    public static async Task<MqttTestClient> ConnectAsync()
     {
+        var configPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Configuration", "ESB_Info.yaml");
+        var cfg = YamlFileReader.ReadYamlFile<ESBConfig>(configPath).MQTThost;
+
         var factory = new MqttFactory();
         var client = factory.CreateMqttClient();
 
-        var options = new MqttClientOptionsBuilder()
-            .WithTcpServer(host, port)
-            .WithProtocolVersion(MqttProtocolVersion.V500)
-            .Build();
+        var builder = new MqttClientOptionsBuilder()
+            .WithTcpServer(cfg.WithTcpServer, cfg.Port)
+            .WithProtocolVersion(MqttProtocolVersion.V500);
 
-        await client.ConnectAsync(options, CancellationToken.None);
+        if (!string.IsNullOrEmpty(cfg.Username))
+            builder = builder.WithCredentials(cfg.Username, cfg.Password);
+
+        await client.ConnectAsync(builder.Build(), CancellationToken.None);
         return new MqttTestClient(client, factory);
     }
 

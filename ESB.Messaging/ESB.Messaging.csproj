@@ -6,7 +6,6 @@
     <AssemblyName>ESB.Messaging</AssemblyName>
     <RootNamespace>ESB.Messaging</RootNamespace>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
-    <Nullable>enable</Nullable>
   </PropertyGroup>
 
   <ItemGroup>

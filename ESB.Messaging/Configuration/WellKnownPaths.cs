@@ -31,11 +31,11 @@ namespace ESB.Messaging
             .Build();
 
         /// <summary>Load ESB_Info.yaml from the app's Configuration/ folder.</summary>
-        public static Configuration.EsbInfo? LoadEsbInfo()
+        public static Configuration.EsbInfo LoadEsbInfo()
             => LoadInfo<Configuration.EsbInfo>(EsbInfoFile);
 
         /// <summary>Deserialize a YAML file into T. Returns null if the file doesn't exist or parse fails.</summary>
-        public static T? LoadInfo<T>(string path) where T : class
+        public static T LoadInfo<T>(string path) where T : class
         {
             try
             {
@@ -51,7 +51,7 @@ namespace ESB.Messaging
         {
             try
             {
-                Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+                Directory.CreateDirectory(Path.GetDirectoryName(path));
                 File.WriteAllText(path, Serializer.Serialize(obj));
             }
             catch { }

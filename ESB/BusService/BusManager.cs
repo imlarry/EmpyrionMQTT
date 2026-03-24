@@ -43,6 +43,7 @@ namespace ESB
                     (_cntxt
                     , ApplicationName
                     , _cntxt.ESBConfig.MQTThost.WithTcpServer
+                    , _cntxt.ESBConfig.MQTThost.Port
                     , _cntxt.ESBConfig.MQTThost.Username
                     , _cntxt.ESBConfig.MQTThost.Password
                     , _cntxt.ESBConfig.MQTThost.CAFilePath);

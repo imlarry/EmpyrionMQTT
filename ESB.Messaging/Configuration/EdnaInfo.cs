@@ -4,6 +4,6 @@ namespace ESB.Messaging.Configuration
 {
     public class EdnaInfo
     {
-        public HashSet<string> EnabledSkillIds { get; set; } = new();
+        public HashSet<string> EnabledSkillIds { get; set; } = new HashSet<string>();
     }
 }
