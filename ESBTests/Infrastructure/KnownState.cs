@@ -28,6 +28,9 @@ public static class KnownState
     // Global coordinates of the base (approximate, for GlobalToStructPos tests)
     public const string BaseGlobalPos = "{\"X\":-156.5,\"Y\":51.0,\"Z\":50.5}";
 
+    // Player spawn point above the base (for Player.Teleport tests)
+    public const string PlayerSpawnPos = "{\"X\":-156.0,\"Y\":53.0,\"Z\":-43.2}";
+
     // LCD panel on the base — place an LCD panel with this custom name.
     // Position is discovered at runtime via Structure.GetDevicePositions.
     public const string LcdName = "InfoLcd";

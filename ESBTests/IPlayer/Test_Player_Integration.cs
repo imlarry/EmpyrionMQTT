@@ -87,7 +87,7 @@ public class Test_Player_Integration
         // Teleport to the base location — safe to re-enter repeatedly
         var (topic, payload) = await mqtt.RequestAsync(
             "V2.Player.Teleport",
-            $"{{\"Pos\":{KnownState.BaseGlobalPos}}}");
+            $"{{\"Pos\":{KnownState.PlayerSpawnPos}}}");
 
         // R (success) or X (no LocalPlayer in dedicated mode)
         Assert.True(
