@@ -11,9 +11,11 @@ namespace ESBTests.Infrastructure;
 public static class KnownState
 {
     public const string AppId       = "Client";
+    // V1 (ModBase/DediAPI) is only initialized on DedicatedServer — route V1 requests here.
+    public const string V1AppId     = "DedicatedServer";
     public const string Playfield   = "Akua";
 
-    // VNS Akua — the test base entity
+    // VNS Akua - the test base entity
     public const int    BaseEntityId    = 5320;
     public const string BaseName        = "VNS Akua";
 
@@ -28,8 +30,17 @@ public static class KnownState
     // Global coordinates of the base (approximate, for GlobalToStructPos tests)
     public const string BaseGlobalPos = "{\"X\":-156.5,\"Y\":51.0,\"Z\":50.5}";
 
-    // Player spawn point above the base (for Player.Teleport tests)
-    public const string PlayerSpawnPos = "{\"X\":-156.0,\"Y\":53.0,\"Z\":-43.2}";
+    // Player spawn point above the base (for V2 Player.Teleport tests — uppercase X,Y,Z)
+    public const string PlayerSpawnPos = "{\"X\":-155.3,\"Y\":53.1,\"Z\":29.3}";
+
+    // V1 ChangePlayfield return spawn — lowercase x,y,z as required by ParsePVec.
+    // Y is advisory; raise it if the player clips into terrain on arrival.
+    public const string PlayerSpawnPosV1 = "{\"x\":-155.3,\"y\":60.0,\"z\":29.3}";
+    public const string PlayerSpawnRotV1 = "{\"x\":0,\"y\":0,\"z\":0}";
+
+    // Local player entity ID — set to the active player's entity ID before running V1 tests.
+    // Visible in-game via console: "di" or via V2.Application.GetPlayerEntityIds.
+    public const int PlayerEntityId = 1042;
 
     // LCD panel on the base — place an LCD panel with this custom name.
     // Position is discovered at runtime via Structure.GetDevicePositions.
@@ -43,4 +54,20 @@ public static class KnownState
     // Position is discovered at runtime via Structure.GetDevicePositions.
     public const string TeleporterName = "Teleport";
 
+    /// <summary>
+    /// Constants for Tier 3 destructive tests. All values must be confirmed in the
+    /// live save before running Integration_Destructive tests.
+    /// </summary>
+    public static class Baseline
+    {
+        // A second playfield that exists in the save, used by the ChangePlayfield test.
+        // The player is teleported there and immediately returned to Akua/PlayerSpawnPos.
+        public const string TestPlayfield = "Skillon";
+
+        // Spawn coordinates on TestPlayfield — lowercase x,y,z as required by ParsePVec.
+        // Y is advisory; the game places the player at terrain height on arrival.
+        // Raise Y if the player clips into terrain or spawns underground.
+        public const string TestPlayfieldSpawnPos = "{\"x\":0,\"y\":80,\"z\":0}";
+        public const string TestPlayfieldSpawnRot = "{\"x\":0,\"y\":0,\"z\":0}";
+    }
 }

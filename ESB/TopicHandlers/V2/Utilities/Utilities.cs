@@ -9,7 +9,7 @@ using UnityEngine;
 
 namespace ESB.TopicHandlers.V2
 {
-    public class Utilities : IUtilities
+    public class Utilities
     {
         private readonly ContextData _ctx;
 

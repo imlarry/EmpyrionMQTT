@@ -8,7 +8,7 @@ using UnityEngine;
 
 namespace ESB.TopicHandlers.V2
 {
-    public class Structure : IStructure
+    public class Structure
     {
         private readonly ContextData _ctx;
 

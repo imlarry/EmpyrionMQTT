@@ -8,7 +8,7 @@ using UnityEngine;
 
 namespace ESB.TopicHandlers.V2
 {
-    public class Light : ILight
+    public class Light
     {
         private readonly ContextData _ctx;
 

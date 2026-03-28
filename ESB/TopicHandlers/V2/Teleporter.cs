@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 
 namespace ESB.TopicHandlers.V2
 {
-    public class Teleporter : ITeleporter
+    public class Teleporter
     {
         private readonly ContextData _ctx;
 

@@ -8,7 +8,7 @@ using UnityEngine;
 
 namespace ESB.TopicHandlers.V2
 {
-    public class Lcd : ILcd
+    public class Lcd
     {
         private readonly ContextData _ctx;
 

@@ -8,7 +8,7 @@ using System.Threading.Tasks;
 
 namespace ESB.TopicHandlers.V2
 {
-    public class Container : IContainer
+    public class Container
     {
         private readonly ContextData _ctx;
 

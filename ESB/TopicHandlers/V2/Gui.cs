@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 
 namespace ESB.TopicHandlers.V2
 {
-    public class Gui : IGui
+    public class Gui
     {
         private readonly ContextData _ctx;
 

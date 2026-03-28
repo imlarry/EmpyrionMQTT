@@ -20,12 +20,14 @@
     </Reference>
     <Reference Include="UnityEngine.CoreModule">
       <HintPath>..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\Empyrion - Galactic Survival\Client\Empyrion_Data\Managed\UnityEngine.CoreModule.dll</HintPath>
+      <Private>False</Private>
     </Reference>
   </ItemGroup>
 
   <ItemGroup>
     <None Include="Configuration\ESB_Info.yaml">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+      <Link>ESB_Info.yaml</Link>
     </None>
   </ItemGroup>
 
@@ -35,18 +37,35 @@
 
   <ItemGroup>
     <PackageReference Include="EmpyrionNetAPI" Version="6.3.1" />
-    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="8.0.0" />
     <PackageReference Include="MQTTnet" Version="4.3.3.952" />
-    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+    <PackageReference Include="System.Runtime.CompilerServices.Unsafe" Version="6.0.0">
+      <ExcludeAssets>runtime</ExcludeAssets>
+    </PackageReference>
+    <PackageReference Include="System.Threading.Tasks.Extensions" Version="4.5.4" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3">
+      <ExcludeAssets>runtime</ExcludeAssets>
+    </PackageReference>
     <PackageReference Include="YamlDotNet" Version="15.1.0" />
   </ItemGroup>
 
-  <PropertyGroup>
-    <PostBuildEvent>xcopy.exe /D /Y "$(ProjectDir)$(OutDir)*.dll" "C:\Program Files (x86)\Steam\steamapps\common\Empyrion - Galactic Survival\Content\Mods\ESB\"
-xcopy.exe /D /Y "$(ProjectDir)$(OutDir)Configuration\*.*" "C:\Program Files (x86)\Steam\steamapps\common\Empyrion - Galactic Survival\Content\Mods\ESB\Configuration\"
-xcopy.exe /D /Y "$(ProjectDir)$(OutDir)*.dll" "C:\Program Files (x86)\Steam\steamapps\common\Empyrion - Dedicated Server\Content\Mods\ESB\"
-xcopy.exe /D /Y "$(ProjectDir)$(OutDir)Configuration\*.*" "C:\Program Files (x86)\Steam\steamapps\common\Empyrion - Dedicated Server\Content\Mods\ESB\Configuration\"
-</PostBuildEvent>
-  </PropertyGroup>
+  <Target Name="DeployESB" AfterTargets="Build">
+    <ItemGroup>
+      <_DeployFiles Include="$(TargetDir)*.dll;$(TargetDir)*.yaml" />
+    </ItemGroup>
+    <Message Importance="High" Text="ESB deploy -> Empyrion client: @(_DeployFiles->'%(Filename)%(Extension)', ', ')"
+             Condition="Exists('C:\Program Files (x86)\Steam\steamapps\common\Empyrion - Galactic Survival\Content\Mods\ESB')" />
+    <Copy SourceFiles="@(_DeployFiles)"
+          DestinationFolder="C:\Program Files (x86)\Steam\steamapps\common\Empyrion - Galactic Survival\Content\Mods\ESB"
+          SkipUnchangedFiles="false"
+          ContinueOnError="WarnAndContinue"
+          Condition="Exists('C:\Program Files (x86)\Steam\steamapps\common\Empyrion - Galactic Survival\Content\Mods\ESB')" />
+    <Message Importance="High" Text="ESB deploy -> Dedicated Server: @(_DeployFiles->'%(Filename)%(Extension)', ', ')"
+             Condition="Exists('C:\Program Files (x86)\Steam\steamapps\common\Empyrion - Dedicated Server\Content\Mods\ESB')" />
+    <Copy SourceFiles="@(_DeployFiles)"
+          DestinationFolder="C:\Program Files (x86)\Steam\steamapps\common\Empyrion - Dedicated Server\Content\Mods\ESB"
+          SkipUnchangedFiles="false"
+          ContinueOnError="WarnAndContinue"
+          Condition="Exists('C:\Program Files (x86)\Steam\steamapps\common\Empyrion - Dedicated Server\Content\Mods\ESB')" />
+  </Target>
 
 </Project>

@@ -12,7 +12,7 @@ using UnityEngine;
 
 namespace ESB.TopicHandlers.V2
 {
-    public class Application : IApplication
+    public class Application
     {
         private readonly ContextData _ctx;
 

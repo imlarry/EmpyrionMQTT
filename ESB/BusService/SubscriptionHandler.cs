@@ -28,6 +28,10 @@ namespace ESB
             new Teleporter(_cntxt).Register();
             new Pda(_cntxt).Register();
             new Utilities(_cntxt).Register();
+            // V1 handlers — only reachable on DedicatedServer in multiplayer.
+            // V1 (ModBase) is never initialized in SinglePlayer, so these handlers
+            // will never receive a request in SP. Safe to register unconditionally;
+            // they simply won't be reached outside of a multiplayer dedicated server.
             new ESB.TopicHandlers.V1.Player(_cntxt).Register();
 
             await _cntxt.Messenger.SubscribeRequestsAsync();

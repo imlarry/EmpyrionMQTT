@@ -8,7 +8,7 @@ using UnityEngine;
 
 namespace ESB.TopicHandlers.V2
 {
-    public class Block : IBlock
+    public class Block
     {
         private readonly ContextData _ctx;
 

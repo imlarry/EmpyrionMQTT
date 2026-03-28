@@ -27,7 +27,7 @@ using UnityEngine;
 
 namespace ESB.TopicHandlers.V2
 {
-    public class Pda : IPda
+    public class Pda
     {
         private readonly ContextData _ctx;
 

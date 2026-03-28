@@ -48,9 +48,6 @@ namespace ESB
                     , _cntxt.ESBConfig.MQTThost.Password
                     , _cntxt.ESBConfig.MQTThost.CAFilePath);
 
-            // invoke setup methods
-            await InitDataDirectory();
-
             // subscribe to defined topics and associate topic handlers
             var subscriptionHandler = new SubscriptionHandler(_cntxt);
             await subscriptionHandler.SubscribeAll();
@@ -66,24 +63,5 @@ namespace ESB
             await _cntxt.Messenger.DisconnectAsync();
         }
 
-        public async Task InitDataDirectory()
-        {
-            var dataDir = Path.GetFullPath(Path.Combine(ESBModPath, "Games"));
-            if (!Directory.Exists(dataDir))
-            {
-                Directory.CreateDirectory(dataDir);
-                JObject json = new JObject(
-                    new JProperty("DataDirectoryPath", dataDir),
-                    new JProperty("Status", "Created"));
-                await _cntxt.Messenger.SendAsync(MessageClass.Information, "ESB.InitDataDir", json.ToString(Newtonsoft.Json.Formatting.None));
-            }
-            else
-            {
-                JObject json = new JObject(
-                    new JProperty("DataDirectoryPath", dataDir),
-                    new JProperty("Status", "AlreadyExists"));
-                await _cntxt.Messenger.SendAsync(MessageClass.Information, "ESB.InitDataDir", json.ToString(Newtonsoft.Json.Formatting.None));
-            }
-        }
     }
 }

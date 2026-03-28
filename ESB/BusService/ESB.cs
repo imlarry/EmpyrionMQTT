@@ -1,9 +1,7 @@
-﻿using Eleon.Modding;
+using Eleon.Modding;
 using EmpyrionNetAPIAccess;
 using ESB.Common;
 using ESB.EventHandlers;
-using System.Runtime.Remoting.Contexts;
-using Newtonsoft.Json.Linq;
 using System.Threading.Tasks;
 using ESB.Messaging;
 
@@ -11,54 +9,72 @@ using ESB.Messaging;
 
 namespace ESB
 {
-    public class EmpyrionServiceBus : IMod, ModInterface // debug event logging EmpyrionModBase, IMod
+    /// <summary>
+    /// ESB mod entry point. Inherits both Empyrion API layers in a single class instance:
+    ///
+    ///   EmpyrionModBase (V1 / ModBase / DediAPI)
+    ///     - Initialize() is called by the game ONLY on DedicatedServer in multiplayer.
+    ///     - It is never invoked in SinglePlayer — V1 is a complete no-op in SP.
+    ///     - Provides server-wide async RPC: inventory read/write, cross-PF teleport,
+    ///       player connect/disconnect events, credits, faction graph, etc.
+    ///
+    ///   IMod (V2 / IModApi)
+    ///     - Init() is called on every process that loads the mod:
+    ///       Client, DedicatedServer, and PlayfieldServer.
+    ///     - Provides object-oriented access to local process state (entities,
+    ///       playfields, player cache). Scope of data varies by process type.
+    ///
+    /// Both APIs share a single ContextData instance (ModBase + ModApi fields).
+    /// V1 handlers registered in SubscriptionHandler will only be reached on
+    /// DedicatedServer in multiplayer; they are silently unreachable in SP or on Client.
+    /// </summary>
+    public class EmpyrionServiceBus : EmpyrionModBase, IMod
     {
         // ********************************************
-        // ************ Local Context Data ************ 
+        // ************ Local Context Data ************
         // ********************************************
 
         private readonly ContextData _contextData = new ContextData();
         private EventManager _eventManager;
-        //private LegacyEventManager _legacyEventManager;
         private BusManager _busManager;
         private GameManager _gameManager;
-        private ModGameAPI legacyModApi;
 
         public EmpyrionServiceBus() { } // no constructor as yet
-
-        // debug event logging
-
-        public void Game_Start(ModGameAPI legacyModApi)
-        { 
-            this.legacyModApi = legacyModApi;
-        }
-
-        public void Game_Event(CmdId eventId, ushort seqNr, object data)
-        {
-            JObject json = new JObject(
-                new JProperty("EventId", eventId.ToString())
-                );
-            Task.Run(async () =>
-            {
-                await _contextData.Messenger.SendAsync(MessageClass.Event, "LegacyGameEvent", json.ToString(Newtonsoft.Json.Formatting.None));
-            });
-        }
-
-        public void Game_Exit() { }
-        public void Game_Update() { }
 
 
         // ********************************************
         // ************ EmpyrionModBase API ***********
         // ********************************************
-        //public override void Initialize(ModGameAPI dediAPI)
-        //{
-        //    dediAPI.Console_Write("ESB ModGameAPI start");
-        //    _contextData.ModBase = this;
-        //    var factory = new LegacyEventHandlerFactory(_contextData);
-        //    var legacyPlayfieldLoadedHandler = factory.CreateLegacyPlayfieldLoadedHandler();
-        //    _legacyEventManager = new LegacyEventManager(_contextData, legacyPlayfieldLoadedHandler);
-        //}
+        public override void Initialize(ModGameAPI legacyModApi)
+        {
+            legacyModApi.Console_Write("ESB ModGameAPI start — ModBase initializing");
+            _contextData.ModBase = this;
+            legacyModApi.Console_Write($"ESB ModGameAPI start — ModBase assigned, Broker is {(Broker == null ? "NULL" : "set")}");
+        }
+
+        public new void Game_Start(ModGameAPI legacyModApi)
+        {
+            legacyModApi.Console_Write("ESB Game_Start called");
+            base.Game_Start(legacyModApi);
+        }
+
+        public new void Game_Event(CmdId eventId, ushort seqNr, object data)
+        {
+            _contextData.ModApi?.Log($"ESB Game_Event: {eventId}");
+            base.Game_Event(eventId, seqNr, data);
+        }
+
+        public new void Game_Exit()
+        {
+            _contextData.ModApi?.Log("ESB Game_Exit called");
+            base.Game_Exit();
+        }
+
+        public new void Game_Update()
+        {
+            base.Game_Update();
+        }
+
 
         // ********************************************
         // ***************** IMod API *****************
@@ -79,7 +95,7 @@ namespace ESB
             var playfieldLoadedHandler = factory.CreatePlayfieldLoadedHandler(entityLoadedHandler, entityUnloadedHandler);
             var playfieldUnloadingHandler = factory.CreatePlayfieldUnloadingHandler(entityLoadedHandler, entityUnloadedHandler);
             var updateHandler = factory.CreateUpdateHandler();
-            
+
             // create the event manager
             _eventManager = new EventManager(_contextData, chatMessageSentHandler, entityLoadedHandler, entityUnloadedHandler, gameEnteredHandler, gameEventHandler, playfieldLoadedHandler, playfieldUnloadingHandler, updateHandler);
 

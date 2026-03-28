@@ -12,7 +12,6 @@ namespace ESB
 
         Task Init();
         Task Shutdown();
-        Task InitDataDirectory();
         Task SetGameDirectory(bool hasEntered);
         Task CreateLocalDatabase();
     }

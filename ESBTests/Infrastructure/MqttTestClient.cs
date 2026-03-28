@@ -14,7 +14,7 @@ namespace ESBTests.Infrastructure;
 /// <summary>
 /// Thin MQTT client for integration testing. Each test should create its own
 /// instance (await using) so topic subscriptions don't bleed across tests.
-/// Connection settings are read from Configuration/ESB_Info.yaml in the test output directory.
+/// Connection settings are read from ESB_Info.yaml in the test output directory.
 ///
 /// Usage:
 ///   await using var mqtt = await MqttTestClient.ConnectAsync();
@@ -34,7 +34,7 @@ public sealed class MqttTestClient : IAsyncDisposable
 
     public static async Task<MqttTestClient> ConnectAsync()
     {
-        var configPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Configuration", "ESB_Info.yaml");
+        var configPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ESB_Info.yaml");
         var cfg = YamlFileReader.ReadYamlFile<ESBConfig>(configPath).MQTThost;
 
         var factory = new MqttFactory();
