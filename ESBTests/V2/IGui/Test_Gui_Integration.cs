@@ -2,7 +2,7 @@ using ESBTests.Infrastructure;
 using Newtonsoft.Json.Linq;
 using System.Threading.Tasks;
 
-namespace ESBTests.IGui;
+namespace ESBTests.V2.IGui;
 
 [Trait("Category", "Integration")]
 public class Test_Gui_Integration

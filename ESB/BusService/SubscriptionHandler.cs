@@ -33,6 +33,8 @@ namespace ESB
             // will never receive a request in SP. Safe to register unconditionally;
             // they simply won't be reached outside of a multiplayer dedicated server.
             new ESB.TopicHandlers.V1.Player(_cntxt).Register();
+            new ESB.TopicHandlers.V1.Server(_cntxt).Register();
+            new ESB.TopicHandlers.V1.Message(_cntxt).Register();
 
             await _cntxt.Messenger.SubscribeRequestsAsync();
         }

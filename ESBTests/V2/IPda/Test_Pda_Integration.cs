@@ -2,7 +2,7 @@ using ESBTests.Infrastructure;
 using Newtonsoft.Json.Linq;
 using System.Threading.Tasks;
 
-namespace ESBTests.IPda;
+namespace ESBTests.V2.IPda;
 
 /// <summary>
 /// Integration tests for the Pda topic handlers.
@@ -10,7 +10,7 @@ namespace ESBTests.IPda;
 /// NOTE: These tests will always fail. IPda is restricted to scenario script mods
 /// by the game engine — ModApi.PDA is always null for general client mods like ESB,
 /// regardless of whether a PDA scenario is active. See the block comment at the top
-/// of ESB/TopicHandlers/Pda.cs for the full investigation.
+/// of ESB/TopicHandlers/V2/Pda.cs for the full investigation.
 ///
 /// The tests and handler code are retained as a reference implementation.
 /// </summary>
@@ -19,10 +19,10 @@ public class Test_Pda_Integration
 {
     private const string PdaUnavailable =
         "IPda is not accessible from client mods — ModApi.PDA is always null. " +
-        "See block comment in ESB/TopicHandlers/Pda.cs.";
+        "See block comment in ESB/TopicHandlers/V2/Pda.cs.";
 
     // -------------------------------------------------------------------------
-    // Pda.ShowMessage — minimum payload (Message only)
+    // V2.Pda.ShowMessage — minimum payload (Message only)
     // -------------------------------------------------------------------------
     [SkippableFact]
     public async Task ShowMessage_MinPayload_ReturnsEchoedMessage()
@@ -31,12 +31,12 @@ public class Test_Pda_Integration
         await using var mqtt = await MqttTestClient.ConnectAsync();
 
         var (topic, payload) = await mqtt.RequestAsync(
-            "Pda.ShowMessage",
+            "V2.Pda.ShowMessage",
             "{\"Message\":\"ESB Pda Integration Test\"}");
 
         Assert.True(
-            topic.StartsWith($"{KnownState.AppId}/R/Pda.ShowMessage/") ||
-            topic.StartsWith($"{KnownState.AppId}/X/Pda.ShowMessage/"),
+            topic.StartsWith($"{KnownState.AppId}/R/V2.Pda.ShowMessage/") ||
+            topic.StartsWith($"{KnownState.AppId}/X/V2.Pda.ShowMessage/"),
             $"Handler did not respond: {topic}");
 
         if (topic.StartsWith($"{KnownState.AppId}/R/"))
@@ -44,7 +44,7 @@ public class Test_Pda_Integration
     }
 
     // -------------------------------------------------------------------------
-    // Pda.ShowMessage — full parameter set
+    // V2.Pda.ShowMessage — full parameter set
     // -------------------------------------------------------------------------
     [SkippableFact]
     public async Task ShowMessage_WithAllParams_ReturnsResponse()
@@ -53,12 +53,12 @@ public class Test_Pda_Integration
         await using var mqtt = await MqttTestClient.ConnectAsync();
 
         var (topic, payload) = await mqtt.RequestAsync(
-            "Pda.ShowMessage",
+            "V2.Pda.ShowMessage",
             "{\"Message\":\"ESB Full Params Test\",\"Duration\":3.0,\"HasPrio\":true,\"CleanupFirst\":false,\"PlayerId\":-1}");
 
         Assert.True(
-            topic.StartsWith($"{KnownState.AppId}/R/Pda.ShowMessage/") ||
-            topic.StartsWith($"{KnownState.AppId}/X/Pda.ShowMessage/"),
+            topic.StartsWith($"{KnownState.AppId}/R/V2.Pda.ShowMessage/") ||
+            topic.StartsWith($"{KnownState.AppId}/X/V2.Pda.ShowMessage/"),
             $"Handler did not respond: {topic}");
 
         if (topic.StartsWith($"{KnownState.AppId}/R/"))
@@ -66,7 +66,7 @@ public class Test_Pda_Integration
     }
 
     // -------------------------------------------------------------------------
-    // Pda.SetMapMarker — activate a marker (side effect: marker appears on map)
+    // V2.Pda.SetMapMarker — activate a marker (side effect: marker appears on map)
     // -------------------------------------------------------------------------
     [SkippableFact]
     public async Task SetMapMarker_Activate_ReturnsEchoedMarkerName()
@@ -75,12 +75,12 @@ public class Test_Pda_Integration
         await using var mqtt = await MqttTestClient.ConnectAsync();
 
         var (topic, payload) = await mqtt.RequestAsync(
-            "Pda.SetMapMarker",
+            "V2.Pda.SetMapMarker",
             "{\"Activate\":true,\"Position\":{\"X\":0.0,\"Y\":0.0,\"Z\":0.0},\"MarkerName\":\"ESB Test Marker\",\"Distance\":100}");
 
         Assert.True(
-            topic.StartsWith($"{KnownState.AppId}/R/Pda.SetMapMarker/") ||
-            topic.StartsWith($"{KnownState.AppId}/X/Pda.SetMapMarker/"),
+            topic.StartsWith($"{KnownState.AppId}/R/V2.Pda.SetMapMarker/") ||
+            topic.StartsWith($"{KnownState.AppId}/X/V2.Pda.SetMapMarker/"),
             $"Handler did not respond: {topic}");
 
         if (topic.StartsWith($"{KnownState.AppId}/R/"))
@@ -91,7 +91,7 @@ public class Test_Pda_Integration
     }
 
     // -------------------------------------------------------------------------
-    // Pda.GetPoiEntityId — returns entity ID (0 if not found) or X on error
+    // V2.Pda.GetPoiEntityId — returns entity ID (0 if not found) or X on error
     // -------------------------------------------------------------------------
     [SkippableFact]
     public async Task GetPoiEntityId_AnyPoiName_RespondsWithEntityId()
@@ -100,12 +100,12 @@ public class Test_Pda_Integration
         await using var mqtt = await MqttTestClient.ConnectAsync();
 
         var (topic, payload) = await mqtt.RequestAsync(
-            "Pda.GetPoiEntityId",
+            "V2.Pda.GetPoiEntityId",
             "{\"PoiName\":\"Akua\"}");
 
         Assert.True(
-            topic.StartsWith($"{KnownState.AppId}/R/Pda.GetPoiEntityId/") ||
-            topic.StartsWith($"{KnownState.AppId}/X/Pda.GetPoiEntityId/"),
+            topic.StartsWith($"{KnownState.AppId}/R/V2.Pda.GetPoiEntityId/") ||
+            topic.StartsWith($"{KnownState.AppId}/X/V2.Pda.GetPoiEntityId/"),
             $"Handler did not respond: {topic}");
 
         if (topic.StartsWith($"{KnownState.AppId}/R/"))
@@ -113,7 +113,7 @@ public class Test_Pda_Integration
     }
 
     // -------------------------------------------------------------------------
-    // Pda.GetPoiLocation — returns position (Vector3.zero if not found) or X on error
+    // V2.Pda.GetPoiLocation — returns position (Vector3.zero if not found) or X on error
     // -------------------------------------------------------------------------
     [SkippableFact]
     public async Task GetPoiLocation_AnyPoiName_RespondsWithPosition()
@@ -122,12 +122,12 @@ public class Test_Pda_Integration
         await using var mqtt = await MqttTestClient.ConnectAsync();
 
         var (topic, payload) = await mqtt.RequestAsync(
-            "Pda.GetPoiLocation",
+            "V2.Pda.GetPoiLocation",
             "{\"PoiName\":\"Akua\"}");
 
         Assert.True(
-            topic.StartsWith($"{KnownState.AppId}/R/Pda.GetPoiLocation/") ||
-            topic.StartsWith($"{KnownState.AppId}/X/Pda.GetPoiLocation/"),
+            topic.StartsWith($"{KnownState.AppId}/R/V2.Pda.GetPoiLocation/") ||
+            topic.StartsWith($"{KnownState.AppId}/X/V2.Pda.GetPoiLocation/"),
             $"Handler did not respond: {topic}");
 
         if (topic.StartsWith($"{KnownState.AppId}/R/"))

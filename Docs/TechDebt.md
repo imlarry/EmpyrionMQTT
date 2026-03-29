@@ -32,6 +32,20 @@ Four prerequisites for destructive integration tests are unbuilt. Until these ar
 | 3 | Item ID catalog — `TestItemId`, `ToolbeltSlot0ItemId`, `BagSlot0ItemId` |
 | 4 | `KnownState.Baseline` nested class with all constants filled |
 
+### V1 Server and Message handler tests are partial
+
+Fire-and-forget handlers (`V1.Message.ToPlayer`, `V1.Message.ToAll`, `V1.Message.ToFaction`,
+`V1.Server.ConsoleCommand`) are verified as dispatched (`{"Ok":true}`) but message receipt
+is not confirmed -- the V1 API provides no delivery acknowledgement.
+
+`V1.Message.ToFaction` test assumes the player is in a faction (`factionId != 0`). It will
+fail with an assertion error if the test player has no faction assigned.
+
+`V1.Message.Dialog` requires manual player interaction during the test run (player must click OK).
+Automated execution without a live player will time out.
+
+---
+
 ### Player.Connected event not tested
 `Event_Player_Connected` and `Event_Player_Disconnected` have not fired in any captured session. Both captured sessions had the remote player already connected before ESB started. A test requires a second player connect/disconnect during a live capture with ESB already running.
 

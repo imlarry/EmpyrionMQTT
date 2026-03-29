@@ -3,7 +3,7 @@ using Newtonsoft.Json.Linq;
 using System;
 using System.Threading.Tasks;
 
-namespace ESBTests.ILight;
+namespace ESBTests.V2.ILight;
 
 /// <summary>
 /// Integration tests for the Light topic handlers.

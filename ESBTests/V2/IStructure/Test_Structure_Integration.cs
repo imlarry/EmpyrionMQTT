@@ -2,7 +2,7 @@ using ESBTests.Infrastructure;
 using Newtonsoft.Json.Linq;
 using System.Threading.Tasks;
 
-namespace ESBTests.IStructure;
+namespace ESBTests.V2.IStructure;
 
 /// <summary>
 /// Integration tests for the Structure topic handlers.

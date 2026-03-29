@@ -2,7 +2,7 @@ using ESBTests.Infrastructure;
 using Newtonsoft.Json.Linq;
 using System.Threading.Tasks;
 
-namespace ESBTests.IBlock;
+namespace ESBTests.V2.IBlock;
 
 /// <summary>
 /// Integration tests for the Block topic handlers.

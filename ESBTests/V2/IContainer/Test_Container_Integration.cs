@@ -2,7 +2,7 @@ using ESBTests.Infrastructure;
 using Newtonsoft.Json.Linq;
 using System.Threading.Tasks;
 
-namespace ESBTests.IContainer;
+namespace ESBTests.V2.IContainer;
 
 /// <summary>
 /// Integration tests for the Container topic handlers.

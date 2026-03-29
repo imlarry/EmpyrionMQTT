@@ -2,7 +2,7 @@ using ESBTests.Infrastructure;
 using Newtonsoft.Json.Linq;
 using System.Threading.Tasks;
 
-namespace ESBTests.IPlayfield;
+namespace ESBTests.V2.IPlayfield;
 
 /// <summary>
 /// Integration tests for the Playfield topic handlers.

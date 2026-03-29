@@ -3,7 +3,7 @@ using Newtonsoft.Json.Linq;
 using System;
 using System.Threading.Tasks;
 
-namespace ESBTests.ITeleporter;
+namespace ESBTests.V2.ITeleporter;
 
 /// <summary>
 /// Integration tests for the Teleporter topic handlers.

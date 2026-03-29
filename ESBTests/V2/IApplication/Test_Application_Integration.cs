@@ -2,7 +2,7 @@ using ESBTests.Infrastructure;
 using Newtonsoft.Json.Linq;
 using System.Threading.Tasks;
 
-namespace ESBTests.IApplication;
+namespace ESBTests.V2.IApplication;
 
 /// <summary>
 /// Integration tests for the Application topic handlers.

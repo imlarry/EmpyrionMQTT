@@ -116,8 +116,13 @@ Dedicated server administration operations.
 | ESB Handler (proposed) | CmdId Request → Event | Request Data | Response Data | V2 Equivalent? |
 |---|---|---|---|---|
 | `V1.Server.Stats` | `Request_Dedi_Stats` → `Event_Dedi_Stats` | _(none)_ | `DediStats` | None |
-| `V1.Server.ConsoleCommand` | `Request_ConsoleCommand` → `Event_ConsoleCommand` | `PString(command)` | `ConsoleCommandInfo` | None |
-| `V1.Server.BannedPlayers` | `Request_GetBannedPlayers` → `Event_BannedPlayers` | _(none)_ | `BannedPlayerData[]` | None |
+| `V1.Server.ConsoleCommand` | `Request_ConsoleCommand` (fire-and-forget) | `PString(command)` | `{"Ok":true}` — no output captured | None |
+| `V1.Server.BannedPlayers` | `Request_GetBannedPlayers` → `Event_BannedPlayers` | _(none)_ | `BannedPlayerData` | None |
+
+**Confirmed console command syntax:**
+- `ban <playerName> <duration>` — duration format: `1h`, `2h`, etc. (not `1hr`)
+- `unban <playerName>`
+- Ban entries carry `steam64Id` (ulong) and `dateTime` (long, raw .NET ticks — not a readable timestamp)
 
 **When to use V1 Server:**
 - Console commands let you invoke any server-side command from MQTT — the most general-purpose V1 escape hatch

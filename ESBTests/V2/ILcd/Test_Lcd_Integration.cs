@@ -3,7 +3,7 @@ using Newtonsoft.Json.Linq;
 using System;
 using System.Threading.Tasks;
 
-namespace ESBTests.ILcd;
+namespace ESBTests.V2.ILcd;
 
 /// <summary>
 /// Integration tests for the Lcd topic handlers.

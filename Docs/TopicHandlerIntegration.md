@@ -14,13 +14,6 @@ APIs where one or more methods or properties are not exposed.
 
 ### V1
 
-**Player** (Requests) — `Request_Player_List`, `Request_Player_Info`, `Request_Player_SetInventory`,
-`Request_Player_AddItem`, `Request_Player_Credits`, `Request_Player_SetCredits`,
-`Request_Player_AddCredits`, `Request_Player_ChangePlayerfield`, `Request_Player_ItemExchange`,
-`Request_Player_SetPlayerInfo`, `Request_Player_GetAndRemoveInventory`
-
-> `Request_Player_GetInventory` is the only Player request exposed (via `Application.Player_GetInventory`).
-
 **Playfield** (Events) — `Event_Playfield_Loaded` fires but publishes an empty payload; `PlayfieldLoad`
 fields (`playfield`, `isPvP`, `processId`) are not serialized into the MQTT message.
 
@@ -58,10 +51,6 @@ APIs with no topic handler or interface.
 
 **Faction** — `Request_Get_Factions`, `Request_AlliancesAll`, `Request_AlliancesFaction`
 
-**Admin** — `Request_Dedi_Stats`, `Request_ConsoleCommand`, `Request_GetBannedPlayers`,
-`Request_InGameMessage_SinglePlayer`, `Request_InGameMessage_AllPlayers`,
-`Request_InGameMessage_Faction`, `Request_ShowDialog_SinglePlayer`
-
 **Blueprint** — `Request_Blueprint_Finish`, `Request_Blueprint_Resources`
 
 **Player Events** — `Event_Player_Connected`, `Event_Player_Disconnected`,
@@ -71,7 +60,8 @@ APIs with no topic handler or interface.
 
 **Faction Events** — `Event_Faction_Changed`
 
-**Game Events** — `Event_ChatMessage`, `Event_ChatMessageEx`, `Event_ConsoleCommand`,
+**Game Events** — `Event_ChatMessage`, `Event_ChatMessageEx`,
+`Event_ConsoleCommand` (fires when a player types a console command; unrelated to Request_ConsoleCommand),
 `Event_PdaStateChange`, `Event_GameEvent`, `Event_Statistics`, `Event_TraderNPCItemSold`
 
 ### V2
@@ -89,7 +79,9 @@ APIs where all methods and properties are exposed.
 
 ### V1
 
-*(none)*
+- Player (all 12 requests: GetInventory, GetInfo, List, GetAndRemoveInventory, SetInventory, AddItem, ItemExchange, GetCredits, SetCredits, AddCredits, SetInfo, ChangePlayfield)
+- Server (`V1.Server.Stats`, `V1.Server.ConsoleCommand`, `V1.Server.BannedPlayers`)
+- Message (`V1.Message.ToPlayer`, `V1.Message.ToAll`, `V1.Message.ToFaction`, `V1.Message.Dialog`)
 
 ### V2
 
