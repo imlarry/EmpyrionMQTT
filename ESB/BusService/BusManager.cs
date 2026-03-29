@@ -1,30 +1,29 @@
-﻿using Newtonsoft.Json.Linq;
-using System.IO;
+﻿using System.IO;
 using System.Threading.Tasks;
 using System.Reflection;
-using ESB.Messaging;
-using ESB.Common;
-using Eleon.Modding;
+using ESB.Configuration;
+using ESB.Models;
+using ESB.Utilities;
 
 namespace ESB
 {
-    public class BusManager
+    public class BusManager : IBusManager
     {
-        readonly private ContextData _cntxt;
-        readonly private EventManager _eMgr;
+        private readonly ContextData _ctx;
+        private readonly IEventManager _eMgr;
 
         public string ApplicationName { get; private set; }
         public string ESBModPath { get; private set; }
 
-        public BusManager(ContextData context, EventManager eMgr)
+        public BusManager(ContextData context, IEventManager eMgr)
         {
             // preserve context, event manager, and BusManager references
-            _cntxt = context;
+            _ctx = context;
             _eMgr = eMgr;
-            _cntxt.BusManager = this;
+            _ctx.BusManager = this;
 
             // player app returns "client" because modload init occurs in lobby (a "client" mode)
-            ApplicationName = _cntxt.ModApi.Application.Mode.ToString();
+            ApplicationName = _ctx.ModApi.Application.Mode.ToString();
 
             // determine root path for ESB mod
             Assembly currentAssembly = Assembly.GetExecutingAssembly();
@@ -36,20 +35,20 @@ namespace ESB
         {
             // open and parse yaml config file
             string configPath = Path.Combine(ESBModPath, "ESB_Info.yaml");
-            _cntxt.ESBConfig = YamlFileReader.ReadYamlFile<ESBConfig>(configPath);
+            _ctx.ESBConfig = YamlFileReader.ReadYamlFile<ESBConfig>(configPath);
 
             // create client and open a channel to broker
-            await _cntxt.Messenger.ConnectAsync
-                    (_cntxt
+            await _ctx.Messenger.ConnectAsync
+                    (_ctx
                     , ApplicationName
-                    , _cntxt.ESBConfig.MQTThost.WithTcpServer
-                    , _cntxt.ESBConfig.MQTThost.Port
-                    , _cntxt.ESBConfig.MQTThost.Username
-                    , _cntxt.ESBConfig.MQTThost.Password
-                    , _cntxt.ESBConfig.MQTThost.CAFilePath);
+                    , _ctx.ESBConfig.MQTThost.WithTcpServer
+                    , _ctx.ESBConfig.MQTThost.Port
+                    , _ctx.ESBConfig.MQTThost.Username
+                    , _ctx.ESBConfig.MQTThost.Password
+                    , _ctx.ESBConfig.MQTThost.CAFilePath);
 
             // subscribe to defined topics and associate topic handlers
-            var subscriptionHandler = new SubscriptionHandler(_cntxt);
+            var subscriptionHandler = new SubscriptionHandler(_ctx);
             await subscriptionHandler.SubscribeAll();
 
             // enable event handlers
@@ -60,7 +59,7 @@ namespace ESB
         {
             // shutdown
             _eMgr.DisableEventHandlers();
-            await _cntxt.Messenger.DisconnectAsync();
+            await _ctx.Messenger.DisconnectAsync();
         }
 
     }

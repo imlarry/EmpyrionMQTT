@@ -2,7 +2,7 @@
 using System.Linq;
 using System.Diagnostics;
 
-namespace ESB.TopicHandlers
+namespace ESB.TopicHandlers.WIP
 {
     public class MemoryDumper
     {

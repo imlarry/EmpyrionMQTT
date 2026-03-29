@@ -1,7 +1,7 @@
 using System;
 using System.IO;
 using YamlDotNet.Serialization;
-using ESB.Common;
+using ESB.Configuration;
 
 namespace ESBTests;
 public class ESBConfigTests

@@ -1,28 +1,27 @@
-﻿using Eleon.Modding;
-using ESB.Common;
-using ESB.Messaging;
+using Eleon.Modding;
 using ESB.Interfaces;
+using ESB.Messaging;
+using ESB.Models;
 using Newtonsoft.Json.Linq;
 
 namespace ESB
 {
-    public class EntityUnloadedHandler : IEntityUnloadedHandler
+    public class EntityUnloadedHandler : HandlerBase, IEntityUnloadedHandler
     {
-        private readonly ContextData _cntxt;
+        public EntityUnloadedHandler(ContextData context) : base(context) { }
 
-        public EntityUnloadedHandler(ContextData cntxt)
-        {
-            _cntxt = cntxt;
-        }
         public async void Handle(IEntity entity)
         {
-            _cntxt.LoadedEntity.Remove(entity.Id);
-            JObject json = new JObject(
-                    new JProperty("GameTicks", _cntxt.ModApi.Application.GameTicks),
-                    new JProperty("Id", entity.Id),
-                    new JProperty("Name", entity.Name)
-                    );
-            await _cntxt.Messenger.SendAsync(MessageClass.Event, "Playfield.OnEntityUnloaded", json.ToString(Newtonsoft.Json.Formatting.None));
+            await Execute(async () =>
+            {
+                _ctx.LoadedEntity.Remove(entity.Id);
+                JObject json = new JObject(
+                        new JProperty("GameTicks", _ctx.ModApi.Application.GameTicks),
+                        new JProperty("Id", entity.Id),
+                        new JProperty("Name", entity.Name)
+                        );
+                await _ctx.Messenger.SendAsync(MessageClass.Event, "Playfield.OnEntityUnloaded", json.ToString(Newtonsoft.Json.Formatting.None));
+            });
         }
     }
 }

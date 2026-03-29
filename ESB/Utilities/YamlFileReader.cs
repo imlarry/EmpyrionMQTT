@@ -2,7 +2,7 @@
 using System.IO;
 using YamlDotNet.Serialization;
 
-namespace ESB.Common
+namespace ESB.Utilities
 {
     public static class YamlFileReader
     {

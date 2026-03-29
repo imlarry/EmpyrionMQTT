@@ -1,4 +1,4 @@
-using ESB.Common;
+using ESB.Models;
 using ESB.Interfaces;
 using ESB.Messaging;
 
@@ -6,21 +6,21 @@ namespace ESB
 {
     public class UpdateHandler : IUpdateHandler
     {
-        private readonly ContextData _cntxt;
+        private readonly ContextData _ctx;
 
-        public UpdateHandler(ContextData cntxt)
+        public UpdateHandler(ContextData context)
         {
-            _cntxt = cntxt;
+            _ctx = context;
         }
 
         public void Handle()
         {
-            if (_cntxt.MainThreadRunner.HasActionsToProcess())
+            if (_ctx.MainThreadRunner.HasActionsToProcess())
             {
-                _ = _cntxt.Messenger.SendAsync(MessageClass.Information, "Update", "Processing actions on main thread");
-                while (_cntxt.MainThreadRunner.HasActionsToProcess())
+                _ = _ctx.Messenger.SendAsync(MessageClass.Information, "Update", "Processing actions on main thread");
+                while (_ctx.MainThreadRunner.HasActionsToProcess())
                 {
-                    _cntxt.MainThreadRunner.ProcessActions();
+                    _ctx.MainThreadRunner.ProcessActions();
                 }
             }
         }

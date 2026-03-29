@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace ESB.Common
+namespace ESB.Configuration
 {
     public interface IESBConfig
     {

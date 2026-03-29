@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Threading.Tasks;
 
 namespace ESB
@@ -6,8 +7,10 @@ namespace ESB
     {
         string GameName { get; }
         string GameIdentifier { get; }
-        string GamePath { get; }
+        string GameDataPath { get; }
+        string SaveGamePath { get; }
         string GameMode { get; }
+        Dictionary<int, string> BlockAndItemMapping { get; }
 
         Task Init();
         Task StateChanged(bool hasEntered);

@@ -5,7 +5,7 @@ using System.Reflection;
 namespace ESB.Messaging
 {
     // PluginFactory .. used to load and cache delegate api lookup info for a plugin dll and it's methods
-    public class PluginFactory
+    internal class PluginFactory
     {
         private readonly BaseContextData _ctx;
 

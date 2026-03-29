@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Text;
 using System.Runtime.InteropServices;
 
-namespace ESB.TopicHandlers
+namespace ESB.TopicHandlers.WIP
 {
     /*
     public unsafe class MemorySearcher

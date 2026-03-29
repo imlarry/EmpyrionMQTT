@@ -5,14 +5,9 @@ namespace ESB
     public interface IBusManager
     {
         string ApplicationName { get; }
-        string GameName { get; }
-        string GameIdentifier { get; }
-        string RootPath { get; }
-        string GamePath { get; }
+        string ESBModPath { get; }
 
         Task Init();
         Task Shutdown();
-        Task SetGameDirectory(bool hasEntered);
-        Task CreateLocalDatabase();
     }
 }

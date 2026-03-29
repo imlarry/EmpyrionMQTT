@@ -1,4 +1,5 @@
-using ESB.Common;
+using ESB.Configuration;
+using ESB.Utilities;
 using MQTTnet;
 using MQTTnet.Client;
 using MQTTnet.Formatter;

@@ -1,7 +1,7 @@
 ﻿namespace ESB.Messaging
 {
     // ParsedTopic
-    public class ParsedTopic : IParsedTopic
+    internal class ParsedTopic : IParsedTopic
     {
         public string SourceId { get; set; }
         public string MessageClass { get; set; }

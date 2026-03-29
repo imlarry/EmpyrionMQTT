@@ -1,0 +1,32 @@
+using System;
+using System.Threading.Tasks;
+using ESB.Messaging;
+using ESB.Models;
+
+namespace ESB
+{
+    public abstract class HandlerBase
+    {
+        protected readonly ContextData _ctx;
+
+        protected HandlerBase(ContextData context)
+        {
+            _ctx = context;
+        }
+
+        protected async Task Execute(Func<Task> work)
+        {
+            try
+            {
+                await work();
+            }
+            catch (Exception ex)
+            {
+                await _ctx.Messenger.SendAsync(
+                    MessageClass.Exception,
+                    GetType().Name,
+                    ex.ToString());
+            }
+        }
+    }
+}

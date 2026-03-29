@@ -1,23 +1,23 @@
-﻿using ESB.Common;
+﻿using ESB.Models;
 using ESB.Interfaces;
 using static EmpyrionNetAPIAccess.EmpyrionModBase;
 
 namespace ESB
 {
-    public class EventManager
+    public class EventManager : IEventManager
     {
-        readonly private ContextData _cntxt;
-        readonly private IChatMessageSentHandler _chatMessageSentHandler;
-        readonly private IEntityLoadedHandler _entityLoadedHandler;
-        readonly private IEntityUnloadedHandler _entityUnloadedHandler;
-        readonly private IGameEnteredHandler _gameEnteredHandler;
-        readonly private IGameEventHandler _gameEventHandler;
-        readonly private IPlayfieldLoadedHandler _playfieldLoadedHandler;
-        readonly private IPlayfieldUnloadingHandler _playfieldUnloadingHandler;
-        readonly private IUpdateHandler _updateHandler;
+        private readonly ContextData _ctx;
+        private readonly IChatMessageSentHandler _chatMessageSentHandler;
+        private readonly IEntityLoadedHandler _entityLoadedHandler;
+        private readonly IEntityUnloadedHandler _entityUnloadedHandler;
+        private readonly IGameEnteredHandler _gameEnteredHandler;
+        private readonly IGameEventHandler _gameEventHandler;
+        private readonly IPlayfieldLoadedHandler _playfieldLoadedHandler;
+        private readonly IPlayfieldUnloadingHandler _playfieldUnloadingHandler;
+        private readonly IUpdateHandler _updateHandler;
 
         public EventManager
-            (ContextData cntxt
+            (ContextData context
             , IChatMessageSentHandler chatMessageSentHandler
             , IEntityLoadedHandler entityLoadedHandler
             , IEntityUnloadedHandler entityUnloadedHandler
@@ -28,7 +28,7 @@ namespace ESB
             , IUpdateHandler updateHandler
             )
         {
-            _cntxt = cntxt;
+            _ctx = context;
             _chatMessageSentHandler = chatMessageSentHandler;
             _entityLoadedHandler = entityLoadedHandler;
             _entityUnloadedHandler = entityUnloadedHandler;
@@ -41,22 +41,22 @@ namespace ESB
 
         public void EnableEventHandlers()
         {
-            _cntxt.ModApi.GameEvent += _gameEventHandler.Handle;
-            _cntxt.ModApi.Application.ChatMessageSent += _chatMessageSentHandler.Handle;
-            _cntxt.ModApi.Application.GameEntered += _gameEnteredHandler.Handle;
-            _cntxt.ModApi.Application.OnPlayfieldLoaded += _playfieldLoadedHandler.Handle;
-            _cntxt.ModApi.Application.OnPlayfieldUnloading += _playfieldUnloadingHandler.Handle;
-            _cntxt.ModApi.Application.Update += _updateHandler.Handle;
+            _ctx.ModApi.GameEvent += _gameEventHandler.Handle;
+            _ctx.ModApi.Application.ChatMessageSent += _chatMessageSentHandler.Handle;
+            _ctx.ModApi.Application.GameEntered += _gameEnteredHandler.Handle;
+            _ctx.ModApi.Application.OnPlayfieldLoaded += _playfieldLoadedHandler.Handle;
+            _ctx.ModApi.Application.OnPlayfieldUnloading += _playfieldUnloadingHandler.Handle;
+            _ctx.ModApi.Application.Update += _updateHandler.Handle;
         }
 
         public void DisableEventHandlers()
         {
-            _cntxt.ModApi.GameEvent -= _gameEventHandler.Handle;
-            _cntxt.ModApi.Application.ChatMessageSent -= _chatMessageSentHandler.Handle;
-            _cntxt.ModApi.Application.GameEntered -= _gameEnteredHandler.Handle;
-            _cntxt.ModApi.Application.OnPlayfieldLoaded -= _playfieldLoadedHandler.Handle;
-            _cntxt.ModApi.Application.OnPlayfieldUnloading -= _playfieldUnloadingHandler.Handle;
-            _cntxt.ModApi.Application.Update -= _updateHandler.Handle;
+            _ctx.ModApi.GameEvent -= _gameEventHandler.Handle;
+            _ctx.ModApi.Application.ChatMessageSent -= _chatMessageSentHandler.Handle;
+            _ctx.ModApi.Application.GameEntered -= _gameEnteredHandler.Handle;
+            _ctx.ModApi.Application.OnPlayfieldLoaded -= _playfieldLoadedHandler.Handle;
+            _ctx.ModApi.Application.OnPlayfieldUnloading -= _playfieldUnloadingHandler.Handle;
+            _ctx.ModApi.Application.Update -= _updateHandler.Handle;
         }
 
         /* testing template- test via mock events but not currently used...

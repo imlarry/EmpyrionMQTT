@@ -50,7 +50,7 @@ namespace ESB.Messaging
         }
 
         // ParseTopic .. used to parse a topic string and return a ParsedTopic object
-        public ParsedTopic ParseTopic(string topic)
+        internal ParsedTopic ParseTopic(string topic)
         {
             var parts = topic.Split('/');
             var parsedTopic = new ParsedTopic

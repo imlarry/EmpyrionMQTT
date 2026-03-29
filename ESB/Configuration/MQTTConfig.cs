@@ -1,8 +1,8 @@
 ﻿using System;
 
-namespace ESB.Common
+namespace ESB.Configuration
 {
-    public class MQTTConfig
+    public class MQTTConfig : IMQTTConfig
     {
         public string WithTcpServer { get; set; }
         public int Port { get; set; } = 1883;

@@ -1,6 +1,6 @@
 namespace ESB.Messaging
 {
-    public interface IParsedTopic
+    internal interface IParsedTopic
     {
         string SourceId { get; set; }
         string MessageClass { get; set; }

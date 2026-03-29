@@ -1,11 +1,13 @@
 ﻿using Eleon.Modding;
 using EmpyrionNetAPIAccess;
+using ESB.BusService;
+using ESB.Configuration;
 using ESB.Messaging;
 using System.Collections.Generic;
 
-namespace ESB.Common
+namespace ESB.Models
 {
-    public class ContextData : BaseContextData
+    public class ContextData : BaseContextData, IContextData
     {
         // base context data includes the messenger
 
@@ -16,9 +18,9 @@ namespace ESB.Common
         // PROPERTIES
         public IModApi ModApi { get; set; }
         public EmpyrionModBase ModBase { get; set; }
-        public ESBConfig ESBConfig { get; set; }
-        public BusManager BusManager { get; set; }
-        public GameManager GameManager { get; set; }
+        public IESBConfig ESBConfig { get; set; }
+        public IBusManager BusManager { get; set; }
+        public IGameManager GameManager { get; set; }
         public MainThreadRunner MainThreadRunner { get; } = new MainThreadRunner(); // should I constuct this here?
         
         // cache prealloc to expected max + safety to avoid GC (TODO: dial in via dynamic alloc and watching actual max)

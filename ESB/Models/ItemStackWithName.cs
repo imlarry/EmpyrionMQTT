@@ -1,7 +1,7 @@
 using Eleon.Modding;
 using System.Collections.Generic;
 
-namespace ESB.Common
+namespace ESB.Models
 {
     public class ItemStackWithName
     {

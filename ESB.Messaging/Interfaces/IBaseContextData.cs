@@ -1,6 +1,6 @@
 namespace ESB.Messaging
 {
-    public interface IBaseContextData
+    internal interface IBaseContextData
     {
         Messenger Messenger { get; set; }
     }

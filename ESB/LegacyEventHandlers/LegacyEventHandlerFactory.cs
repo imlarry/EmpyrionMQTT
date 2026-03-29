@@ -1,19 +1,19 @@
-﻿using ESB.Common;
+﻿using ESB.Models;
 
-namespace ESB.EventHandlers
+namespace ESB.LegacyEventHandlers
 {
     public class LegacyEventHandlerFactory
     {
-        private readonly ContextData _contextData;
+        private readonly ContextData _ctx;
 
-        public LegacyEventHandlerFactory(ContextData contextData)
+        public LegacyEventHandlerFactory(ContextData context)
         {
-            _contextData = contextData;
+            _ctx = context;
         }
 
         public LegacyPlayfieldLoadedHandler CreateLegacyPlayfieldLoadedHandler()
         {
-            return new LegacyPlayfieldLoadedHandler(_contextData);
+            return new LegacyPlayfieldLoadedHandler(_ctx);
         }
 
     }

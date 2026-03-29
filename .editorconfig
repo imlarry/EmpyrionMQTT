@@ -1,0 +1,35 @@
+root = true
+
+[*]
+charset = utf-8
+end_of_line = crlf
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+[*.cs]
+indent_style = space
+indent_size = 4
+
+# Modifier order: access modifier first, then other modifiers
+# Enforces: private readonly (not readonly private)
+dotnet_diagnostic.SA1206.severity = warning
+csharp_preferred_modifier_order = public, private, protected, internal, static, extern, new, virtual, abstract, sealed, override, readonly, unsafe, volatile, async
+
+# using directive ordering: System namespaces first, then others
+dotnet_sort_system_directives_first = true
+dotnet_separate_import_directive_groups = false
+
+# Namespace style: block-scoped
+csharp_style_namespace_declarations = block_scoped:warning
+
+# Braces
+csharp_prefer_braces = true:suggestion
+
+# var usage: prefer explicit types for built-in types; allow var elsewhere
+csharp_style_var_for_built_in_types = false:suggestion
+csharp_style_var_when_type_is_apparent = true:suggestion
+csharp_style_var_elsewhere = true:suggestion
+
+[*.{csproj,props,targets}]
+indent_style = space
+indent_size = 2

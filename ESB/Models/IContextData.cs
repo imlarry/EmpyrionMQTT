@@ -1,16 +1,18 @@
 ﻿using Eleon.Modding;
 using EmpyrionNetAPIAccess;
+using ESB.BusService;
+using ESB.Configuration;
 using System.Collections.Generic;
 
-namespace ESB.Common
+namespace ESB.Models
 {
     public interface IContextData
     {
         IModApi ModApi { get; set; }
         EmpyrionModBase ModBase { get; set; }
-        ESBConfig ESBConfig { get; set; }
-        BusManager BusManager { get; set; }
-        GameManager GameManager { get; set; }
+        IESBConfig ESBConfig { get; set; }
+        IBusManager BusManager { get; set; }
+        IGameManager GameManager { get; set; }
         MainThreadRunner MainThreadRunner { get; }
         Dictionary<string, IPlayfield> LoadedPlayfield { get; set; }
         Dictionary<int, IEntity> LoadedEntity { get; set; }

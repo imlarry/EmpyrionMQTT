@@ -133,7 +133,7 @@ namespace EDNAClient.Core
                 // "Client" for the player-side ESB. In SP that instance handles everything;
                 // in MP a separate DedicatedServer instance is the authority for V1 calls.
                 _ctx.AuthoritativeSource = gameMode == "SinglePlayer"
-                    ? _ctx.Messenger.ParseTopic(topic).SourceId   // "Client" in SP
+                    ? topic.Split('/')[0]                          // "Client" in SP
                     : "DedicatedServer";                           // separate Dedi in MP
                 if (!string.IsNullOrEmpty(gameDataPath))
                 {

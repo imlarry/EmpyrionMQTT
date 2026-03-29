@@ -1,25 +1,25 @@
-﻿using ESB.Common;
+﻿using ESB.Models;
 using ESB.Interfaces;
 
 namespace ESB
 {
     public class LegacyEventManager
     {
-        readonly private ContextData _cntxt;
+        readonly private ContextData _ctx;
         readonly private ILegacyPlayfieldLoadedHandler _legacyPlayfieldLoadedHandler;
 
         public LegacyEventManager
-            (ContextData cntxt
+            (ContextData context
             , ILegacyPlayfieldLoadedHandler legacyPlayfieldLoadedHandler
             )
         {
-            _cntxt = cntxt;
+            _ctx = context;
             _legacyPlayfieldLoadedHandler = legacyPlayfieldLoadedHandler;
         }
 
         public void EnableEventHandlers()
         {
-            _cntxt.ModBase.Event_Playfield_Loaded += _legacyPlayfieldLoadedHandler.Handle;
+            _ctx.ModBase.Event_Playfield_Loaded += _legacyPlayfieldLoadedHandler.Handle;
         }
 
         public void DisableEventHandlers()

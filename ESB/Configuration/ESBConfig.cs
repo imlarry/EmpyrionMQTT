@@ -1,8 +1,8 @@
 ﻿using System;
 
-namespace ESB.Common
+namespace ESB.Configuration
 {
-    public class ESBConfig
+    public class ESBConfig : IESBConfig
     {
         public string Name { get; set; } = string.Empty;
         public string Description { get; set; } = string.Empty;

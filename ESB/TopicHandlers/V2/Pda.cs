@@ -18,7 +18,7 @@
 
 using Eleon.Modding;
 using Eleon.Pda;
-using ESB.Common;
+using ESB.Models;
 using ESB.Messaging;
 using Newtonsoft.Json.Linq;
 using System;
