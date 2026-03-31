@@ -13,7 +13,7 @@ Actionable items that are known but not yet addressed. Items with full design do
 `ESB/ESB.csproj` post-build event uses `robocopy` to deploy DLLs and YAML to both mod folders. This replaced `xcopy` after a diagnosed failure mode: when a build runs while the game is open, the target DLLs are memory-mapped (loaded as code sections). xcopy's fallback on a `USER MAPPED FILE` error is to unlink the existing file via `SetDispositionInformationEx FILE_DISPOSITION_POSIX_SEMANTICS`, then attempt to write the new file — which also fails. The result is the file is deleted with no replacement, causing a `TypeLoadException` on the next game launch. robocopy logs a skip error and leaves the existing file intact. The `& exit 0` suffix is required because robocopy returns exit code 1 on success (files copied), which MSBuild would otherwise treat as a build failure.
 
 ### EmpyrionNetAPI wrapper DLLs
-Five `EmpyrionNetApi*.dll` files ship alongside `ESB.dll` purely as a wrapper layer over the older `ModInterface` API flavor. These are a deployment burden and a versioning risk. The plan is to eliminate this dependency once the V2 `IModApi` surface covers the remaining V1-only operations (see [TopicHandlerIntegration.md](TopicHandlerIntegration.md)). Prerequisite: V1 handler coverage is complete or intentionally dropped.
+Five `EmpyrionNetApi*.dll` files ship alongside `ESB.dll` purely as a wrapper layer over the older `ModInterface` API flavor. These are a deployment burden and a versioning risk. The plan is to eliminate this dependency once the V2 `IModApi` surface covers the remaining V1-only operations (see [TopicHandlerCoverage.md](TopicHandlerCoverage.md)). Prerequisite: V1 handler coverage is complete or intentionally dropped.
 
 ### SP/coop topology with ModTargets
 The `ModTargets` field in `ESB_Info.yaml` lets server admins suppress ESB by mode (e.g. `ModTargets: DedicatedServer` silences all PlayfieldServer instances). The correct default and the expected behavior in single-player and local co-op is not yet defined or tested. Observed from live MP test (2026-03-22): N players on a playfield = N `PlayfieldServer` ESB instances publishing duplicate event streams. Needs a decision on whether `ModTargets` default should suppress PlayfieldServer, and whether SP topology (Client-only) needs special handling.
@@ -54,16 +54,29 @@ Automated execution without a live player will time out.
 ## API Coverage
 
 ### Topic collapse / unified API — open design
-Open question about collapsing `{appId}/Q/...` to a flat `ESB/Q/...` prefix with scope-aware handler registration inside ESB. Four unresolved sub-issues (handler authority registry, multi-response for shared V2 handlers, event source discriminator, playfield multicast addressing). See [ApiConsolidation.md](ApiConsolidation.md) for the full design discussion.
+
+Current topic format uses `{appId}/Q/...` where `appId` is `Client`, `DedicatedServer`, or `PlayfieldServer`. Proposed collapsed format: `ESB/{msgclass}/{subject}/{clientId}/{seq}` -- the process prefix is removed and ESB routes internally. This would make the topic interface fully mode-agnostic for callers (EDNA skills, Lua scripts).
+
+Recommended sequence if pursued: (1) build scope-aware handler API with V1/V2 routing inside ESB, (2) evaluate topic collapse once handler-level routing is proven.
+
+Four unresolved sub-issues:
+
+**1. Scope-aware handler registration.** With a flat `ESB/Q/...`, all three ESB instances receive every request. A handler registration mechanism must declare which process type(s) are authoritative per subject so non-authoritative instances drop the message silently.
+
+**2. Multi-response for shared V2 handlers.** Some handlers are valid on all process types (e.g. `Application.Mode`, `Application.GameInfo`). With a flat topic all three instances respond to one request. Options: designate a canonical source per handler; accept multiple responses for broadcast-style queries; restrict V2 handlers so only one process type responds.
+
+**3. Event source discriminator.** Today `Client/E/Application.GameEnter` and `DedicatedServer/E/Application.GameEnter` are distinguishable by topic. Collapsed to `ESB/E/Application.GameEnter`, the source process is invisible unless moved into the payload or retained as a partial prefix for events only (`ESB/E/{appId}/{subject}/...`).
+
+**4. Playfield multicast addressing.** The current `PlayfieldServer/Q/+/*/#` pattern fans out to all loaded PlayfieldServer instances simultaneously (broadcast). With a flat prefix, fan-out is implicit but targeted queries to a specific PlayfieldServer instance lose their addressing mechanism. A replacement scheme is needed for targeted vs. broadcast playfield queries.
 
 ### V1 handler coverage gaps
-Several V1 API groups have no handler implementation. Priority order: **Server → Faction → Structure.ListGlobal → Playfield.List** (all read-only). Entity and Message come after Tier 3 testing infrastructure is in place. Full breakdown in [TopicHandlerIntegration.md](TopicHandlerIntegration.md).
+Several V1 API groups have no handler implementation. Priority order: **Server → Faction → Structure.ListGlobal → Playfield.List** (all read-only). Entity and Message come after Tier 3 testing infrastructure is in place. Full breakdown in [TopicHandlerCoverage.md](TopicHandlerCoverage.md).
 
 ### V2 partial coverage
-Several V2 interfaces expose only a subset of their methods/properties. Notable gaps: `IStructure.GetDevice<T>`, `IPlayfield.Players`/`Entities`, `IPlayer.DamageEntity`/`Move*`. Full breakdown in [TopicHandlerIntegration.md](TopicHandlerIntegration.md).
+Several V2 interfaces expose only a subset of their methods/properties. Notable gaps: `IStructure.GetDevice<T>`, `IPlayfield.Players`/`Entities`, `IPlayer.DamageEntity`/`Move*`. Full breakdown in [TopicHandlerCoverage.md](TopicHandlerCoverage.md).
 
 ### V2 interfaces not started
-`IEntity`, `INetwork`, `IPortal`, `ISoundPlayer` have no handler implementation. See [TopicHandlerIntegration.md](TopicHandlerIntegration.md).
+`IEntity`, `INetwork`, `IPortal`, `ISoundPlayer` have no handler implementation. See [TopicHandlerCoverage.md](TopicHandlerCoverage.md).
 
 ---
 

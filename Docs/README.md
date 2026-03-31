@@ -64,21 +64,9 @@ Today it is widely used for distributed system logging and orchestration as well
 
 ## Current Topic Format
 
-MQTT uses a topic string to identify a resource (intentionally loose term) a client wants to access or provide. A standard URI structured "slash path" gives a good way to represent a topic hierarchy so many systems employ some variation of one.
+Topics follow a five-segment slash path: `{appId}/{msgClass}/{subject}/{clientId}/{seq}`. Message classes are `Q` (request), `R` (response), `E` (event), `I` (information), `X` (exception). The ESB uses `Application.Mode` (`Client`, `DedicatedServer`, `PlayfieldServer`) as the `appId`.
 
-Since topic structure and naming conventions impact how this implementation determines who gets what messages and what code gets run by it, following a fairly rigid topic definition format ends up being critical.
-
- example:    Client/E/GameEvent.*EventEnum*/20E9AD182A2D/*SeqNum*
-
-      <sourceid>/   the type/class of the service ... basically an APPID
-      <msgclass>/   Q=question/quest, R=response, E=event, I=information, X=exception
-     <subjectid>/   the subject of the message (user topic string as dot path) 
-      <clientid>/   a unique session identifier (currently the last 12 of a guid)
-        <seqnum>/   a number incremented by each sent message  
-
-A client subscribes to Questions/Quests that it can issue a Response to that provide information or perform an action (a quest) and then confirms the request was satisfied. Events are issued as a result of async events in the publisher. When errors occur eXceptions are raised.
-
-The ESB uses the Application.Mode (Client, DedicatedServer, PlayfieldServer) as the sourceid for these services.
+See [TopicFormat.md](TopicFormat.md) for the full addressing spec including multicast conventions and external client correlation patterns.
 
 ## Topic Handlers
 

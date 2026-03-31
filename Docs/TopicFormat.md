@@ -1,3 +1,4 @@
+# MQTT Topic Format
 
 MQTT uses a topic string to identify a resource (intentionally loose term) a client wants to
 access or provide. A standard URI structured "slash path" gives a good way to represent a
@@ -7,17 +8,19 @@ Since topic structure and naming conventions impact how this implementation dete
 gets what messages and what code gets run by it, following a fairly rigid topic definition
 format ends up being critical.
 
- example:    Client/E/ModApi.GameEvent.WindowClosed/20E9AD182A2D/42
+```
+example:    Client/E/ModApi.GameEvent.WindowClosed/20E9AD182A2D/42
 
-      <sourceid>/   the name of the source service (except for commands which use to target)
-      <msgclass>/   Q=reQuest, R=response, E=event, I=information, X=exception
-     <subjectid>/   the subject of the message (user topic string as dot path)
-      <clientid>/   a unique session identifier (currently the last 12 of a guid)
-      <sequence>    a value to allow correlating a request and its response
+  <sourceid>/   the name of the source service (except for commands which use to target)
+  <msgclass>/   Q=reQuest, R=response, E=event, I=information, X=exception
+ <subjectid>/   the subject of the message (user topic string as dot path)
+  <clientid>/   a unique session identifier (currently the last 12 of a guid)
+  <sequence>    a value to allow correlating a request and its response
+```
 
 A bus partner subscribes to Command topics that it can or is expected to issue a Response
 to that return data and/or change something. Events occur as a result of in-game actions
-or may be issued as a result of async events occuring in a bus partner. When errors occur
+or may be issued as a result of async events occurring in a bus partner. When errors occur
 exceptions are raised in the form of messages. Finally informational messages can be published
 to facilitate logging, debugging, and similar non-actionable bus activity.
 
@@ -30,33 +33,42 @@ the sourceid for these services. While in the lobby the player connection is con
 Client and it is only after entering the game that the determination this is a SinglePlayer
 connection can be made.
 
---- Addressing ---
+## Addressing
 
-The ESB (server-side) assigns its own <clientid> from a GUID at startup. It subscribes to:
-  - {appId}/Q/+/{clientId}/#   targeted: requests addressed to this specific ESB instance
-  - {appId}/Q/+/*/#            multicast: the literal '*' is the broadcast address
+The ESB (server-side) assigns its own `<clientid>` from a GUID at startup. It subscribes to:
 
-'*' in the <clientid> position is the multicast convention meaning "send to all ESB instances".
-It is a literal character, not an MQTT wildcard.  MQTT wildcards are '+' (one level) and '#'
+```
+{appId}/Q/+/{clientId}/#   targeted: requests addressed to this specific ESB instance
+{appId}/Q/+/*/#            multicast: the literal '*' is the broadcast address
+```
+
+`*` in the `<clientid>` position is the multicast convention meaning "send to all ESB instances".
+It is a literal character, not an MQTT wildcard. MQTT wildcards are `+` (one level) and `#`
 (multi-level).
 
-The ESB responds by echoing the full request topic back with Q replaced by R or X. This means
+The ESB responds by echoing the full request topic back with `Q` replaced by `R` or `X`. This means
 multicast responses from multiple ESB instances land on the same response topic; the first
-response wins at the subscriber. For targeted messaging, send to a known ESB <clientid> and
+response wins at the subscriber. For targeted messaging, send to a known ESB `<clientid>` and
 responses will be unambiguously addressed.
 
---- External clients (test harness, tools) ---
+## External Clients (test harness, tools)
 
 External clients publish to:
-  {appId}/Q/{handler}/*/{correlationId}
 
-where <correlationId> is a unique value the sender controls. Because the ESB echoes the full
+```
+{appId}/Q/{handler}/*/{correlationId}
+```
+
+where `<correlationId>` is a unique value the sender controls. Because the ESB echoes the full
 topic in its response, subscribing to:
-  {appId}/R/{handler}/*/{correlationId}/#
-  {appId}/X/{handler}/*/{correlationId}/#
+
+```
+{appId}/R/{handler}/*/{correlationId}/#
+{appId}/X/{handler}/*/{correlationId}/#
+```
 
 guarantees only the response to that specific request is received, even when concurrent clients
 request the same handler simultaneously.
 
-The ESB itself uses a monotonically incrementing integer for its own <sequence> field.
-External clients may use any unique string — the ESB does not validate the field value.
+The ESB itself uses a monotonically incrementing integer for its own `<sequence>` field.
+External clients may use any unique string -- the ESB does not validate the field value.
