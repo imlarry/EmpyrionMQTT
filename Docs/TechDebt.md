@@ -72,6 +72,17 @@ Four unresolved sub-issues:
 ### V1 handler coverage gaps
 Several V1 API groups have no handler implementation. Priority order: **Server → Faction → Structure.ListGlobal → Playfield.List** (all read-only). Entity and Message come after Tier 3 testing infrastructure is in place. Full breakdown in [TopicHandlerCoverage.md](TopicHandlerCoverage.md).
 
+### Request_Entity_Destroy2 -- semantics unknown, not exposed
+
+`CmdId 70 Request_Entity_Destroy2` is present in the API table alongside `CmdId 38 Request_Entity_Destroy`. Both carry the same `Id(entityId)` signature and `Event_Ok` response. The current `V1.Entity.Destroy` handler calls only `Request_Entity_Destroy` (38). `Destroy2` is not exposed.
+
+The distinction between the two variants is undocumented in the Eleon API. Candidates:
+- soft vs. hard destroy (e.g. one triggers loot drop, the other removes silently)
+- legacy vs. updated destroy path added in a later game version
+- one variant may only work on certain `EntityType` values
+
+**Research needed:** spawn a test entity, call `Destroy` vs. `Destroy2`, and observe whether the game behavior differs (loot, recycling, error response, EntityType restrictions). Once semantics are known, either add `V1.Entity.Destroy2` as a separate handler or alias it to `V1.Entity.Destroy` with a documented note.
+
 ### V2 partial coverage
 Several V2 interfaces expose only a subset of their methods/properties. Notable gaps: `IStructure.GetDevice<T>`, `IPlayfield.Players`/`Entities`, `IPlayer.DamageEntity`/`Move*`. Full breakdown in [TopicHandlerCoverage.md](TopicHandlerCoverage.md).
 
