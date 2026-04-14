@@ -7,8 +7,8 @@ namespace ESB.Messaging
 {
     /// <summary>
     /// Paths and helpers for EDNA/ESB configuration files.
-    /// ESB_Info.yaml is read from the application's output directory.
-    /// EDNA_Info.yaml and per-session files are read/written under %LocalAppData%\EDNA\.
+    /// Both ESB_Info.yaml and EDNA_Info.yaml are read from (and written to) the
+    /// application's output directory, which is the ESB mod folder after deployment.
     /// </summary>
     public static class WellKnownPaths
     {
@@ -16,10 +16,9 @@ namespace ESB.Messaging
         private static readonly string EsbInfoFile = Path.Combine(
             AppDomain.CurrentDomain.BaseDirectory, "ESB_Info.yaml");
 
-        // EDNA_Info.yaml — read/write; persists EDNA settings across sessions
+        // EDNA_Info.yaml — read/write; lives alongside the executable in the mod folder
         public static readonly string EdnaInfoFile = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "EDNA", "EDNA_Info.yaml");
+            AppDomain.CurrentDomain.BaseDirectory, "EDNA_Info.yaml");
 
         private static readonly IDeserializer Deserializer = new DeserializerBuilder()
             .WithNamingConvention(PascalCaseNamingConvention.Instance)

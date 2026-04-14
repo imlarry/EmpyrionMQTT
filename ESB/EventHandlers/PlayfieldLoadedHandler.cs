@@ -38,6 +38,9 @@ namespace ESB
                 JArray entityArray = new JArray();
                 foreach (var entity in entities)
                 {
+                    if (!_ctx.LoadedEntity.ContainsKey(entity.Value.Id))
+                        _ctx.LoadedEntity.Add(entity.Value.Id, entity.Value);
+
                     JObject entityObject = new JObject(
                         new JProperty("Id", entity.Value.Id),
                         new JProperty("Name", entity.Value.Name),

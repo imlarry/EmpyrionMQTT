@@ -1,3 +1,5 @@
+using System;
+using System.Threading.Tasks;
 using Eleon.Modding;
 using EmpyrionNetAPIAccess;
 using ESB.Models;
@@ -45,9 +47,19 @@ namespace ESB
         // ********************************************
         public override void Initialize(ModGameAPI legacyModApi)
         {
-            legacyModApi.Console_Write("ESB ModGameAPI start — ModBase initializing");
-            _contextData.ModBase = this;
-            legacyModApi.Console_Write($"ESB ModGameAPI start — ModBase assigned, Broker is {(Broker == null ? "NULL" : "set")}");
+            try
+            {
+                legacyModApi.Console_Write("ESB ModGameAPI start — ModBase initializing");
+                _contextData.ModBase = this;
+                legacyModApi.Console_Write($"ESB ModGameAPI start — ModBase assigned, Broker is {(Broker == null ? "NULL" : "set")}");
+            }
+            catch (Exception ex)
+            {
+                legacyModApi.Console_Write($"ESB Initialize failed: {ex}");
+                for (var inner = ex.InnerException; inner != null; inner = inner.InnerException)
+                    legacyModApi.Console_Write($"  Caused by: {inner.GetType().Name}: {inner.Message}");
+                throw;
+            }
         }
 
         public new void Game_Start(ModGameAPI legacyModApi)
@@ -78,6 +90,21 @@ namespace ESB
         // ***************** IMod API *****************
         // ********************************************
         public async void Init(IModApi modApi)
+        {
+            try
+            {
+                await InitInternalAsync(modApi);
+            }
+            catch (Exception ex)
+            {
+                modApi.Log($"ESB Init failed: {ex}");
+                for (var inner = ex.InnerException; inner != null; inner = inner.InnerException)
+                    modApi.Log($"  Caused by: {inner.GetType().Name}: {inner.Message}");
+                throw;
+            }
+        }
+
+        private async Task InitInternalAsync(IModApi modApi)
         {
             // place game provided handle into context
             modApi.Log("ESB IMod API start");
