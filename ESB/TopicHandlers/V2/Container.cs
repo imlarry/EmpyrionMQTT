@@ -19,13 +19,15 @@ namespace ESB.TopicHandlers.V2
 
         public void Register()
         {
-            _ctx.Messenger.RegisterHandler("V2.Container.Get",          Get);
-            _ctx.Messenger.RegisterHandler("V2.Container.Contains",     Contains);
-            _ctx.Messenger.RegisterHandler("V2.Container.GetTotalItems", GetTotalItems);
-            _ctx.Messenger.RegisterHandler("V2.Container.AddItems",     AddItems);
-            _ctx.Messenger.RegisterHandler("V2.Container.RemoveItems",  RemoveItems);
-            _ctx.Messenger.RegisterHandler("V2.Container.Clear",        Clear);
-            _ctx.Messenger.RegisterHandler("V2.Container.SetContent",   SetContent);
+            _ctx.Messenger.RegisterHandler("V2.Container.Get",               Get);
+            _ctx.Messenger.RegisterHandler("V2.Container.Contains",        Contains);
+            _ctx.Messenger.RegisterHandler("V2.Container.GetTotalItems",   GetTotalItems);
+            _ctx.Messenger.RegisterHandler("V2.Container.AddItems",        AddItems);
+            _ctx.Messenger.RegisterHandler("V2.Container.RemoveItems",     RemoveItems);
+            _ctx.Messenger.RegisterHandler("V2.Container.Clear",           Clear);
+            _ctx.Messenger.RegisterHandler("V2.Container.SetContent",      SetContent);
+            _ctx.Messenger.RegisterHandler("V2.Container.SetVolumeCapacity", SetVolumeCapacity);
+            _ctx.Messenger.RegisterHandler("V2.Container.SetDecayFactor",    SetDecayFactor);
         }
 
         private async Task<Eleon.Modding.IStructure> GetStructure(string topic, int entityId)
@@ -327,6 +329,85 @@ namespace ESB.TopicHandlers.V2
                         new JProperty("EntityId", entityId),
                         new JProperty("Pos",      MessageHelpers.Vec(pos)),
                         new JProperty("Count",    items.Count));
+                    await _ctx.Messenger.SendAsync(MessageClass.Response, topic, json.ToString(Newtonsoft.Json.Formatting.None));
+                });
+            }
+            catch (Exception ex)
+            {
+                await _ctx.Messenger.SendAsync(MessageClass.Exception, topic, MessageHelpers.ExceptionJson(ex));
+            }
+        }
+        // -------------------------------------------------------------------------
+        // V2.Container.SetVolumeCapacity -- set the volume capacity of a container
+        // Payload: {"EntityId": int, "Pos": {"x":i,"y":i,"z":i}, "VolumeCapacity": float}
+        // Response: {"EntityId": int, "Pos": {...}, "VolumeCapacity": float}
+        // -------------------------------------------------------------------------
+        public async Task SetVolumeCapacity(string topic, string payload)
+        {
+            try
+            {
+                var args     = JObject.Parse(payload);
+                int entityId = args["EntityId"].Value<int>();
+                VectorInt3 pos = MessageHelpers.ParseVecInt3(args["Pos"]);
+                float value  = args["VolumeCapacity"].Value<float>();
+
+                var structure = await GetStructure(topic, entityId);
+                if (structure == null) return;
+
+                await _ctx.MainThreadRunner.RunOnMainThread(async () =>
+                {
+                    var container = structure.GetDevice<Eleon.Modding.IContainer>(pos);
+                    if (container == null)
+                    {
+                        await _ctx.Messenger.SendAsync(MessageClass.Exception, topic,
+                            MessageHelpers.ErrorJson($"No container device at position {MessageHelpers.Vec(pos)} in entity {entityId}"));
+                        return;
+                    }
+                    container.VolumeCapacity = value;
+                    var json = new JObject(
+                        new JProperty("EntityId",       entityId),
+                        new JProperty("Pos",            MessageHelpers.Vec(pos)),
+                        new JProperty("VolumeCapacity", container.VolumeCapacity));
+                    await _ctx.Messenger.SendAsync(MessageClass.Response, topic, json.ToString(Newtonsoft.Json.Formatting.None));
+                });
+            }
+            catch (Exception ex)
+            {
+                await _ctx.Messenger.SendAsync(MessageClass.Exception, topic, MessageHelpers.ExceptionJson(ex));
+            }
+        }
+
+        // -------------------------------------------------------------------------
+        // V2.Container.SetDecayFactor -- set the decay factor of a container
+        // Payload: {"EntityId": int, "Pos": {"x":i,"y":i,"z":i}, "DecayFactor": float}
+        // Response: {"EntityId": int, "Pos": {...}, "DecayFactor": float}
+        // -------------------------------------------------------------------------
+        public async Task SetDecayFactor(string topic, string payload)
+        {
+            try
+            {
+                var args     = JObject.Parse(payload);
+                int entityId = args["EntityId"].Value<int>();
+                VectorInt3 pos = MessageHelpers.ParseVecInt3(args["Pos"]);
+                float value  = args["DecayFactor"].Value<float>();
+
+                var structure = await GetStructure(topic, entityId);
+                if (structure == null) return;
+
+                await _ctx.MainThreadRunner.RunOnMainThread(async () =>
+                {
+                    var container = structure.GetDevice<Eleon.Modding.IContainer>(pos);
+                    if (container == null)
+                    {
+                        await _ctx.Messenger.SendAsync(MessageClass.Exception, topic,
+                            MessageHelpers.ErrorJson($"No container device at position {MessageHelpers.Vec(pos)} in entity {entityId}"));
+                        return;
+                    }
+                    container.DecayFactor = value;
+                    var json = new JObject(
+                        new JProperty("EntityId",    entityId),
+                        new JProperty("Pos",         MessageHelpers.Vec(pos)),
+                        new JProperty("DecayFactor", container.DecayFactor));
                     await _ctx.Messenger.SendAsync(MessageClass.Response, topic, json.ToString(Newtonsoft.Json.Formatting.None));
                 });
             }

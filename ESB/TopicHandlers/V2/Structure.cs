@@ -34,6 +34,7 @@ namespace ESB.TopicHandlers.V2
             _ctx.Messenger.RegisterHandler("V2.Structure.GetSendSignalName",      GetSendSignalName);
             _ctx.Messenger.RegisterHandler("V2.Structure.StructToGlobalPos",      StructToGlobalPos);
             _ctx.Messenger.RegisterHandler("V2.Structure.GlobalToStructPos",      GlobalToStructPos);
+            _ctx.Messenger.RegisterHandler("V2.Structure.ScanFloor",              ScanFloor);
         }
 
         // Shared lookup: entity from cache → structure, or send an exception and return null.
@@ -42,8 +43,9 @@ namespace ESB.TopicHandlers.V2
             var entity = _ctx.GetEntityByKey(entityId);
             if (entity == null)
             {
+                var cached = string.Join(", ", _ctx.LoadedEntity.Keys);
                 await _ctx.Messenger.SendAsync(MessageClass.Exception, topic,
-                    MessageHelpers.ErrorJson($"Entity {entityId} not found in LoadedEntity cache"));
+                    MessageHelpers.ErrorJson($"Entity {entityId} not found in LoadedEntity cache. Cached IDs: [{cached}]"));
                 return null;
             }
             if (entity.Structure == null)
@@ -577,6 +579,66 @@ namespace ESB.TopicHandlers.V2
                     new JProperty("GlobalPos", MessageHelpers.Vec(globalPos)),
                     new JProperty("StructPos", MessageHelpers.Vec(structPos)));
                 await _ctx.Messenger.SendAsync(MessageClass.Response, topic, json.ToString(Newtonsoft.Json.Formatting.None));
+            }
+            catch (Exception ex)
+            {
+                await _ctx.Messenger.SendAsync(MessageClass.Exception, topic, MessageHelpers.ExceptionJson(ex));
+            }
+        }
+
+        // -----------------------------------------------------------------------
+        // V2.Structure.ScanFloor — horizontal block scan at a single Y level
+        // Payload: { "EntityId": n, "Y": 130 }
+        // Returns all non-null blocks at that Y as sparse {X, Z, Type} list.
+        // All GetBlock calls run in one main-thread batch.
+        // -----------------------------------------------------------------------
+        public async Task ScanFloor(string topic, string payload)
+        {
+            try
+            {
+                var args     = JObject.Parse(payload);
+                int entityId = args["EntityId"].Value<int>();
+                int y        = args["Y"].Value<int>();
+
+                var structure = await GetStructure(topic, entityId);
+                if (structure == null) return;
+
+                JObject json = null;
+                await _ctx.MainThreadRunner.RunOnMainThread(async () =>
+                {
+                    var minPos = structure.MinPos;
+                    var maxPos = structure.MaxPos;
+
+                    var blocks = new JArray();
+                    for (int x = minPos.x; x <= maxPos.x; x++)
+                    {
+                        for (int z = minPos.z; z <= maxPos.z; z++)
+                        {
+                            var block = structure.GetBlock(x, y, z);
+                            if (block == null) continue;
+                            block.Get(out int type, out int shape, out int rotation, out bool active);
+                            if (type == 0) continue;
+                            blocks.Add(new JObject(
+                                new JProperty("X",        x),
+                                new JProperty("Z",        z),
+                                new JProperty("Type",     type),
+                                new JProperty("Shape",    shape),
+                                new JProperty("Rotation", rotation)));
+                        }
+                    }
+
+                    json = new JObject(
+                        new JProperty("EntityId", entityId),
+                        new JProperty("Y",        y),
+                        new JProperty("MinPos",   MessageHelpers.Vec(minPos)),
+                        new JProperty("MaxPos",   MessageHelpers.Vec(maxPos)),
+                        new JProperty("Blocks",   blocks));
+
+                    await Task.CompletedTask;
+                });
+
+                await _ctx.Messenger.SendAsync(MessageClass.Response, topic,
+                    json.ToString(Newtonsoft.Json.Formatting.None));
             }
             catch (Exception ex)
             {

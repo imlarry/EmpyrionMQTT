@@ -37,6 +37,7 @@ namespace ESB.TopicHandlers.V2
             _ctx.Messenger.RegisterHandler("V2.Application.Mode",                Mode);
             _ctx.Messenger.RegisterHandler("V2.Application.LocalPlayer",         LocalPlayer);
             _ctx.Messenger.RegisterHandler("V2.Application.GameTicks",           GameTicks);
+            _ctx.Messenger.RegisterHandler("V2.Application.ModApiProperties",    ModApiProperties);
         }
 
         public async Task GetPathFor(string topic, string payload)
@@ -462,6 +463,27 @@ namespace ESB.TopicHandlers.V2
         {
             var gameTicks = _ctx.ModApi.Application.GameTicks;
             JObject json = new JObject(new JProperty("GameTicks", gameTicks));
+            await _ctx.Messenger.SendAsync(MessageClass.Response, topic, json.ToString(Newtonsoft.Json.Formatting.None));
+        }
+
+        public async Task ModApiProperties(string topic, string payload)
+        {
+            var clientPlayfield = _ctx.ModApi.ClientPlayfield == null ? "null" : "set";
+            var network = _ctx.ModApi.Network == null ? "null" : "set";
+            var gui = _ctx.ModApi.GUI == null ? "null" : "set";
+            var pda = _ctx.ModApi.PDA == null ? "null" : "set";
+            var scripting = _ctx.ModApi.Scripting == null ? "null" : "set";
+            var soundPlayer = _ctx.ModApi.SoundPlayer == null ? "null" : "set";
+            var application = _ctx.ModApi.Application == null ? "null" : "set";
+            JObject json = new JObject(
+                new JProperty("ClientPlayfield", clientPlayfield),
+                new JProperty("Network", network),
+                new JProperty("GUI", gui),
+                new JProperty("PDA", pda),
+                new JProperty("Scripting", scripting),
+                new JProperty("SoundPlayer", soundPlayer),
+                new JProperty("Application", application)
+            );
             await _ctx.Messenger.SendAsync(MessageClass.Response, topic, json.ToString(Newtonsoft.Json.Formatting.None));
         }
     }
