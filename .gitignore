@@ -367,3 +367,6 @@ FodyWeavers.xsd
 
 # VS Code workspace files
 *.code-workspace
+
+# Third-party copyright material
+Docs/EGSdocs/

@@ -7,13 +7,20 @@ Actionable items that are known but not yet addressed. Items with full design do
 ## Infrastructure
 
 ### WellKnownPaths — migrate to V2 Application.GetPathFor
-`ESB.Messaging/Configuration/WellKnownPaths.cs` builds `EsbInfoFile` by concatenating `AppDomain.CurrentDomain.BaseDirectory` with a literal filename. The V2 `IModApi` surface exposes `Application.GetPathFor(ApplicationPath)` which returns the correct platform-aware path for configuration files without relying on base directory assumptions. `WellKnownPaths.LoadEsbInfo()` (and the construction of `EsbInfoFile`) should be migrated to use this API once the right `ApplicationPath` enum value is confirmed.
+`ESB.Messaging/Configuration/WellKnownPaths.cs` builds `EsbInfoFile` by concatenating `AppDomain.CurrentDomain.BaseDirectory` with a literal filename. The V2 `IModApi` surface exposes `Application.GetPathFor(AppFolder)` which returns the correct platform-aware path without relying on base directory assumptions. `WellKnownPaths.LoadEsbInfo()` (and the construction of `EsbInfoFile`) should be migrated to use `AppFolder.Mod` (value 3), confirmed correct for Client instances.
 
-### Post-build deployment uses robocopy, not xcopy
-`ESB/ESB.csproj` post-build event uses `robocopy` to deploy DLLs and YAML to both mod folders. This replaced `xcopy` after a diagnosed failure mode: when a build runs while the game is open, the target DLLs are memory-mapped (loaded as code sections). xcopy's fallback on a `USER MAPPED FILE` error is to unlink the existing file via `SetDispositionInformationEx FILE_DISPOSITION_POSIX_SEMANTICS`, then attempt to write the new file — which also fails. The result is the file is deleted with no replacement, causing a `TypeLoadException` on the next game launch. robocopy logs a skip error and leaves the existing file intact. The `& exit 0` suffix is required because robocopy returns exit code 1 on success (files copied), which MSBuild would otherwise treat as a build failure.
+**Open question:** `GetPathFor(AppFolder.Mod)` may return a different or incorrect path on `PlayfieldServer` and `DedicatedServer` instances, where the process working directory and mod deployment layout differ from the Client. Before completing the migration, verify the returned path on all three process types. If `AppFolder.Mod` is wrong for non-Client processes, guard with a conditional on `Application.Mode`:
+
+```csharp
+var modPath = _modApi.Application.Mode == ApplicationMode.Client
+    ? _modApi.Application.GetPathFor(AppFolder.Mod)
+    : AppDomain.CurrentDomain.BaseDirectory;  // fallback until confirmed
+```
+
+Note: `WellKnownPaths` is a static class with no `IModApi` reference today. The migration requires either passing the resolved path in at startup (e.g. an `Initialize(string modPath)` call from `ModBase`/`ModApi` entry points) or converting `EsbInfoFile` from a `static readonly` field to a lazily-resolved property.
 
 ### EmpyrionNetAPI wrapper DLLs
-Five `EmpyrionNetApi*.dll` files ship alongside `ESB.dll` purely as a wrapper layer over the older `ModInterface` API flavor. These are a deployment burden and a versioning risk. The plan is to eliminate this dependency once the V2 `IModApi` surface covers the remaining V1-only operations (see [TopicHandlerCoverage.md](TopicHandlerCoverage.md)). Prerequisite: V1 handler coverage is complete or intentionally dropped.
+Five `EmpyrionNetApi*.dll` files ship alongside `ESB.dll` purely as a wrapper layer over the older `ModInterface` API flavor. These are a deployment burden and a versioning risk.
 
 ### SP/coop topology with ModTargets
 The `ModTargets` field in `ESB_Info.yaml` lets server admins suppress ESB by mode (e.g. `ModTargets: DedicatedServer` silences all PlayfieldServer instances). The correct default and the expected behavior in single-player and local co-op is not yet defined or tested. Observed from live MP test (2026-03-22): N players on a playfield = N `PlayfieldServer` ESB instances publishing duplicate event streams. Needs a decision on whether `ModTargets` default should suppress PlayfieldServer, and whether SP topology (Client-only) needs special handling.

@@ -85,6 +85,10 @@ Server-wide structure queries including structures on idle (unloaded) playfields
 
 **`GlobalStructureInfo` fields:** id, type, factionGroup, factionId, name, lastVisitedUTC, pos, rot, powered, fuel, cntDevices/Blocks/Triangles/Lights, classNr, dockedShips[], coreType, pilotId, PlayfieldName, Sector, SolarSystemName, SolarSystemCoord
 
+> **EmpyrionNetAPIAccess wrapper exceptions:**
+> - `Request_GlobalStructure_List` -- wrapper signature is `Request_GlobalStructure_List(Timeouts)`, not `(Id)`. The playfieldId filter cannot be passed through the wrapper. Use `Broker.SendRequestAsync<GlobalStructureList>(CmdId.Request_GlobalStructure_List, new Id(playfieldId))` directly.
+> - `Request_GlobalStructure_Update` -- wrapper signature is `Request_GlobalStructure_Update(PString)`, not `(GlobalStructureInfo)`. Use `Broker.SendRequestAsync<Id>(CmdId.Request_GlobalStructure_Update, info)` directly.
+
 **When to use V1 Structure:**
 - Global structure list is the primary use: enumerate all structures across all playfields, including those on idle/unloaded playfields — V2 cannot see unloaded playfields
 - `Request_GlobalStructure_List` is also how you find which playfield an entity is on without scanning each one
@@ -119,6 +123,9 @@ Dedicated server administration operations.
 | `V1.Server.ConsoleCommand` | `Request_ConsoleCommand` (fire-and-forget) | `PString(command)` | `{"Ok":true}` — no output captured | None |
 | `V1.Server.BannedPlayers` | `Request_GetBannedPlayers` → `Event_BannedPlayers` | _(none)_ | `BannedPlayerData` | None |
 
+> **EmpyrionNetAPIAccess wrapper exception:**
+> - `Request_GetBannedPlayers` -- wrapper return type is `IdList`, not `BannedPlayerData`. Use `Broker.SendRequestAsync<BannedPlayerData>(CmdId.Request_GetBannedPlayers, null)` directly.
+
 **Confirmed console command syntax:**
 - `ban <playerName> <duration>` — duration format: `1h`, `2h`, etc. (not `1hr`)
 - `unban <playerName>`
@@ -138,9 +145,16 @@ Server-wide faction and alliance graph. V2 exposes `FactionData` per-entity but 
 |---|---|---|---|---|
 | `V1.Faction.List` | `Request_Get_Factions` → `Event_Get_Factions` | _(none)_ | `FactionInfoList` | None |
 | `V1.Faction.AlliancesAll` | `Request_AlliancesAll` → `Event_AlliancesAll` | _(none)_ | `AlliancesTable` | None |
-| `V1.Faction.AlliancesByFaction` | `Request_AlliancesFaction` → `Event_AlliancesFaction` | `Id(factionId)` | `AlliancesFaction` | None |
+| `V1.Faction.AlliancesByFaction` | `Request_AlliancesFaction` → `Event_AlliancesFaction` | `AlliancesFaction(faction1Id)` | `AlliancesFaction` | None |
 
 **`FactionInfo` fields:** origin, factionId, name, abbrev
+
+**`AlliancesFaction` fields:** faction1Id, faction2Id, isAllied -- both `faction1Id` and `faction2Id` must be non-zero; the game returns `ErrorType.MissingParameter` if either is zero. `isAllied` is populated in the response. Use `AlliancesAll` first to discover valid faction ID pairs.
+
+> **EmpyrionNetAPIAccess wrapper exceptions:**
+> - `Request_Get_Factions` -- wrapper requires at least one argument (no zero-argument overload). Use `Broker.SendRequestAsync<FactionInfoList>(CmdId.Request_Get_Factions, new Id(0))` directly.
+
+> **Note:** `Request_AlliancesFaction` wrapper takes `AlliancesFaction` -- this IS correct; the raw protocol also takes `AlliancesFaction`, not `Id`. Use the wrapper directly: `Request_AlliancesFaction(new AlliancesFaction { faction1Id = f1, faction2Id = f2 })`. Both IDs must be non-zero.
 
 **When to use V1 Faction:**
 - Building the faction graph (who is allied with whom) requires V1 — only available server-wide
@@ -174,6 +188,9 @@ Factory / blueprint operations.
 |---|---|---|---|---|
 | `V1.Blueprint.Finish` | `Request_Blueprint_Finish` | `Id(entityId)` | `Event_Ok` | None — instantly completes blueprint in player factory |
 | `V1.Blueprint.Resources` | `Request_Blueprint_Resources` → `Event_Blueprint_Resources` | `BlueprintResources` | `BlueprintResources` | None |
+
+> **EmpyrionNetAPIAccess wrapper exception:**
+> - `Request_Blueprint_Resources` -- wrapper return type is `void`, not `Task<BlueprintResources>`. Use `Broker.SendRequestAsync<BlueprintResources>(CmdId.Request_Blueprint_Resources, resources)` directly.
 
 ---
 
@@ -237,7 +254,27 @@ _ctx.ModBase.Game_Request(CmdId.Request_ConsoleCommand, seqNr, new PString("say 
 // handle via Game_Event(CmdId.Event_ConsoleCommand, seqNr, data)
 ```
 
+The Broker pattern is preferred over raw CmdId access in handlers — it correlates request and response by sequence number and returns a typed `Task<T>`:
+
+```csharp
+var result = await _ctx.ModBase.Broker.SendRequestAsync<GlobalStructureList>(
+    CmdId.Request_GlobalStructure_List, new Id(0));
+```
+
 On error, `Event_Error` fires instead of the expected event, carrying an `ErrorInfo` with an `ErrorType` enum value.
+
+### EmpyrionNetAPIAccess Wrapper Exceptions
+
+Several `EmpyrionModBase` wrapper methods have parameter or return type mismatches relative to the raw Eleon protocol. All ESB handlers for these methods bypass the wrapper using `Broker.SendRequestAsync<T>` directly.
+
+| CmdId | Problem | Correct Broker call |
+|---|---|---|
+| `Request_GlobalStructure_List` | Wrapper takes `Timeouts`, not `Id` — playfieldId filter unavailable | `Broker.SendRequestAsync<GlobalStructureList>(CmdId.Request_GlobalStructure_List, new Id(playfieldId))` |
+| `Request_GlobalStructure_Update` | Wrapper takes `PString`, not `GlobalStructureInfo` | `Broker.SendRequestAsync<Id>(CmdId.Request_GlobalStructure_Update, info)` |
+| `Request_Get_Factions` | Wrapper has no zero-argument overload | `Broker.SendRequestAsync<FactionInfoList>(CmdId.Request_Get_Factions, new Id(0))` |
+| `Request_AlliancesFaction` | Wrapper IS correct; raw protocol takes `AlliancesFaction`. Both `faction1Id` and `faction2Id` must be non-zero or game returns `MissingParameter`. | `Request_AlliancesFaction(new AlliancesFaction { faction1Id = f1, faction2Id = f2 })` |
+| `Request_Blueprint_Resources` | Wrapper returns `void`, not `Task<BlueprintResources>` | `Broker.SendRequestAsync<BlueprintResources>(CmdId.Request_Blueprint_Resources, resources)` |
+| `Request_GetBannedPlayers` | Wrapper return type is `IdList`, not `BannedPlayerData` | `Broker.SendRequestAsync<BannedPlayerData>(CmdId.Request_GetBannedPlayers, null)` |
 
 ---
 

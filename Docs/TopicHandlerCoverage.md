@@ -1,6 +1,6 @@
 # TopicHandler Coverage Analysis
 
-_Generated 2026-03-30 by reviewing ESB/TopicHandlers against Docs/ApiTableOfContents.md._
+_Generated 2026-03-30; updated 2026-03-31 to reflect V1.Entity implementation._
 
 ---
 
@@ -11,6 +11,7 @@ _Generated 2026-03-30 by reviewing ESB/TopicHandlers against Docs/ApiTableOfCont
 | Handler | Topics |
 |---------|--------|
 | Blueprint | Finish, Resources |
+| Entity | GetPosAndRot, Teleport, ChangePlayfield, Destroy, Spawn, SetName, Export, NewId |
 | Faction | List, AlliancesAll, AlliancesByFaction |
 | Message | ToPlayer, ToAll, ToFaction, Dialog |
 | Player | GetInventory, GetInfo, List, GetAndRemoveInventory, SetInventory, AddItem, ItemExchange, GetCredits, SetCredits, AddCredits, SetInfo, ChangePlayfield |
@@ -24,23 +25,11 @@ _Generated 2026-03-30 by reviewing ESB/TopicHandlers against Docs/ApiTableOfCont
 
 ---
 
-### Gap: V1.Entity handler (not implemented)
+### Gap: V1.Entity -- Destroy2 not implemented
 
-The following `CmdId` entries form a coherent entity-management group with no handler:
+`Request_Entity_Destroy2` (CmdId 70) is the alternate destroy variant. It was not included in the V1.Entity handler; `Destroy` (CmdId 38) covers the common case.
 
-| CmdId | Value | Notes |
-|-------|-------|-------|
-| Request_Entity_PosAndRot | 39 | Get position and rotation of any entity by ID |
-| Request_Entity_Teleport | 36 | Teleport any entity (not just players) |
-| Request_Entity_ChangePlayfield | 37 | Move any entity between playfields |
-| Request_Entity_Spawn | 42 | Spawn an entity |
-| Request_Entity_Destroy | 38 | Destroy an entity |
-| Request_Entity_Destroy2 | 70 | Alternate destroy variant |
-| Request_Entity_Export | 71 | Export entity as blueprint |
-| Request_Entity_SetName | 73 | Rename an entity |
-| Request_NewEntityId | 46 | Reserve a new entity ID before spawning |
-
-**Decision:** candidate for a new `V1.Entity` handler. PosAndRot, Teleport, Spawn, Destroy, and SetName are the most immediately useful.
+**Decision:** deferred -- no known use case that Destroy does not already cover.
 
 ### Gap: V1 event subscriptions (not implemented)
 
@@ -63,9 +52,9 @@ These fire from the game unprompted. Not request/response -- require a publish p
 
 | Handler | Topics | Notes |
 |---------|--------|-------|
-| Application | GetPathFor, GetAllPlayfields, GetPfServerInfos, GetPlayerEntityIds, GetPlayerDataFor, SendChatMessage, ShowDialogBox, GetStructure, GetStructures, GetBlockAndItemMapping, State, Mode, LocalPlayer, GameTicks | All IApplication methods and properties covered |
+| Application | GetPathFor, GetAllPlayfields, GetPfServerInfos, GetPlayerEntityIds, GetPlayerDataFor, SendChatMessage, ShowDialogBox, GetStructure, GetStructures, GetBlockAndItemMapping, State, Mode, LocalPlayer, GameTicks, ModApiProperties | All IApplication methods and properties covered |
 | Block | Get, Set, SetDamage, GetTextures, SetTextures, SetTextureForWholeBlock, GetColors, SetColors, SetColorForWholeBlock, GetSwitchState, SetSwitchState, SetLockCode | Full IBlock surface covered |
-| Container | Get, Contains, GetTotalItems, AddItems, RemoveItems, Clear, SetContent | Full IContainer surface covered |
+| Container | Get, Contains, GetTotalItems, AddItems, RemoveItems, Clear, SetContent, SetVolumeCapacity, SetDecayFactor | Full IContainer surface covered |
 | Gui | ShowGameMessage, ShowDialog, IsWorldVisible | Full IGui surface covered |
 | Lcd | Get, SetText, SetTextColor, SetBackgroundColor, SetFontSize | Full ILcd surface covered |
 | Light | Get, SetColor, SetIntensity, SetRange, SetLightType, SetBlinkData, SetSpotAngle | Full ILight surface covered |
@@ -88,13 +77,6 @@ All 15 topics in `ESB/TopicHandlers/V2/Pda.cs` are non-functional. ESB runs as a
 | INetwork | **Will not implement.** No use case in the MQTT bridge design. |
 | IScript | **Will not implement.** No use case in the MQTT bridge design. |
 | ISoundPlayer | **Will not implement.** No use case in the MQTT bridge design. |
-
-### Gap: IContainer members not exposed
-
-| Member | Notes | Decision |
-|--------|-------|----------|
-| `VolumeCapacity` (set) | Write setter for container volume capacity | Candidate |
-| `DecayFactor` (set) | Write setter for container decay rate | Candidate |
 
 ### Gap: IPlayer methods not exposed
 
@@ -150,7 +132,6 @@ These fire from the game unprompted. Not request/response -- require a publish p
 
 ## Open Questions
 
-1. **V1.Entity handler** -- confirm which of the nine CmdIds to implement before starting.
-2. **Event publishing** -- design a consistent topic pattern for unprompted game events (V1 and V2) before implementing any of them.
-3. **IPlayfield.Players / Entities** -- confirm these are populated and accessible in the ESB server-side context before implementing.
-4. **IPlayer.Teleport overload** -- ApiTableOfContents shows only `Teleport(Vector3 pos)` declared on IPlayer; the cross-playfield overload `Teleport(string playfield, Vector3 pos, Vector3 rot)` is used in the handler. Verify it is present in the DLL (may be on IEntity or inherited).
+1. **Event publishing** -- design a consistent topic pattern for unprompted game events (V1 and V2) before implementing any of them.
+2. **IPlayfield.Players / Entities** -- confirm these are populated and accessible in the ESB server-side context before implementing.
+3. **IPlayer.Teleport overload** -- ApiTableOfContents shows only `Teleport(Vector3 pos)` declared on IPlayer; the cross-playfield overload `Teleport(string playfield, Vector3 pos, Vector3 rot)` is used in the handler. Verify it is present in the DLL (may be on IEntity or inherited).
