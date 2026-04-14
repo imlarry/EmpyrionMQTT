@@ -1,7 +1,8 @@
+using System.Threading;
 using System.Windows;
 using WinFormsApp = System.Windows.Forms.Application;
 using EDNAClient.Core;
-using EDNAClient.Skills.StatusPill;
+using EDNAClient.Skills.FloorMap;
 using EDNAClient.Skills.ThreatRadar;
 using EDNAClient.Tray;
 using EDNAClient.Settings;
@@ -12,9 +13,18 @@ namespace EDNAClient
     {
         private EdnaService?     _service;
         private TrayIconManager? _tray;
+        private Mutex?           _instanceMutex;
 
         protected override void OnStartup(StartupEventArgs e)
         {
+            _instanceMutex = new Mutex(true, "Local\\EDNA_SingleInstance", out bool createdNew);
+            if (!createdNew)
+            {
+                _instanceMutex.Dispose();
+                Shutdown();
+                return;
+            }
+
             base.OnStartup(e);
 
             // WPF apps must opt out of automatic shutdown when the last window closes,
@@ -25,8 +35,8 @@ namespace EDNAClient
             WinFormsApp.EnableVisualStyles();
 
             var settings    = EdnaSettings.Load();
-            var pill        = new StatusPillSkill(new HudViewModel());
             var threatRadar = new ThreatRadarSkill(new ThreatViewModel());
+            var floorMap    = new FloorMapSkill(new FloorMapViewModel());
 
             _tray = new TrayIconManager(() =>
             {
@@ -35,8 +45,7 @@ namespace EDNAClient
             });
 
             _service = new EdnaService(
-                skills:   new IEdnaSkill[] { pill, threatRadar },
-                pill:     pill,
+                skills:   new IEdnaSkill[] { threatRadar, floorMap },
                 tray:     _tray,
                 settings: settings);
             _service.Start();
@@ -47,6 +56,8 @@ namespace EDNAClient
             if (_service != null)
                 await _service.StopAsync();
             _tray?.Dispose();
+            _instanceMutex?.ReleaseMutex();
+            _instanceMutex?.Dispose();
             base.OnExit(e);
         }
     }

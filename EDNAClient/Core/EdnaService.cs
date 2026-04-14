@@ -5,7 +5,6 @@ using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
 using EDNAClient.Scripting;
-using EDNAClient.Skills.StatusPill;
 using EDNAClient.Tray;
 using ESB.Messaging;
 using ESB.Messaging.Configuration;
@@ -17,25 +16,24 @@ namespace EDNAClient.Core
     {
         private readonly EdnaContext        _ctx;
         private readonly IEdnaSkill[]       _skills;
-        private readonly StatusPillSkill    _pill;
         private readonly TrayIconManager    _tray;
         private readonly EdnaSettings       _settings;
         private readonly GameProcessWatcher _watcher;
         private readonly LuaScriptHost      _luaHost;
+        private readonly HotkeyManager      _hotkeys;
 
         private GameWindowEventHook?  _windowHook;
         private HashSet<string>       _blockedByPolicy = new();
 
-        public EdnaService(IEdnaSkill[] skills, StatusPillSkill pill,
-                           TrayIconManager tray, EdnaSettings settings)
+        public EdnaService(IEdnaSkill[] skills, TrayIconManager tray, EdnaSettings settings)
         {
             _ctx      = new EdnaContext();
             _skills   = skills;
-            _pill     = pill;
             _tray     = tray;
             _settings = settings;
             _watcher  = new GameProcessWatcher();
             _luaHost  = new LuaScriptHost();
+            _hotkeys  = new HotkeyManager();
         }
 
         public void Start()
@@ -51,6 +49,7 @@ namespace EDNAClient.Core
             _windowHook = null;
             _luaHost.Stop();
             foreach (var skill in _skills) skill.Stop();
+            _hotkeys.Dispose();
             _watcher.Dispose();
             await _ctx.Messenger.DisconnectAsync();
         }
@@ -79,18 +78,22 @@ namespace EDNAClient.Core
                     foreach (var skill in EnabledSkills())
                         await skill.StartAsync(_ctx.Messenger);
 
-                    _pill.UpdateIndicator(IndicatorState.Healthy);
+                    foreach (var skill in EnabledSkills())
+                        if (skill is IHotkeyProvider provider)
+                            foreach (var req in provider.GetHotkeyRequests())
+                                _hotkeys.Register(req);
+
                     _tray.UpdateState(IndicatorState.Healthy, gameRunning: true);
-                    _tray.OnGameStarted(_pill.Window);
-                    _tray.ShowBalloon("EDNA Active", "Game detected \u2014 HUD overlay enabled.");
+                    _tray.OnGameStarted();
+                    _tray.ShowBalloon("EDNA Active", "Game detected \u2014 overlay enabled.");
 
                     EnsureHookInstalled();
                 }
-                catch
+                catch (Exception ex)
                 {
-                    _pill.UpdateIndicator(IndicatorState.Error);
                     _tray.UpdateState(IndicatorState.Error, gameRunning: true);
-                    _tray.ShowBalloon("EDNA Error", "Could not connect to MQTT broker.");
+                    _tray.ShowBalloon("EDNA Error", ex.Message);
+                    System.Diagnostics.Debug.WriteLine($"[EDNA] OnGameStarted failed: {ex}");
                 }
             });
         }
@@ -102,6 +105,7 @@ namespace EDNAClient.Core
                 _windowHook?.Dispose();
                 _windowHook = null;
 
+                _hotkeys.UnregisterAll();
                 _luaHost.Stop();
                 foreach (var skill in _skills) skill.Stop();
                 _blockedByPolicy.Clear();
@@ -110,9 +114,8 @@ namespace EDNAClient.Core
 
                 try { await _ctx.Messenger.DisconnectAsync(); } catch { }
 
-                _pill.UpdateIndicator(IndicatorState.Offline);
-
-                Application.Current.Shutdown();
+                _tray.UpdateState(IndicatorState.Offline, gameRunning: false);
+                _watcher.Start();
             });
         }
 
@@ -137,7 +140,7 @@ namespace EDNAClient.Core
                     : "DedicatedServer";                           // separate Dedi in MP
                 if (!string.IsNullOrEmpty(gameDataPath))
                 {
-                    var ednaScriptsDir = Path.Combine(gameDataPath, "EDNA", "scripts");
+                    var ednaScriptsDir = Path.Combine(gameDataPath, "LUAscripts");
                     await _luaHost.StartAsync(_ctx.Messenger, ednaScriptsDir);
                 }
             }

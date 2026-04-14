@@ -1,5 +1,4 @@
 using EDNAClient.Core;
-using EDNAClient.Skills.StatusPill;
 using Microsoft.Win32;
 using System;
 using System.Drawing;
@@ -37,12 +36,8 @@ namespace EDNAClient.Tray
         private readonly NotifyIcon        _notifyIcon;
         private readonly ContextMenuStrip  _menu;
         private readonly ToolStripMenuItem _statusItem;
-        private readonly ToolStripMenuItem _hudToggleItem;
         private readonly Action            _openSettings;
         private readonly bool              _dark;
-
-        private HudWindow? _hudWindow;
-        private bool       _hudVisible;
 
         public TrayIconManager(Action openSettings)
         {
@@ -50,9 +45,6 @@ namespace EDNAClient.Tray
             _dark         = IsSystemDarkMode();
 
             _statusItem = new ToolStripMenuItem("EDNA \u2014 Waiting for game") { Enabled = false };
-
-            _hudToggleItem         = new ToolStripMenuItem("Show HUD") { Enabled = false };
-            _hudToggleItem.Click  += OnHudToggle;
 
             var settingsItem = new ToolStripMenuItem("Settings\u2026");
             settingsItem.Click += (_, _) => _openSettings();
@@ -64,7 +56,6 @@ namespace EDNAClient.Tray
             _menu = new ContextMenuStrip { ShowImageMargin = false, ShowCheckMargin = false };
             _menu.Items.Add(_statusItem);
             _menu.Items.Add(new ToolStripSeparator());
-            _menu.Items.Add(_hudToggleItem);
             _menu.Items.Add(settingsItem);
             _menu.Items.Add(new ToolStripSeparator());
             _menu.Items.Add(exitItem);
@@ -108,7 +99,6 @@ namespace EDNAClient.Tray
             _notifyIcon.Icon = MakeIcon(color);
             _notifyIcon.Text = label;    // 63-char WinForms limit
             SetItemText(_statusItem, label);
-            _hudToggleItem.Enabled = gameRunning;
         }
 
         public void ShowBalloon(string title, string message)
@@ -119,20 +109,9 @@ namespace EDNAClient.Tray
             _notifyIcon.ShowBalloonTip(4000);
         }
 
-        public void OnGameStarted(HudWindow window)
-        {
-            _hudWindow  = window;
-            _hudVisible = true;
-            SetItemText(_hudToggleItem, "Hide HUD");
-            _hudToggleItem.Enabled = true;
-        }
+        public void OnGameStarted() { }
 
-        public void OnGameExited()
-        {
-            _hudVisible            = false;
-            _hudToggleItem.Enabled = false;
-            SetItemText(_hudToggleItem, "Show HUD");
-        }
+        public void OnGameExited() { }
 
         public void Dispose()
         {
@@ -142,26 +121,6 @@ namespace EDNAClient.Tray
         }
 
         // ── Private helpers ────────────────────────────────────────────────
-
-        private void OnHudToggle(object? sender, EventArgs e)
-        {
-            if (_hudWindow == null) return;
-            Application.Current.Dispatcher.Invoke(() =>
-            {
-                if (_hudVisible)
-                {
-                    _hudWindow.Hide();
-                    SetItemText(_hudToggleItem, "Show HUD");
-                }
-                else
-                {
-                    _hudWindow.Show();
-                    _hudWindow.SnapToGameWindow();
-                    SetItemText(_hudToggleItem, "Hide HUD");
-                }
-                _hudVisible = !_hudVisible;
-            });
-        }
 
         // SetItemText must marshal to UI thread because NotifyIcon callbacks fire on background threads
         private static void SetItemText(ToolStripItem item, string text)

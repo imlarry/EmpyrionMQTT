@@ -20,7 +20,7 @@ namespace EDNAClient.Scripting;
 ///   - Call()       — C# invokes a named function in a specific script
 ///   - CreateInstance() — C# calls a Lua factory, wraps the result as a LuaInstance
 ///
-/// Script directory  : {SaveGamePath}/Content/Mods/EDNA/scripts/  (game-specific, hot-reload)
+/// Script directory  : {GameDataPath}/LUAscripts/  (game-specific, hot-reload)
 /// Library directory : {AppBase}/lib/                              (shipped with app)
 ///
 /// Execution model:

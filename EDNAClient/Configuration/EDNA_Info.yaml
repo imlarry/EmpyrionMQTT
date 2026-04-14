@@ -1,0 +1,7 @@
+# EDNA skill configuration
+# Add or remove skill IDs to control which overlays are active.
+# Available: ThreatRadar, FloorMap
+
+EnabledSkillIds:
+- ThreatRadar
+- FloorMap

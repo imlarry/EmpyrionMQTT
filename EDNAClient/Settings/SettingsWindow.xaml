@@ -20,7 +20,7 @@
                 <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="60"/>
             </Grid.ColumnDefinitions>
-            <TextBlock Grid.Column="0" Text="Host" VerticalAlignment="Center" Margin="0,0,8,0" Foreground="Gray"/>
+            <TextBlock Grid.Column="0" Text="Hosit said t" VerticalAlignment="Center" Margin="0,0,8,0" Foreground="Gray"/>
             <TextBlock Grid.Column="1" x:Name="HostLabel" VerticalAlignment="Center" Foreground="Gray"/>
             <TextBlock Grid.Column="3" Text="Port" VerticalAlignment="Center" Margin="0,0,8,0" Foreground="Gray"/>
             <TextBlock Grid.Column="4" x:Name="PortLabel"  VerticalAlignment="Center" Foreground="Gray"/>
