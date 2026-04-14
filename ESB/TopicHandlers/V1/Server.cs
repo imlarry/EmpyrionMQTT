@@ -47,20 +47,28 @@ namespace ESB.TopicHandlers.V1
         }
 
         // -------------------------------------------------------------------------
-        // V1.Server.ConsoleCommand -- execute a server console command (fire-and-forget)
+        // V1.Server.ConsoleCommand -- execute a server console command
         // Payload: {"Command": string}
         // Response: {"Ok": true}
-        // Note: the game does not return a result for console commands; Ok confirms
-        //       that the request was dispatched, not that the command succeeded.
+        // Note: bypasses the TimeSpan.Zero wrapper so we wait for Event_Ok/Event_Error.
+        //       A timeout means the game silently rejected or ignored the command.
         // -------------------------------------------------------------------------
         public async Task ConsoleCommand(string topic, string payload)
         {
             try
             {
                 var args    = JObject.Parse(payload);
-                var command = args["Command"].Value<string>();
+                var command = (string)args["Command"];
 
-                await _ctx.ModBase.Request_ConsoleCommand(new PString(command));
+                var requestTask = _ctx.ModBase.Broker.SendRequestAsync<bool>(
+                    CmdId.Request_ConsoleCommand, new PString(command));
+                if (await Task.WhenAny(requestTask, Task.Delay(5000)) != requestTask)
+                {
+                    await _ctx.Messenger.SendAsync(MessageClass.Exception, topic,
+                        MessageHelpers.ErrorJson("No response from game for ConsoleCommand -- command may have been silently rejected"));
+                    return;
+                }
+                await requestTask;
 
                 await _ctx.Messenger.SendAsync(MessageClass.Response, topic, "{\"Ok\":true}");
             }

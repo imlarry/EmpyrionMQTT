@@ -30,6 +30,7 @@ namespace ESB.TopicHandlers.V1
         // Payload: {"EntityId": int, "Message": string, "Priority": int (0=Alarm,1=Message,2=Info),
         //           "Duration": float (seconds, optional, default 10)}
         // Response: {"Ok": true}
+        // Note: bypasses the TimeSpan.Zero wrapper so we wait for Event_Ok/Event_Error.
         // -------------------------------------------------------------------------
         public async Task ToPlayer(string topic, string payload)
         {
@@ -37,12 +38,19 @@ namespace ESB.TopicHandlers.V1
             {
                 var args     = JObject.Parse(payload);
                 var entityId = Convert.ToInt32(args.GetValue("EntityId"));
-                var msg      = args["Message"].Value<string>();
+                var msg      = (string)args["Message"];
                 var prio     = (byte)(args["Priority"]?.Value<int>() ?? 1);
                 var time     = args["Duration"]?.Value<float>()      ?? 10f;
 
-                await _ctx.ModBase.Request_InGameMessage_SinglePlayer(
-                    new IdMsgPrio(entityId, msg, prio, time));
+                var requestTask = _ctx.ModBase.Broker.SendRequestAsync<bool>(
+                    CmdId.Request_InGameMessage_SinglePlayer, new IdMsgPrio(entityId, msg, prio, time));
+                if (await Task.WhenAny(requestTask, Task.Delay(5000)) != requestTask)
+                {
+                    await _ctx.Messenger.SendAsync(MessageClass.Exception, topic,
+                        MessageHelpers.ErrorJson($"No response from game for ToPlayer message to entity {entityId}"));
+                    return;
+                }
+                await requestTask;
 
                 await _ctx.Messenger.SendAsync(MessageClass.Response, topic, "{\"Ok\":true}");
             }
@@ -57,18 +65,26 @@ namespace ESB.TopicHandlers.V1
         // Payload: {"Message": string, "Priority": int (0=Alarm,1=Message,2=Info),
         //           "Duration": float (seconds, optional, default 10)}
         // Response: {"Ok": true}
+        // Note: bypasses the TimeSpan.Zero wrapper so we wait for Event_Ok/Event_Error.
         // -------------------------------------------------------------------------
         public async Task ToAll(string topic, string payload)
         {
             try
             {
                 var args = JObject.Parse(payload);
-                var msg  = args["Message"].Value<string>();
+                var msg  = (string)args["Message"];
                 var prio = (byte)(args["Priority"]?.Value<int>() ?? 1);
                 var time = args["Duration"]?.Value<float>()      ?? 10f;
 
-                await _ctx.ModBase.Request_InGameMessage_AllPlayers(
-                    new IdMsgPrio(0, msg, prio, time));
+                var requestTask = _ctx.ModBase.Broker.SendRequestAsync<bool>(
+                    CmdId.Request_InGameMessage_AllPlayers, new IdMsgPrio(0, msg, prio, time));
+                if (await Task.WhenAny(requestTask, Task.Delay(5000)) != requestTask)
+                {
+                    await _ctx.Messenger.SendAsync(MessageClass.Exception, topic,
+                        MessageHelpers.ErrorJson("No response from game for ToAll message"));
+                    return;
+                }
+                await requestTask;
 
                 await _ctx.Messenger.SendAsync(MessageClass.Response, topic, "{\"Ok\":true}");
             }
@@ -83,6 +99,7 @@ namespace ESB.TopicHandlers.V1
         // Payload: {"FactionId": int, "Message": string, "Priority": int,
         //           "Duration": float (seconds, optional, default 10)}
         // Response: {"Ok": true}
+        // Note: bypasses the TimeSpan.Zero wrapper so we wait for Event_Ok/Event_Error.
         // -------------------------------------------------------------------------
         public async Task ToFaction(string topic, string payload)
         {
@@ -90,12 +107,19 @@ namespace ESB.TopicHandlers.V1
             {
                 var args      = JObject.Parse(payload);
                 var factionId = Convert.ToInt32(args.GetValue("FactionId"));
-                var msg       = args["Message"].Value<string>();
+                var msg       = (string)args["Message"];
                 var prio      = (byte)(args["Priority"]?.Value<int>() ?? 1);
                 var time      = args["Duration"]?.Value<float>()      ?? 10f;
 
-                await _ctx.ModBase.Request_InGameMessage_Faction(
-                    new IdMsgPrio(factionId, msg, prio, time));
+                var requestTask = _ctx.ModBase.Broker.SendRequestAsync<bool>(
+                    CmdId.Request_InGameMessage_Faction, new IdMsgPrio(factionId, msg, prio, time));
+                if (await Task.WhenAny(requestTask, Task.Delay(5000)) != requestTask)
+                {
+                    await _ctx.Messenger.SendAsync(MessageClass.Exception, topic,
+                        MessageHelpers.ErrorJson($"No response from game for ToFaction message to faction {factionId}"));
+                    return;
+                }
+                await requestTask;
 
                 await _ctx.Messenger.SendAsync(MessageClass.Response, topic, "{\"Ok\":true}");
             }

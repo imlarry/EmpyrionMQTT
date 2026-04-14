@@ -50,7 +50,14 @@ namespace ESB.TopicHandlers.V1
                 var args = JObject.Parse(payload);
                 var entityId = Convert.ToInt32(args.GetValue("EntityId"));
 
-                var result = await _ctx.ModBase.Request_Entity_PosAndRot(new Id(entityId));
+                var requestTask = _ctx.ModBase.Request_Entity_PosAndRot(new Id(entityId));
+                if (await Task.WhenAny(requestTask, Task.Delay(3000)) != requestTask)
+                {
+                    await _ctx.Messenger.SendAsync(MessageClass.Exception, topic,
+                        MessageHelpers.ErrorJson($"No response from game for entity {entityId}"));
+                    return;
+                }
+                var result = await requestTask;
 
                 var json = new JObject(new JProperty("Data",
                     result != null ? JObject.FromObject(result) : (JToken)JValue.CreateNull()));
@@ -77,8 +84,15 @@ namespace ESB.TopicHandlers.V1
                 var pos      = ParsePVec(args["Pos"]);
                 var rot      = ParsePVec(args["Rot"]);
 
-                await _ctx.ModBase.Request_Entity_Teleport(
+                var requestTask = _ctx.ModBase.Request_Entity_Teleport(
                     new IdPositionRotation(entityId, pos, rot));
+                if (await Task.WhenAny(requestTask, Task.Delay(3000)) != requestTask)
+                {
+                    await _ctx.Messenger.SendAsync(MessageClass.Exception, topic,
+                        MessageHelpers.ErrorJson($"No response from game for Teleport of entity {entityId}"));
+                    return;
+                }
+                await requestTask;
 
                 await _ctx.Messenger.SendAsync(MessageClass.Response, topic, "{\"Ok\":true}");
             }
@@ -101,12 +115,19 @@ namespace ESB.TopicHandlers.V1
             {
                 var args      = JObject.Parse(payload);
                 var entityId  = Convert.ToInt32(args.GetValue("EntityId"));
-                var playfield = (string)args["Playfield"]!;
+                var playfield = (string)args["Playfield"];
                 var pos       = ParsePVec(args["Pos"]);
                 var rot       = ParsePVec(args["Rot"]);
 
-                await _ctx.ModBase.Request_Entity_ChangePlayfield(
+                var requestTask = _ctx.ModBase.Request_Entity_ChangePlayfield(
                     new IdPlayfieldPositionRotation(entityId, playfield, pos, rot));
+                if (await Task.WhenAny(requestTask, Task.Delay(3000)) != requestTask)
+                {
+                    await _ctx.Messenger.SendAsync(MessageClass.Exception, topic,
+                        MessageHelpers.ErrorJson($"No response from game for ChangePlayfield of entity {entityId}"));
+                    return;
+                }
+                await requestTask;
 
                 await _ctx.Messenger.SendAsync(MessageClass.Response, topic, "{\"Ok\":true}");
             }
@@ -129,7 +150,14 @@ namespace ESB.TopicHandlers.V1
                 var args     = JObject.Parse(payload);
                 var entityId = Convert.ToInt32(args.GetValue("EntityId"));
 
-                await _ctx.ModBase.Request_Entity_Destroy(new Id(entityId));
+                var requestTask = _ctx.ModBase.Request_Entity_Destroy(new Id(entityId));
+                if (await Task.WhenAny(requestTask, Task.Delay(3000)) != requestTask)
+                {
+                    await _ctx.Messenger.SendAsync(MessageClass.Exception, topic,
+                        MessageHelpers.ErrorJson($"No response from game for Destroy of entity {entityId}"));
+                    return;
+                }
+                await requestTask;
 
                 await _ctx.Messenger.SendAsync(MessageClass.Response, topic, "{\"Ok\":true}");
             }
@@ -146,6 +174,10 @@ namespace ESB.TopicHandlers.V1
         //           "PrefabDir": string?, "FactionGroup": int?, "FactionId": int?,
         //           "ForceEntityId": int?, "ExportedEntityDat": string?}
         // Response: {"Ok": true}
+        // WARNING: verified non-functional on a dedicated MP server. The request
+        // returns Event_Ok but the entity is never created -- it does not appear in
+        // ListGlobal, GetPosAndRot, or Destroy. ForceEntityId is also silently ignored.
+        // Root cause unknown; may be a DediAPI limitation or require playfield pre-load.
         // -------------------------------------------------------------------------
         public async Task Spawn(string topic, string payload)
         {
@@ -154,25 +186,32 @@ namespace ESB.TopicHandlers.V1
                 var args = JObject.Parse(payload);
                 var info = new EntitySpawnInfo
                 {
-                    playfield         = (string)args["Playfield"]!,
+                    playfield         = (string)args["Playfield"],
                     pos               = ParsePVec(args["Pos"]),
                     rot               = ParsePVec(args["Rot"]),
                     name              = args["Name"]?.Value<string>()              ?? "",
                     type              = args["Type"] != null
-                                            ? (byte)args["Type"]!.Value<int>()
+                                            ? (byte)args["Type"].Value<int>()
                                             : (byte)0,
                     entityTypeName    = args["EntityTypeName"]?.Value<string>()    ?? "",
                     prefabName        = args["PrefabName"]?.Value<string>()        ?? "",
                     prefabDir         = args["PrefabDir"]?.Value<string>()         ?? "",
                     factionGroup      = args["FactionGroup"] != null
-                                            ? (byte)args["FactionGroup"]!.Value<int>()
+                                            ? (byte)args["FactionGroup"].Value<int>()
                                             : (byte)0,
                     factionId         = args["FactionId"]?.Value<int>()            ?? 0,
                     forceEntityId     = args["ForceEntityId"]?.Value<int>()        ?? 0,
                     exportedEntityDat = args["ExportedEntityDat"]?.Value<string>(),
                 };
 
-                await _ctx.ModBase.Request_Entity_Spawn(info);
+                var requestTask = _ctx.ModBase.Request_Entity_Spawn(info);
+                if (await Task.WhenAny(requestTask, Task.Delay(3000)) != requestTask)
+                {
+                    await _ctx.Messenger.SendAsync(MessageClass.Exception, topic,
+                        MessageHelpers.ErrorJson("No response from game for Spawn"));
+                    return;
+                }
+                await requestTask;
 
                 await _ctx.Messenger.SendAsync(MessageClass.Response, topic, "{\"Ok\":true}");
             }
@@ -193,11 +232,18 @@ namespace ESB.TopicHandlers.V1
             {
                 var args      = JObject.Parse(payload);
                 var entityId  = Convert.ToInt32(args.GetValue("EntityId"));
-                var playfield = (string)args["Playfield"]!;
-                var name      = (string)args["Name"]!;
+                var playfield = (string)args["Playfield"];
+                var name      = (string)args["Name"];
 
-                await _ctx.ModBase.Request_Entity_SetName(
+                var requestTask = _ctx.ModBase.Request_Entity_SetName(
                     new IdPlayfieldName(entityId, playfield, name));
+                if (await Task.WhenAny(requestTask, Task.Delay(3000)) != requestTask)
+                {
+                    await _ctx.Messenger.SendAsync(MessageClass.Exception, topic,
+                        MessageHelpers.ErrorJson($"No response from game for SetName of entity {entityId}"));
+                    return;
+                }
+                await requestTask;
 
                 await _ctx.Messenger.SendAsync(MessageClass.Response, topic, "{\"Ok\":true}");
             }
@@ -221,12 +267,19 @@ namespace ESB.TopicHandlers.V1
                 var info = new EntityExportInfo
                 {
                     id            = Convert.ToInt32(args.GetValue("EntityId")),
-                    playfield     = (string)args["Playfield"]!,
-                    filePath      = (string)args["FilePath"]!,
+                    playfield     = (string)args["Playfield"],
+                    filePath      = (string)args["FilePath"],
                     isForceUnload = args["IsForceUnload"]?.Value<bool>() ?? false,
                 };
 
-                await _ctx.ModBase.Request_Entity_Export(info);
+                var requestTask = _ctx.ModBase.Request_Entity_Export(info);
+                if (await Task.WhenAny(requestTask, Task.Delay(3000)) != requestTask)
+                {
+                    await _ctx.Messenger.SendAsync(MessageClass.Exception, topic,
+                        MessageHelpers.ErrorJson("No response from game for Export"));
+                    return;
+                }
+                await requestTask;
 
                 await _ctx.Messenger.SendAsync(MessageClass.Response, topic, "{\"Ok\":true}");
             }
@@ -246,7 +299,14 @@ namespace ESB.TopicHandlers.V1
         {
             try
             {
-                var result = await _ctx.ModBase.Request_NewEntityId();
+                var requestTask = _ctx.ModBase.Request_NewEntityId();
+                if (await Task.WhenAny(requestTask, Task.Delay(3000)) != requestTask)
+                {
+                    await _ctx.Messenger.SendAsync(MessageClass.Exception, topic,
+                        MessageHelpers.ErrorJson("No response from game for NewEntityId"));
+                    return;
+                }
+                var result = await requestTask;
 
                 var json = new JObject(new JProperty("Data",
                     result != null ? JObject.FromObject(result) : (JToken)JValue.CreateNull()));

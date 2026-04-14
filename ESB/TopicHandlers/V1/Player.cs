@@ -86,8 +86,19 @@ namespace ESB.TopicHandlers.V1
                 var args = JObject.Parse(payload);
                 var entityId = Convert.ToInt32(args.GetValue("EntityId"));
 
-                var info = await _ctx.ModBase.Request_Player_Info(new Id(entityId));
+                // The game silently drops Request_Player_Info for non-player entity IDs
+                // (structures, vessels, etc.) -- Event_Player_Info never fires and the task
+                // hangs indefinitely. Guard with a timeout and return X so callers get a
+                // clean error instead of a silent hang.
+                var infoTask = _ctx.ModBase.Request_Player_Info(new Id(entityId));
+                if (await Task.WhenAny(infoTask, Task.Delay(3000)) != infoTask)
+                {
+                    await _ctx.Messenger.SendAsync(MessageClass.Exception, topic,
+                        MessageHelpers.ErrorJson($"No response for entity {entityId} — not a connected player entity ID"));
+                    return;
+                }
 
+                var info = await infoTask;
                 var json = new JObject(new JProperty("Data",
                     info != null ? JObject.FromObject(info) : (JToken)JValue.CreateNull()));
                 await _ctx.Messenger.SendAsync(MessageClass.Response, topic, json.ToString(Formatting.None));
