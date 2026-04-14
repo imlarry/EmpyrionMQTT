@@ -32,6 +32,6 @@ public class Test_Server_Destructive
 
         Assert.True(
             topic.StartsWith($"{KnownState.V1AppId}/R/V1.Server.ConsoleCommand/"),
-            $"ConsoleCommand failed: {topic} -- {payload["Error"]?.Value<string>()}");
+            $"ConsoleCommand failed: {topic} -- {(string?)payload["Error"]}");
     }
 }

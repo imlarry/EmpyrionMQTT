@@ -35,7 +35,7 @@ public static class KnownState
 
     // V1 ChangePlayfield return spawn — lowercase x,y,z as required by ParsePVec.
     // Y is advisory; raise it if the player clips into terrain on arrival.
-    public const string PlayerSpawnPosV1 = "{\"x\":-155.3,\"y\":60.0,\"z\":29.3}";
+    public const string PlayerSpawnPosV1 = "{\"x\":-155.3,\"y\":53.0,\"z\":29.3}";
     public const string PlayerSpawnRotV1 = "{\"x\":0,\"y\":0,\"z\":0}";
 
     // Local player entity ID — set to the active player's entity ID before running V1 tests.
@@ -67,7 +67,15 @@ public static class KnownState
         // Spawn coordinates on TestPlayfield — lowercase x,y,z as required by ParsePVec.
         // Y is advisory; the game places the player at terrain height on arrival.
         // Raise Y if the player clips into terrain or spawns underground.
-        public const string TestPlayfieldSpawnPos = "{\"x\":0,\"y\":80,\"z\":0}";
+        public const string TestPlayfieldSpawnPos = "{\"x\":5,\"y\":100,\"z\":5}";
         public const string TestPlayfieldSpawnRot = "{\"x\":0,\"y\":0,\"z\":0}";
+
+        // V2 Playfield spawn test constants.
+        // SpawnEntityTypeV2: entity type string passed to IPlayfield.SpawnEntity
+        //   (e.g. "HV", "SV", "CV", "BA" -- check IEntityType names in the Eleon SDK).
+        // V2SpawnPos: global world coordinates on KnownState.Playfield, clear of existing structures.
+        //   X,Y,Z uppercase -- V2 uses ParseVec3 which accepts both cases.
+        public const string SpawnEntityTypeV2 = "HV";
+        public const string V2SpawnPos        = "{\"X\":-180,\"Y\":60,\"Z\":50}";
     }
 }

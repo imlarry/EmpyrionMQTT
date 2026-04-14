@@ -95,9 +95,12 @@ public class Test_Player_Integration
     {
         await using var mqtt = await MqttTestClient.ConnectAsync();
 
+        // Handler waits up to 3 s for the game to respond before sending X.
+        // Give the test 8 s so it always outlasts the handler's internal timeout.
         var (topic, payload) = await mqtt.RequestAsync(
             "V1.Player.GetInfo",
             $"{{\"EntityId\":{KnownState.BaseEntityId}}}",
+            timeoutMs: 8000,
             appId: KnownState.V1AppId);
 
         Assert.True(

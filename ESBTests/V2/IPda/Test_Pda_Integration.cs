@@ -1,5 +1,4 @@
 using ESBTests.Infrastructure;
-using Newtonsoft.Json.Linq;
 using System.Threading.Tasks;
 
 namespace ESBTests.V2.IPda;
@@ -7,135 +6,91 @@ namespace ESBTests.V2.IPda;
 /// <summary>
 /// Integration tests for the Pda topic handlers.
 ///
-/// NOTE: These tests will always fail. IPda is restricted to scenario script mods
-/// by the game engine — ModApi.PDA is always null for general client mods like ESB,
-/// regardless of whether a PDA scenario is active. See the block comment at the top
-/// of ESB/TopicHandlers/V2/Pda.cs for the full investigation.
+/// All scenarios are consolidated in one test so that a single skip appears when
+/// ModApi.PDA is null (always the case for client mods). The skip decision is
+/// driven by the live server response, not a hardcoded flag: if the first request
+/// comes back as X with the PDA-unavailable error, the whole test skips.
 ///
-/// The tests and handler code are retained as a reference implementation.
+/// See the block comment at the top of ESB/TopicHandlers/V2/Pda.cs for why PDA
+/// is never available to general client mods.
 /// </summary>
 [Trait("Category", "Integration")]
 public class Test_Pda_Integration
 {
-    private const string PdaUnavailable =
-        "IPda is not accessible from client mods — ModApi.PDA is always null. " +
+    private const string PdaUnavailableError =
+        "PDA interface is not available in this game context";
+
+    private const string PdaUnavailableSkip =
+        "IPda is not accessible from client mods -- ModApi.PDA is always null. " +
         "See block comment in ESB/TopicHandlers/V2/Pda.cs.";
 
     // -------------------------------------------------------------------------
-    // V2.Pda.ShowMessage — minimum payload (Message only)
+    // All Pda handler scenarios in one fact so one skip appears in output.
+    // If PDA becomes available (ESB restructured as scenario script host) each
+    // Assert line identifies exactly which scenario failed.
     // -------------------------------------------------------------------------
     [SkippableFact]
-    public async Task ShowMessage_MinPayload_ReturnsEchoedMessage()
+    public async Task PdaHandlers_WhenPdaAvailable_AllRespond()
     {
-        Skip.If(true, PdaUnavailable);
         await using var mqtt = await MqttTestClient.ConnectAsync();
 
-        var (topic, payload) = await mqtt.RequestAsync(
+        // -- ShowMessage (min payload) -----------------------------------------
+        var (smTopic, smPayload) = await mqtt.RequestAsync(
             "V2.Pda.ShowMessage",
             "{\"Message\":\"ESB Pda Integration Test\"}");
 
+        // Preflight: if the server reports PDA unavailable, skip the whole test.
+        Skip.If(
+            smTopic.Contains("/X/") && (string?)smPayload["Error"] == PdaUnavailableError,
+            PdaUnavailableSkip);
+
         Assert.True(
-            topic.StartsWith($"{KnownState.AppId}/R/V2.Pda.ShowMessage/") ||
-            topic.StartsWith($"{KnownState.AppId}/X/V2.Pda.ShowMessage/"),
-            $"Handler did not respond: {topic}");
+            smTopic.StartsWith($"{KnownState.AppId}/R/V2.Pda.ShowMessage/"),
+            $"ShowMessage (min): unexpected topic {smTopic}");
+        Assert.Equal("ESB Pda Integration Test", (string)smPayload["Message"]!);
 
-        if (topic.StartsWith($"{KnownState.AppId}/R/"))
-            Assert.Equal("ESB Pda Integration Test", payload["Message"]!.Value<string>());
-    }
-
-    // -------------------------------------------------------------------------
-    // V2.Pda.ShowMessage — full parameter set
-    // -------------------------------------------------------------------------
-    [SkippableFact]
-    public async Task ShowMessage_WithAllParams_ReturnsResponse()
-    {
-        Skip.If(true, PdaUnavailable);
-        await using var mqtt = await MqttTestClient.ConnectAsync();
-
-        var (topic, payload) = await mqtt.RequestAsync(
+        // -- ShowMessage (all params) ------------------------------------------
+        var (smFullTopic, smFullPayload) = await mqtt.RequestAsync(
             "V2.Pda.ShowMessage",
             "{\"Message\":\"ESB Full Params Test\",\"Duration\":3.0,\"HasPrio\":true,\"CleanupFirst\":false,\"PlayerId\":-1}");
 
         Assert.True(
-            topic.StartsWith($"{KnownState.AppId}/R/V2.Pda.ShowMessage/") ||
-            topic.StartsWith($"{KnownState.AppId}/X/V2.Pda.ShowMessage/"),
-            $"Handler did not respond: {topic}");
+            smFullTopic.StartsWith($"{KnownState.AppId}/R/V2.Pda.ShowMessage/"),
+            $"ShowMessage (full): unexpected topic {smFullTopic}");
+        Assert.Equal("ESB Full Params Test", (string)smFullPayload["Message"]!);
 
-        if (topic.StartsWith($"{KnownState.AppId}/R/"))
-            Assert.Equal("ESB Full Params Test", payload["Message"]!.Value<string>());
-    }
-
-    // -------------------------------------------------------------------------
-    // V2.Pda.SetMapMarker — activate a marker (side effect: marker appears on map)
-    // -------------------------------------------------------------------------
-    [SkippableFact]
-    public async Task SetMapMarker_Activate_ReturnsEchoedMarkerName()
-    {
-        Skip.If(true, PdaUnavailable);
-        await using var mqtt = await MqttTestClient.ConnectAsync();
-
-        var (topic, payload) = await mqtt.RequestAsync(
+        // -- SetMapMarker (activate) -------------------------------------------
+        var (mmTopic, mmPayload) = await mqtt.RequestAsync(
             "V2.Pda.SetMapMarker",
             "{\"Activate\":true,\"Position\":{\"X\":0.0,\"Y\":0.0,\"Z\":0.0},\"MarkerName\":\"ESB Test Marker\",\"Distance\":100}");
 
         Assert.True(
-            topic.StartsWith($"{KnownState.AppId}/R/V2.Pda.SetMapMarker/") ||
-            topic.StartsWith($"{KnownState.AppId}/X/V2.Pda.SetMapMarker/"),
-            $"Handler did not respond: {topic}");
+            mmTopic.StartsWith($"{KnownState.AppId}/R/V2.Pda.SetMapMarker/"),
+            $"SetMapMarker: unexpected topic {mmTopic}");
+        Assert.Equal("ESB Test Marker", (string)mmPayload["MarkerName"]!);
+        Assert.True((bool)mmPayload["Activate"]!);
 
-        if (topic.StartsWith($"{KnownState.AppId}/R/"))
-        {
-            Assert.Equal("ESB Test Marker", payload["MarkerName"]!.Value<string>());
-            Assert.True(payload["Activate"]!.Value<bool>());
-        }
-    }
-
-    // -------------------------------------------------------------------------
-    // V2.Pda.GetPoiEntityId — returns entity ID (0 if not found) or X on error
-    // -------------------------------------------------------------------------
-    [SkippableFact]
-    public async Task GetPoiEntityId_AnyPoiName_RespondsWithEntityId()
-    {
-        Skip.If(true, PdaUnavailable);
-        await using var mqtt = await MqttTestClient.ConnectAsync();
-
-        var (topic, payload) = await mqtt.RequestAsync(
+        // -- GetPoiEntityId ----------------------------------------------------
+        var (peiTopic, peiPayload) = await mqtt.RequestAsync(
             "V2.Pda.GetPoiEntityId",
             "{\"PoiName\":\"Akua\"}");
 
         Assert.True(
-            topic.StartsWith($"{KnownState.AppId}/R/V2.Pda.GetPoiEntityId/") ||
-            topic.StartsWith($"{KnownState.AppId}/X/V2.Pda.GetPoiEntityId/"),
-            $"Handler did not respond: {topic}");
+            peiTopic.StartsWith($"{KnownState.AppId}/R/V2.Pda.GetPoiEntityId/"),
+            $"GetPoiEntityId: unexpected topic {peiTopic}");
+        Assert.NotNull(peiPayload["EntityId"]);
 
-        if (topic.StartsWith($"{KnownState.AppId}/R/"))
-            Assert.NotNull(payload["EntityId"]);
-    }
-
-    // -------------------------------------------------------------------------
-    // V2.Pda.GetPoiLocation — returns position (Vector3.zero if not found) or X on error
-    // -------------------------------------------------------------------------
-    [SkippableFact]
-    public async Task GetPoiLocation_AnyPoiName_RespondsWithPosition()
-    {
-        Skip.If(true, PdaUnavailable);
-        await using var mqtt = await MqttTestClient.ConnectAsync();
-
-        var (topic, payload) = await mqtt.RequestAsync(
+        // -- GetPoiLocation ---------------------------------------------------
+        var (plTopic, plPayload) = await mqtt.RequestAsync(
             "V2.Pda.GetPoiLocation",
             "{\"PoiName\":\"Akua\"}");
 
         Assert.True(
-            topic.StartsWith($"{KnownState.AppId}/R/V2.Pda.GetPoiLocation/") ||
-            topic.StartsWith($"{KnownState.AppId}/X/V2.Pda.GetPoiLocation/"),
-            $"Handler did not respond: {topic}");
-
-        if (topic.StartsWith($"{KnownState.AppId}/R/"))
-        {
-            Assert.NotNull(payload["Position"]);
-            Assert.NotNull(payload["Position"]!["X"]);
-            Assert.NotNull(payload["Position"]!["Y"]);
-            Assert.NotNull(payload["Position"]!["Z"]);
-        }
+            plTopic.StartsWith($"{KnownState.AppId}/R/V2.Pda.GetPoiLocation/"),
+            $"GetPoiLocation: unexpected topic {plTopic}");
+        Assert.NotNull(plPayload["Position"]);
+        Assert.NotNull(plPayload["Position"]!["X"]);
+        Assert.NotNull(plPayload["Position"]!["Y"]);
+        Assert.NotNull(plPayload["Position"]!["Z"]);
     }
 }

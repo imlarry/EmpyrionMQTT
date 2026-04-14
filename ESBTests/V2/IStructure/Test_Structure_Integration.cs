@@ -284,6 +284,32 @@ public class Test_Structure_Integration
     }
 
     // -------------------------------------------------------------------------
+    // Structure.ScanFloor
+    // -------------------------------------------------------------------------
+    [Fact]
+    public async Task ScanFloor_KnownY_ReturnsBlockList()
+    {
+        await using var mqtt = await MqttTestClient.ConnectAsync();
+        // Y=130 is the lever switch level on the test base
+        var (topic, payload) = await mqtt.RequestAsync(
+            "V2.Structure.ScanFloor",
+            $"{{\"EntityId\":{EID},\"Y\":130}}");
+
+        Assert.StartsWith($"{KnownState.AppId}/R/V2.Structure.ScanFloor/", topic);
+        Assert.Equal(EID, payload["EntityId"]!.Value<int>());
+        Assert.Equal(130, payload["Y"]!.Value<int>());
+        Assert.NotNull(payload["MinPos"]);
+        Assert.NotNull(payload["MaxPos"]);
+        var blocks = payload["Blocks"] as JArray;
+        Assert.NotNull(blocks);
+        Assert.True(blocks.Count > 0, "Expected at least one block at Y=130");
+        var first = Assert.IsType<JObject>(blocks[0]);
+        Assert.NotNull(first["X"]);
+        Assert.NotNull(first["Z"]);
+        Assert.NotNull(first["Type"]);
+    }
+
+    // -------------------------------------------------------------------------
     // Error case — unknown entity should return an Exception topic
     // -------------------------------------------------------------------------
     [Fact]

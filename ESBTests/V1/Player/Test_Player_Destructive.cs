@@ -128,12 +128,12 @@ public class Test_Player_Destructive
     // Uses the first item found in the pre-test bag — no hardcoded item ID needed.
     // The bag must contain at least one item for this test to run.
     // -------------------------------------------------------------------------
-    [Fact]
+    [SkippableFact]
     public async Task AddItem_AddsItemAndRestores()
     {
         await using var mqtt = await MqttTestClient.ConnectAsync();
 
-        // Step 1: capture current inventory
+        // Step 1: capture inventory BEFORE AddItem (diagnostic + precondition)
         var (getTopic, getPayload) = await mqtt.RequestAsync(
             "V1.Player.GetInventory",
             $"{{\"EntityId\":{KnownState.PlayerEntityId}}}",
@@ -141,7 +141,7 @@ public class Test_Player_Destructive
 
         Assert.True(
             getTopic.StartsWith($"{KnownState.V1AppId}/R/V1.Player.GetInventory/"),
-            $"GetInventory failed: {getTopic} — {getPayload["Error"]?.Value<string>()}");
+            $"GetInventory (before) failed: {getTopic} -- {getPayload["Error"]?.Value<string>()}");
 
         var inv = getPayload["Data"] as JObject;
         Assert.NotNull(inv);
@@ -149,14 +149,15 @@ public class Test_Player_Destructive
         var bag      = inv["bag"]      as JArray ?? new JArray();
 
         // Pick the bag item with the lowest count — most likely to have stack room.
-        // Bag must not be completely full or all stacks maxed for this test to pass.
         var testItem = bag.OfType<JObject>()
-            .OrderBy(t => t["count"]?.Value<int>() ?? int.MaxValue)
+            .OrderBy(t => (int?)t["count"] ?? int.MaxValue)
             .FirstOrDefault();
-        Assert.True(testItem != null, "Bag must contain at least one item to run AddItem test");
-        int testItemId = testItem!["id"]!.Value<int>();
+        Skip.If(testItem == null,
+            "Player bag is empty -- place at least one item in the player bag " +
+            "(not armor or escape pod) before running the AddItem destructive test.");
+        int testItemId = (int)testItem!["id"]!;
 
-        // Step 2: add one of that item — fails here = nothing mutated yet
+        // Step 2: add one of that item (the call under test)
         var (addTopic, addPayload) = await mqtt.RequestAsync(
             "V1.Player.AddItem",
             $"{{\"EntityId\":{KnownState.PlayerEntityId},\"ItemId\":{testItemId},\"Count\":1}}",
@@ -164,11 +165,26 @@ public class Test_Player_Destructive
 
         Assert.True(
             addTopic.StartsWith($"{KnownState.V1AppId}/R/V1.Player.AddItem/"),
-            $"AddItem failed: {addTopic} — {addPayload["Error"]?.Value<string>()}");
+            $"AddItem failed: {addTopic} -- {addPayload["Error"]?.Value<string>()}");
 
-        Assert.True(addPayload["Ok"]?.Value<bool>() == true);
+        Assert.True((bool?)addPayload["Ok"] == true);
 
-        // Step 3: restore — fails here = extra item in bag, restore from save
+        // Step 3: capture inventory AFTER AddItem (diagnostic)
+        var (afterTopic, afterPayload) = await mqtt.RequestAsync(
+            "V1.Player.GetInventory",
+            $"{{\"EntityId\":{KnownState.PlayerEntityId}}}",
+            appId: KnownState.V1AppId);
+
+        Assert.True(
+            afterTopic.StartsWith($"{KnownState.V1AppId}/R/V1.Player.GetInventory/"),
+            $"GetInventory (after) failed: {afterTopic} -- {afterPayload["Error"]?.Value<string>()}");
+
+        var invAfter = afterPayload["Data"] as JObject;
+        Assert.NotNull(invAfter);
+        // Attach the after-inventory to any subsequent failure so it is visible in the log.
+        string afterSnapshot = invAfter!.ToString(Formatting.None);
+
+        // Step 4: restore — fails here = extra item in bag, restore from save
         var restoreJson = $"{{\"PlayerId\":{KnownState.PlayerEntityId}," +
             $"\"Toolbelt\":{toolbelt.ToString(Formatting.None)}," +
             $"\"Bag\":{bag.ToString(Formatting.None)}}}";
@@ -179,7 +195,7 @@ public class Test_Player_Destructive
 
         Assert.True(
             restoreTopic.StartsWith($"{KnownState.V1AppId}/R/V1.Player.SetInventory/"),
-            $"SetInventory restore failed: {restoreTopic} — {restorePayload["Error"]?.Value<string>()}");
+            $"SetInventory restore failed: {restoreTopic} -- inventory after AddItem was: {afterSnapshot}");
     }
 
     // -------------------------------------------------------------------------
@@ -238,6 +254,18 @@ public class Test_Player_Destructive
     public async Task ChangePlayfield_TeleportsAndReturns()
     {
         await using var mqtt = await MqttTestClient.ConnectAsync();
+
+        // Step 0: pre-warm Skillon so the playfield server is running before the player
+        // arrives — without this the player spawns into a loading playfield and falls
+        // through the terrain. X/ (PlayfieldAlreadyLoaded) is acceptable here.
+        await mqtt.RequestAsync(
+            "V1.Playfield.Load",
+            $"{{\"Playfield\":\"{KnownState.Baseline.TestPlayfield}\"}}",
+            timeoutMs: 5000,
+            appId: KnownState.V1AppId);
+
+        // Give the playfield server time to come online before the player arrives.
+        await Task.Delay(8000);
 
         // Step 1: teleport to test playfield
         var (goTopic, goPayload) = await mqtt.RequestAsync(
