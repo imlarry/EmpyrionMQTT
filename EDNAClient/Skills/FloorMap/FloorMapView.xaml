@@ -1,24 +1,12 @@
-<Window x:Class="EDNAClient.Skills.FloorMap.FloorMapWindow"
-        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="EDNA Floor Map"
-        WindowStyle="SingleBorderWindow"
-        ResizeMode="CanResizeWithGrip"
-        Width="640" Height="480"
-        MinWidth="320" MinHeight="240"
-        Background="#1A1A1A"
-        ShowInTaskbar="True">
+<UserControl x:Class="EDNAClient.Skills.FloorMap.FloorMapView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Background="#1A1A1A">
 
     <DockPanel>
 
-        <!-- Toolbar: Refresh button + status label -->
+        <!-- Toolbar: entity info only; refresh via Ctrl+Shift+R hotkey -->
         <ToolBar DockPanel.Dock="Top" Background="#2A2A2A" Foreground="#CCCCCC">
-            <Button x:Name="RefreshButton"
-                    Content="Refresh"
-                    Click="OnRefreshClicked"
-                    Padding="8,2"
-                    Margin="2"/>
-            <Separator/>
             <TextBlock x:Name="StatusLabel"
                        Text="{Binding StatusText}"
                        VerticalAlignment="Center"
@@ -40,4 +28,4 @@
 
     </DockPanel>
 
-</Window>
+</UserControl>

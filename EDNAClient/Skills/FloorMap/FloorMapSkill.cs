@@ -1,47 +1,55 @@
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using EDNAClient.Core;
+using EDNAClient.Workspace;
 using ESB.Messaging;
 
 namespace EDNAClient.Skills.FloorMap
 {
-    public class FloorMapSkill : IEdnaSkill, IHotkeyProvider
+    public class FloorMapSkill : IDockableSkill, IHotkeyProvider
     {
         private readonly FloorMapViewModel _viewModel;
-        private readonly FloorMapWindow    _window;
+        private readonly WorkspaceWindow   _workspace;
         private FloorMapper? _mapper;
 
-        public string Id => "FloorMap";
+        public string Id    => "FloorMap";
+        public string Title => "Floor Map";
 
-        public FloorMapSkill(FloorMapViewModel viewModel)
+        public FloorMapSkill(FloorMapViewModel viewModel, WorkspaceWindow workspace)
         {
             _viewModel = viewModel;
-            _window    = new FloorMapWindow(viewModel);
+            _workspace = workspace;
+        }
+
+        public System.Windows.Controls.UserControl CreatePanel()
+        {
+            return new FloorMapView(_viewModel);
         }
 
         public async Task StartAsync(IMessenger messenger)
         {
             _mapper = new FloorMapper(messenger, _viewModel);
-            _window.SetMapper(_mapper);
             await _mapper.StartAsync();
-            _window.Show();
+            _workspace.AddSkillTab(this);
+            if (!_workspace.IsVisible) _workspace.Show();
         }
 
         public void Stop()
         {
             _mapper?.Stop();
             _mapper = null;
-            if (_window.IsVisible) _window.Hide();
+            _workspace.RemoveSkillTab(Id);
+            if (_workspace.IsVisible) _workspace.SaveAndHide();
         }
 
         public void SnapToGameWindow()
         {
-            if (_window.IsVisible) _window.SnapToGameWindow();
+            if (_workspace.IsVisible) _workspace.SnapToGameWindow();
         }
 
         public IEnumerable<HotkeyRequest> GetHotkeyRequests()
         {
-            // Ctrl+Shift+R — refresh floor map data on demand
+            // Ctrl+Shift+R -- refresh floor map data on demand
             yield return new HotkeyRequest(
                 HotkeyRequest.ModControl | HotkeyRequest.ModShift | HotkeyRequest.NoRepeat,
                 0x52,   // VK_R

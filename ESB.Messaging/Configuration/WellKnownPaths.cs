@@ -20,6 +20,10 @@ namespace ESB.Messaging
         public static readonly string EdnaInfoFile = Path.Combine(
             AppDomain.CurrentDomain.BaseDirectory, "EDNA_Info.yaml");
 
+        // workspace_layout.xml — AvalonDock layout; written by WorkspaceWindow on close
+        public static readonly string WorkspaceLayoutFile = Path.Combine(
+            AppDomain.CurrentDomain.BaseDirectory, "workspace_layout.xml");
+
         private static readonly IDeserializer Deserializer = new DeserializerBuilder()
             .WithNamingConvention(PascalCaseNamingConvention.Instance)
             .IgnoreUnmatchedProperties()

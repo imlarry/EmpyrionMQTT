@@ -88,7 +88,7 @@ namespace EDNAClient.Skills.FloorMap
                 var csei = pj["CurrentStructureEntityId"];
                 SetStatus($"StructureId={csi} EntityId={csei} -- determining correct lookup key");
 
-                int  entityId = (int)csei;
+                int  entityId = csei != null ? (int)csei : 0;
                 var  pos      = pj["Position"]!;
                 // World position as floats
                 float worldX = (float)pos["X"]!;

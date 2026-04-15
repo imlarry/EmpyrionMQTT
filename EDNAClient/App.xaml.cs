@@ -6,14 +6,16 @@ using EDNAClient.Skills.FloorMap;
 using EDNAClient.Skills.ThreatRadar;
 using EDNAClient.Tray;
 using EDNAClient.Settings;
+using EDNAClient.Workspace;
 
 namespace EDNAClient
 {
     public partial class App : Application
     {
-        private EdnaService?     _service;
-        private TrayIconManager? _tray;
-        private Mutex?           _instanceMutex;
+        private EdnaService?      _service;
+        private TrayIconManager?  _tray;
+        private Mutex?            _instanceMutex;
+        private WorkspaceWindow?  _workspace;
 
         protected override void OnStartup(StartupEventArgs e)
         {
@@ -34,9 +36,15 @@ namespace EDNAClient
             // Enable WinForms visual styles so the context menu renders correctly.
             WinFormsApp.EnableVisualStyles();
 
-            var settings    = EdnaSettings.Load();
+            var settings   = EdnaSettings.Load();
+            _workspace     = new WorkspaceWindow(settings);
+
             var threatRadar = new ThreatRadarSkill(new ThreatViewModel());
-            var floorMap    = new FloorMapSkill(new FloorMapViewModel());
+            var floorMap    = new FloorMapSkill(new FloorMapViewModel(), _workspace);
+
+            // Register dockable skills so WorkspaceWindow can re-attach panels
+            // during layout deserialization (the LayoutSerializationCallback).
+            _workspace.RegisterSkills(new IDockableSkill[] { floorMap });
 
             _tray = new TrayIconManager(() =>
             {
@@ -55,6 +63,7 @@ namespace EDNAClient
         {
             if (_service != null)
                 await _service.StopAsync();
+            _workspace?.ForceClose();
             _tray?.Dispose();
             _instanceMutex?.ReleaseMutex();
             _instanceMutex?.Dispose();

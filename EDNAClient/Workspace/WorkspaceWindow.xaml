@@ -1,0 +1,40 @@
+<Window x:Class="EDNAClient.Workspace.WorkspaceWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ad="https://github.com/Dirkster99/AvalonDock"
+        Title="EDNA Workspace"
+        Width="900" Height="640"
+        MinWidth="480" MinHeight="320"
+        WindowStyle="SingleBorderWindow"
+        ResizeMode="CanResizeWithGrip"
+        ShowInTaskbar="True"
+        Closing="OnWindowClosing">
+
+    <ad:DockingManager x:Name="DockManager"
+                       AllowMixedOrientation="True">
+
+        <ad:LayoutRoot>
+            <ad:LayoutPanel Orientation="Horizontal">
+
+                <!-- Left: Navigator pane, pinned ~220px, can auto-hide, cannot float or close -->
+                <ad:LayoutAnchorablePaneGroup DockWidth="220">
+                    <ad:LayoutAnchorablePane>
+                        <ad:LayoutAnchorable x:Name="NavPane"
+                                             Title="Navigator"
+                                             CanClose="False"
+                                             CanHide="True"
+                                             CanFloat="False"/>
+                    </ad:LayoutAnchorablePane>
+                </ad:LayoutAnchorablePaneGroup>
+
+                <!-- Center: tabbed map document area -->
+                <ad:LayoutDocumentPaneGroup>
+                    <ad:LayoutDocumentPane x:Name="MapPane"/>
+                </ad:LayoutDocumentPaneGroup>
+
+            </ad:LayoutPanel>
+        </ad:LayoutRoot>
+
+    </ad:DockingManager>
+
+</Window>
