@@ -1,7 +1,6 @@
 using System;
 using System.Threading.Tasks;
 using ESB.Messaging;
-using ESB.Models;
 
 namespace ESB
 {

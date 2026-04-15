@@ -1,5 +1,5 @@
 using EDNAClient.Core;
-using ESB.Messaging;
+using EDNAClient.Configuration;
 using System.Windows;
 
 namespace EDNAClient.Settings

@@ -3,13 +3,12 @@ using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using Eleon.Modding;
-using ESB.Models;
 using ESB.Messaging;
 using System.Collections.Generic;
 
 namespace ESB
 {
-    public class GameManager : IGameManager
+    public class GameManager
     {
         readonly private ContextData _ctx;
 

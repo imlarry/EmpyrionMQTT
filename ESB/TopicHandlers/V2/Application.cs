@@ -1,6 +1,5 @@
 
 using Eleon.Modding;
-using ESB.Models;
 using ESB.Messaging;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;

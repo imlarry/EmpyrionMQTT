@@ -2,7 +2,7 @@
 
 namespace ESB.Configuration
 {
-    public class MQTTConfig : IMQTTConfig
+    public class MQTTConfig
     {
         public string WithTcpServer { get; set; }
         public int Port { get; set; } = 1883;

@@ -1,5 +1,5 @@
 using ESB.Messaging;
-using ESB.Messaging.Configuration;
+using EDNAClient.Configuration;
 using Microsoft.Win32;
 using System;
 using System.Collections.Generic;

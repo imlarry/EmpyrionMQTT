@@ -3,7 +3,7 @@ using System.IO;
 using YamlDotNet.Serialization;
 using YamlDotNet.Serialization.NamingConventions;
 
-namespace ESB.Messaging
+namespace EDNAClient.Configuration
 {
     /// <summary>
     /// Paths and helpers for EDNA/ESB configuration files.
@@ -12,15 +12,15 @@ namespace ESB.Messaging
     /// </summary>
     public static class WellKnownPaths
     {
-        // ESB_Info.yaml — placed next to the executable by deployment; read-only at runtime
+        // ESB_Info.yaml -- placed next to the executable by deployment; read-only at runtime
         private static readonly string EsbInfoFile = Path.Combine(
             AppDomain.CurrentDomain.BaseDirectory, "ESB_Info.yaml");
 
-        // EDNA_Info.yaml — read/write; lives alongside the executable in the mod folder
+        // EDNA_Info.yaml -- read/write; lives alongside the executable in the mod folder
         public static readonly string EdnaInfoFile = Path.Combine(
             AppDomain.CurrentDomain.BaseDirectory, "EDNA_Info.yaml");
 
-        // workspace_layout.xml — AvalonDock layout; written by WorkspaceWindow on close
+        // workspace_layout.xml -- AvalonDock layout; written by WorkspaceWindow on close
         public static readonly string WorkspaceLayoutFile = Path.Combine(
             AppDomain.CurrentDomain.BaseDirectory, "workspace_layout.xml");
 
@@ -34,11 +34,11 @@ namespace ESB.Messaging
             .Build();
 
         /// <summary>Load ESB_Info.yaml from the app's output directory.</summary>
-        public static Configuration.EsbInfo LoadEsbInfo()
-            => LoadInfo<Configuration.EsbInfo>(EsbInfoFile);
+        public static EsbInfo? LoadEsbInfo()
+            => LoadInfo<EsbInfo>(EsbInfoFile);
 
         /// <summary>Deserialize a YAML file into T. Returns null if the file doesn't exist or parse fails.</summary>
-        public static T LoadInfo<T>(string path) where T : class
+        public static T? LoadInfo<T>(string path) where T : class
         {
             try
             {
@@ -54,7 +54,8 @@ namespace ESB.Messaging
         {
             try
             {
-                Directory.CreateDirectory(Path.GetDirectoryName(path));
+                var dir = Path.GetDirectoryName(path);
+                if (dir != null) Directory.CreateDirectory(dir);
                 File.WriteAllText(path, Serializer.Serialize(obj));
             }
             catch { }

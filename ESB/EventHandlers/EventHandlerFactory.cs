@@ -1,8 +1,6 @@
-﻿using ESB.Models;
-
-namespace ESB.EventHandlers
+﻿namespace ESB.EventHandlers
 {
-    public class EventHandlerFactory : IEventHandlerFactory
+    public class EventHandlerFactory
     {
         private readonly ContextData _ctx;
 

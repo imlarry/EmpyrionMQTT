@@ -1,10 +1,9 @@
-﻿using ESB.Models;
-using ESB.Interfaces;
+﻿using ESB.Interfaces;
 using static EmpyrionNetAPIAccess.EmpyrionModBase;
 
 namespace ESB
 {
-    public class EventManager : IEventManager
+    public class EventManager
     {
         private readonly ContextData _ctx;
         private readonly IChatMessageSentHandler _chatMessageSentHandler;

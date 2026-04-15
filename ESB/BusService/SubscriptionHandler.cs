@@ -1,11 +1,10 @@
 ﻿using ESB.TopicHandlers.V2;
 using ESB.TopicHandlers.V1;
-using ESB.Models;
 using System.Threading.Tasks;
 
 namespace ESB
 {
-    public class SubscriptionHandler : ISubscriptionHandler
+    public class SubscriptionHandler
     {
         readonly private ContextData _ctx;
 

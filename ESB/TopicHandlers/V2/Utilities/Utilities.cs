@@ -1,4 +1,3 @@
-using ESB.Models;
 using ESB.TopicHandlers.WIP;
 using ESB.Messaging;
 using Newtonsoft.Json;

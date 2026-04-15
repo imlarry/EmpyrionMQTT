@@ -2,20 +2,19 @@
 using System.Threading.Tasks;
 using System.Reflection;
 using ESB.Configuration;
-using ESB.Models;
 using ESB.Utilities;
 
 namespace ESB
 {
-    public class BusManager : IBusManager
+    public class BusManager
     {
         private readonly ContextData _ctx;
-        private readonly IEventManager _eMgr;
+        private readonly EventManager _eMgr;
 
         public string ApplicationName { get; private set; }
         public string ESBModPath { get; private set; }
 
-        public BusManager(ContextData context, IEventManager eMgr)
+        public BusManager(ContextData context, EventManager eMgr)
         {
             // preserve context, event manager, and BusManager references
             _ctx = context;

@@ -2,7 +2,7 @@
 
 namespace ESB.Configuration
 {
-    public class ESBConfig : IESBConfig
+    public class ESBConfig
     {
         public string Name { get; set; } = string.Empty;
         public string Description { get; set; } = string.Empty;

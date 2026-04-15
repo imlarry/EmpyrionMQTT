@@ -2,7 +2,6 @@ using System;
 using System.Threading.Tasks;
 using Eleon.Modding;
 using EmpyrionNetAPIAccess;
-using ESB.Models;
 using ESB.EventHandlers;
 
 // EmpyrionMQTT .. mod entrypoint for MQTT integration with Empyrion Galactic Survival
@@ -28,16 +27,16 @@ namespace ESB
     /// V1 handlers registered in SubscriptionHandler will only be reached on
     /// DedicatedServer in multiplayer; they are silently unreachable in SP or on Client.
     /// </summary>
-    public class EmpyrionServiceBus : EmpyrionModBase, IMod, IEmpyrionServiceBus
+    public class EmpyrionServiceBus : EmpyrionModBase, IMod
     {
         // ********************************************
         // ************ Local Context Data ************
         // ********************************************
 
         private readonly ContextData _contextData = new ContextData();
-        private IEventManager _eventManager;
-        private IBusManager _busManager;
-        private IGameManager _gameManager;
+        private EventManager _eventManager;
+        private BusManager _busManager;
+        private GameManager _gameManager;
 
         public EmpyrionServiceBus() { } // no constructor as yet
 

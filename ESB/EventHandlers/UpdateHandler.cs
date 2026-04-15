@@ -1,4 +1,3 @@
-using ESB.Models;
 using ESB.Interfaces;
 using ESB.Messaging;
 

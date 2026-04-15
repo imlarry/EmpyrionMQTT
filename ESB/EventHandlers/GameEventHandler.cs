@@ -1,12 +1,10 @@
 using Eleon.Modding;
 using ESB.Interfaces;
 using ESB.Messaging;
-using ESB.Models;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using System.IO;
 using UnityEngine;
-using UnityEngine.Windows;
 
 namespace ESB
 {
@@ -42,8 +40,7 @@ namespace ESB
                     string[] parts = arg4.ToString().Trim('(', ')').Split(',');
                     VectorInt3 vector = new VectorInt3(int.Parse(parts[0]), int.Parse(parts[1]), int.Parse(parts[2]));
                     var content = _ctx.LoadedEntity[entityId].Structure.GetDevice<IContainer>(vector).GetContent();
-                    var contentWithName = ItemStackWithName.Load(content, _ctx.GameManager.BlockAndItemMapping);
-                    var contentsJson = JArray.FromObject(contentWithName);
+                    var contentsJson = MessageHelpers.ItemStacksJson(content, _ctx.GameManager.BlockAndItemMapping);
                     json.Add(new JProperty("ItemStack", contentsJson));
                 }
                 if (type == GameEventType.InventoryOpenedPoi || type == GameEventType.InventoryClosedPoi)

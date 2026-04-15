@@ -7,7 +7,7 @@ using System.Windows;
 using EDNAClient.Scripting;
 using EDNAClient.Tray;
 using ESB.Messaging;
-using ESB.Messaging.Configuration;
+using EDNAClient.Configuration;
 using Newtonsoft.Json.Linq;
 
 namespace EDNAClient.Core

@@ -1,4 +1,4 @@
-using ESB.TopicHandlers;
+using ESB;
 using Newtonsoft.Json.Linq;
 using System;
 
@@ -14,7 +14,7 @@ public class Test_MessageHelpers_ErrorJson
     [Fact]
     public void ErrorJson_ContainsErrorProperty()
     {
-        var json = ESB.TopicHandlers.MessageHelpers.ErrorJson("Entity not found");
+        var json = ESB.MessageHelpers.ErrorJson("Entity not found");
         var obj = JObject.Parse(json);
 
         Assert.Equal("Entity not found", obj["Error"]!.Value<string>());
@@ -23,7 +23,7 @@ public class Test_MessageHelpers_ErrorJson
     [Fact]
     public void ErrorJson_IsCompactSingleLine()
     {
-        var json = ESB.TopicHandlers.MessageHelpers.ErrorJson("test message");
+        var json = ESB.MessageHelpers.ErrorJson("test message");
 
         Assert.DoesNotContain("\n", json);
         Assert.DoesNotContain("\r", json);
@@ -32,7 +32,7 @@ public class Test_MessageHelpers_ErrorJson
     [Fact]
     public void ErrorJson_HasOnlyOneProperty()
     {
-        var json = ESB.TopicHandlers.MessageHelpers.ErrorJson("test");
+        var json = ESB.MessageHelpers.ErrorJson("test");
         var obj = JObject.Parse(json);
 
         Assert.Single(obj);
@@ -42,7 +42,7 @@ public class Test_MessageHelpers_ErrorJson
     public void ExceptionJson_ContainsErrorMessage()
     {
         var ex = new InvalidOperationException("something went wrong");
-        var json = ESB.TopicHandlers.MessageHelpers.ExceptionJson(ex);
+        var json = ESB.MessageHelpers.ExceptionJson(ex);
         var obj = JObject.Parse(json);
 
         Assert.Equal("something went wrong", obj["Error"]!.Value<string>());
@@ -52,7 +52,7 @@ public class Test_MessageHelpers_ErrorJson
     public void ExceptionJson_ContainsExceptionType()
     {
         var ex = new InvalidOperationException("msg");
-        var json = ESB.TopicHandlers.MessageHelpers.ExceptionJson(ex);
+        var json = ESB.MessageHelpers.ExceptionJson(ex);
         var obj = JObject.Parse(json);
 
         Assert.Equal("InvalidOperationException", obj["ExceptionType"]!.Value<string>());
@@ -61,7 +61,7 @@ public class Test_MessageHelpers_ErrorJson
     [Fact]
     public void ExceptionJson_HasExactlyTwoProperties()
     {
-        var json = ESB.TopicHandlers.MessageHelpers.ExceptionJson(new Exception("x"));
+        var json = ESB.MessageHelpers.ExceptionJson(new Exception("x"));
         var obj = JObject.Parse(json);
 
         Assert.Equal(2, obj.Count);
@@ -70,7 +70,7 @@ public class Test_MessageHelpers_ErrorJson
     [Fact]
     public void ExceptionJson_IsCompactSingleLine()
     {
-        var json = ESB.TopicHandlers.MessageHelpers.ExceptionJson(new Exception("x"));
+        var json = ESB.MessageHelpers.ExceptionJson(new Exception("x"));
 
         Assert.DoesNotContain("\n", json);
     }
