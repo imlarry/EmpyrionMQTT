@@ -62,27 +62,32 @@ public class Test_Structure_Destructive
         Assert.NotNull(baseEntry);
         Assert.NotNull(playfieldName);
 
-        string originalName        = baseEntry["name"]        != null ? (string)baseEntry["name"]        : "";
-        int    originalFactionId   = baseEntry["factionId"]   != null ? (int)baseEntry["factionId"]      : 0;
-        int    originalFactionGroup= baseEntry["factionGroup"] != null ? (int)baseEntry["factionGroup"]  : 0;
-        bool   originalPowered     = baseEntry["powered"]     != null ? (bool)baseEntry["powered"]       : false;
-        int    originalFuel        = baseEntry["fuel"]        != null ? (int)baseEntry["fuel"]           : 0;
-        int    originalType        = baseEntry["type"]        != null ? (int)baseEntry["type"]           : 0;
+        // Read only the updatable fields -- computed fields (dockedShips, cntBlocks, pos, etc.)
+        // must be excluded: passing dockedShips causes Request_GlobalStructure_Update to return
+        // MissingParameter as the game validates the docked entity relationship.
+        string originalName         = baseEntry["name"]            != null ? (string)baseEntry["name"]            : "";
+        string originalSolarSystem  = baseEntry["SolarSystemName"] != null ? (string)baseEntry["SolarSystemName"] : "";
+        int    originalFactionId    = baseEntry["factionId"]       != null ? (int)baseEntry["factionId"]          : 0;
+        int    originalFactionGroup = baseEntry["factionGroup"]    != null ? (int)baseEntry["factionGroup"]       : 0;
+        bool   originalPowered      = (bool?)baseEntry["powered"] ?? false;
+        int    originalFuel         = baseEntry["fuel"]            != null ? (int)baseEntry["fuel"]               : 0;
+        int    originalType         = baseEntry["type"]            != null ? (int)baseEntry["type"]               : 0;
 
-        // Step 2: write all current values back (net-zero mutation; PlayfieldName required for routing)
-        var updateBody = new Newtonsoft.Json.Linq.JObject(
-            new Newtonsoft.Json.Linq.JProperty("Id",            KnownState.BaseEntityId),
-            new Newtonsoft.Json.Linq.JProperty("Name",          originalName),
-            new Newtonsoft.Json.Linq.JProperty("PlayfieldName", playfieldName),
-            new Newtonsoft.Json.Linq.JProperty("FactionId",     originalFactionId),
-            new Newtonsoft.Json.Linq.JProperty("FactionGroup",  originalFactionGroup),
-            new Newtonsoft.Json.Linq.JProperty("Powered",       originalPowered),
-            new Newtonsoft.Json.Linq.JProperty("Fuel",          originalFuel),
-            new Newtonsoft.Json.Linq.JProperty("Type",          originalType));
+        // Step 2: write updatable fields back (net-zero mutation)
+        var updateBody = new JObject(
+            new JProperty("Id",              KnownState.BaseEntityId),
+            new JProperty("Name",            originalName),
+            new JProperty("PlayfieldName",   playfieldName),
+            new JProperty("SolarSystemName", originalSolarSystem),
+            new JProperty("FactionId",       originalFactionId),
+            new JProperty("FactionGroup",    originalFactionGroup),
+            new JProperty("Powered",         originalPowered),
+            new JProperty("Fuel",            originalFuel),
+            new JProperty("Type",            originalType));
 
         var (updateTopic, updatePayload) = await mqtt.RequestAsync(
             "V1.Structure.Update",
-            updateBody.ToString(Newtonsoft.Json.Formatting.None),
+            updateBody.ToString(Formatting.None),
             appId: KnownState.V1AppId);
 
         Assert.True(

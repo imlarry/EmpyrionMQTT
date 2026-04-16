@@ -76,6 +76,25 @@ Four unresolved sub-issues:
 
 **4. Playfield multicast addressing.** The current `PlayfieldServer/Q/+/*/#` pattern fans out to all loaded PlayfieldServer instances simultaneously (broadcast). With a flat prefix, fan-out is implicit but targeted queries to a specific PlayfieldServer instance lose their addressing mechanism. A replacement scheme is needed for targeted vs. broadcast playfield queries.
 
+### V1.Structure.Update returns MissingParameter -- root cause unknown
+
+`Request_GlobalStructure_Update` consistently returns `ErrorType.MissingParameter` regardless of the payload shape. Three approaches were tried with live MQTT traffic confirming each payload:
+
+1. Full round-trip via `JsonConvert.DeserializeObject<GlobalStructureInfo>` (all fields from ListGlobal response) -- MissingParameter
+2. Explicit 9 fields including `SolarSystemName:"Ellyon"` -- MissingParameter
+3. Explicit 8 fields without `SolarSystemName` (current handler state) -- MissingParameter
+
+Current handler sends: `id, name, PlayfieldName, factionGroup, factionId, powered, fuel, type, dockedShips=new List<int>()`.
+
+Unresolved theories:
+- `dockedShips=null` (default struct value) may be the invalid sentinel -- current code sends `new List<int>()` to avoid null but this is untested
+- The command may not work while the target structure's playfield is loaded (user was in-game on Akua during all test runs)
+- The command may not work in the current game version
+
+The `Integration_Destructive` test `Update_KnownBase_NameRoundTrip` has never passed. The "108 pass, 0 fail" baseline excludes `Integration_Destructive` tests.
+
+**Research needed:** test with Akua unloaded (no players on playfield); check community examples of `Request_GlobalStructure_Update` usage.
+
 ### V1 handler coverage gaps
 Several V1 API groups have no handler implementation. Priority order: **Server → Faction → Structure.ListGlobal → Playfield.List** (all read-only). Entity and Message come after Tier 3 testing infrastructure is in place. Full breakdown in [TopicHandlerCoverage.md](TopicHandlerCoverage.md).
 

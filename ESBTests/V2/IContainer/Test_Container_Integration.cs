@@ -24,6 +24,8 @@ public class Test_Container_Integration
     /// <summary>Returns the struct-space position string of the first Fridge device on the base.</summary>
     private static async Task<string> GetFridgePosAsync(MqttTestClient mqtt)
     {
+        await KnownState.WaitForStructureReadyAsync(mqtt, EID);
+
         var (_, payload) = await mqtt.RequestAsync(
             "V2.Structure.GetDevicePositions",
             $"{{\"EntityId\":{EID},\"DeviceName\":\"{KnownState.DeviceName2}\"}}");

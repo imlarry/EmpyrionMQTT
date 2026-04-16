@@ -13,16 +13,6 @@ namespace ESB
         {
             await Execute(async () =>
             {
-                if (_ctx.LoadedEntity.ContainsKey(entity.Id))
-                {
-                    JObject json2 = new JObject(
-                        new JProperty("EntityId", entity.Id));
-                    await _ctx.Messenger.SendAsync(MessageClass.Exception, "Playfield.EntityLoadedDuplicate", json2.ToString(Newtonsoft.Json.Formatting.None));
-                }
-                else
-                {
-                    _ctx.LoadedEntity.Add(entity.Id, entity);
-                }
                 JObject json = new JObject(
                     new JProperty("GameTicks", _ctx.ModApi.Application.GameTicks),
                     new JProperty("Id", entity.Id),

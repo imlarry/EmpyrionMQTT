@@ -17,13 +17,20 @@ public class Test_Block_Integration
 {
     private const int EID = KnownState.BaseEntityId;
 
+    private static async Task<MqttTestClient> ConnectAsync()
+    {
+        var mqtt = await MqttTestClient.ConnectAsync();
+        await KnownState.WaitForStructureReadyAsync(mqtt, EID);
+        return mqtt;
+    }
+
     // -------------------------------------------------------------------------
     // Block.Get
     // -------------------------------------------------------------------------
     [Fact]
     public async Task Get_LeverSwitchPosition_ReturnsBlockData()
     {
-        await using var mqtt = await MqttTestClient.ConnectAsync();
+        await using var mqtt = await ConnectAsync();
         var (topic, payload) = await mqtt.RequestAsync(
             "V2.Block.Get",
             $"{{\"EntityId\":{EID},\"Pos\":{KnownState.LeverSwitchBlock}}}");
@@ -44,7 +51,7 @@ public class Test_Block_Integration
     [Fact]
     public async Task GetSwitchState_LeverSwitch_ReturnsBoolOrNull()
     {
-        await using var mqtt = await MqttTestClient.ConnectAsync();
+        await using var mqtt = await ConnectAsync();
         var (topic, payload) = await mqtt.RequestAsync(
             "V2.Block.GetSwitchState",
             $"{{\"EntityId\":{EID},\"Pos\":{KnownState.LeverSwitchBlock}}}");
@@ -61,7 +68,7 @@ public class Test_Block_Integration
     [Fact]
     public async Task SetSwitchState_LeverSwitch_ReturnsNewState()
     {
-        await using var mqtt = await MqttTestClient.ConnectAsync();
+        await using var mqtt = await ConnectAsync();
 
         // Read current state
         var (_, readPayload) = await mqtt.RequestAsync(
@@ -85,7 +92,7 @@ public class Test_Block_Integration
     [Fact]
     public async Task GetTextures_LeverSwitchPosition_ReturnsSixSides()
     {
-        await using var mqtt = await MqttTestClient.ConnectAsync();
+        await using var mqtt = await ConnectAsync();
         var (topic, payload) = await mqtt.RequestAsync(
             "V2.Block.GetTextures",
             $"{{\"EntityId\":{EID},\"Pos\":{KnownState.LeverSwitchBlock}}}");
@@ -105,7 +112,7 @@ public class Test_Block_Integration
     [Fact]
     public async Task GetColors_LeverSwitchPosition_ReturnsSixSides()
     {
-        await using var mqtt = await MqttTestClient.ConnectAsync();
+        await using var mqtt = await ConnectAsync();
         var (topic, payload) = await mqtt.RequestAsync(
             "V2.Block.GetColors",
             $"{{\"EntityId\":{EID},\"Pos\":{KnownState.LeverSwitchBlock}}}");
@@ -126,7 +133,7 @@ public class Test_Block_Integration
     [Fact]
     public async Task SetDamage_Zero_RepairsBlock()
     {
-        await using var mqtt = await MqttTestClient.ConnectAsync();
+        await using var mqtt = await ConnectAsync();
         var (topic, payload) = await mqtt.RequestAsync(
             "V2.Block.SetDamage",
             $"{{\"EntityId\":{EID},\"Pos\":{KnownState.LeverSwitchBlock},\"Damage\":0}}");
@@ -142,7 +149,7 @@ public class Test_Block_Integration
     [Fact]
     public async Task Get_UnknownEntityId_ReturnsException()
     {
-        await using var mqtt = await MqttTestClient.ConnectAsync();
+        await using var mqtt = await ConnectAsync();
         var (topic, payload) = await mqtt.RequestAsync(
             "V2.Block.Get",
             $"{{\"EntityId\":999999,\"Pos\":{KnownState.LeverSwitchBlock}}}");

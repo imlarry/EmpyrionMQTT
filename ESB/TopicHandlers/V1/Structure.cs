@@ -3,6 +3,7 @@ using ESB.Messaging;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 
 namespace ESB.TopicHandlers.V1
@@ -63,8 +64,12 @@ namespace ESB.TopicHandlers.V1
 
         // -------------------------------------------------------------------------
         // V1.Structure.Update -- update a global structure's metadata server-side
-        // Payload: {"Id": int, "Name": string?, "FactionGroup": int?, "FactionId": int?,
-        //           "Powered": bool?, "Fuel": int?}
+        // Payload: {"Id": int, "Name": string?, "PlayfieldName": string?,
+        //           "SolarSystemName": string?, "FactionGroup": int?, "FactionId": int?,
+        //           "Powered": bool?, "Fuel": int?, "Type": int?}
+        // Note: SolarSystemName is used by the game for solar-system-level routing.
+        //   Computed/read-only fields (dockedShips, cntBlocks, pos, rot, etc.) must NOT
+        //   be included -- passing dockedShips causes the game to return MissingParameter.
         // Response: {"Ok": true}
         // Destructive: overwrites the server-side structure record fields provided.
         // Note: the ModBase wrapper for Request_GlobalStructure_Update has the wrong
@@ -78,13 +83,14 @@ namespace ESB.TopicHandlers.V1
                 var info = new GlobalStructureInfo
                 {
                     id            = Convert.ToInt32(args.GetValue("Id")),
-                    name          = args["Name"] != null ? (string)args["Name"] : "",
-                    PlayfieldName = args["PlayfieldName"] != null ? (string)args["PlayfieldName"] : "",
+                    name          = args["Name"]         != null ? (string)args["Name"]         : "",
+                    PlayfieldName = args["PlayfieldName"]!= null ? (string)args["PlayfieldName"]: "",
                     factionGroup  = args["FactionGroup"] != null ? (byte)(int)args["FactionGroup"] : (byte)0,
-                    factionId     = args["FactionId"] != null ? (int)args["FactionId"] : 0,
-                    powered       = args["Powered"] != null ? (bool)args["Powered"] : false,
-                    fuel          = args["Fuel"] != null ? (int)args["Fuel"] : 0,
-                    type          = args["Type"] != null ? (byte)(int)args["Type"] : (byte)0,
+                    factionId     = args["FactionId"]    != null ? (int)args["FactionId"]          : 0,
+                    powered       = args["Powered"]      != null ? (bool)args["Powered"]           : false,
+                    fuel          = args["Fuel"]         != null ? (int)args["Fuel"]               : 0,
+                    type          = args["Type"]         != null ? (byte)(int)args["Type"]         : (byte)0,
+                    dockedShips   = new List<int>(),
                 };
 
                 var requestTask = _ctx.ModBase.Broker.SendRequestAsync<Id>(

@@ -39,9 +39,14 @@ namespace ESB
 
                     string[] parts = arg4.ToString().Trim('(', ')').Split(',');
                     VectorInt3 vector = new VectorInt3(int.Parse(parts[0]), int.Parse(parts[1]), int.Parse(parts[2]));
-                    var content = _ctx.LoadedEntity[entityId].Structure.GetDevice<IContainer>(vector).GetContent();
-                    var contentsJson = MessageHelpers.ItemStacksJson(content, _ctx.GameManager.BlockAndItemMapping);
-                    json.Add(new JProperty("ItemStack", contentsJson));
+                    var pf = _ctx.ModApi.ClientPlayfield;
+                    IEntity ent;
+                    if (pf != null && pf.Entities.TryGetValue(entityId, out ent) && ent != null && ent.Structure != null)
+                    {
+                        var content = ent.Structure.GetDevice<IContainer>(vector).GetContent();
+                        var contentsJson = MessageHelpers.ItemStacksJson(content, _ctx.GameManager.BlockAndItemMapping);
+                        json.Add(new JProperty("ItemStack", contentsJson));
+                    }
                 }
                 if (type == GameEventType.InventoryOpenedPoi || type == GameEventType.InventoryClosedPoi)
                 {

@@ -13,7 +13,6 @@ namespace ESB
         {
             await Execute(async () =>
             {
-                _ctx.LoadedEntity.Remove(entity.Id);
                 JObject json = new JObject(
                         new JProperty("GameTicks", _ctx.ModApi.Application.GameTicks),
                         new JProperty("Id", entity.Id),

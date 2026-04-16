@@ -21,15 +21,6 @@ namespace ESB
         {
             await Execute(async () =>
             {
-                if (_ctx.LoadedPlayfield.ContainsKey(playfield.Name))
-                {
-                    JObject json2 = new JObject(
-                        new JProperty("PlayfieldName", playfield.Name));
-                    await _ctx.Messenger.SendAsync(MessageClass.Exception, "Application.PlayfieldLoadedDuplicate", json2.ToString(Newtonsoft.Json.Formatting.None));
-                    return;
-                }
-
-                _ctx.LoadedPlayfield.Add(playfield.Name, playfield);
                 playfield.OnEntityLoaded += _entityLoadedHandler.Handle;
                 playfield.OnEntityUnloaded += _entityUnloadedHandler.Handle;
 
@@ -37,9 +28,6 @@ namespace ESB
                 JArray entityArray = new JArray();
                 foreach (var entity in entities)
                 {
-                    if (!_ctx.LoadedEntity.ContainsKey(entity.Value.Id))
-                        _ctx.LoadedEntity.Add(entity.Value.Id, entity.Value);
-
                     JObject entityObject = new JObject(
                         new JProperty("Id", entity.Value.Id),
                         new JProperty("Name", entity.Value.Name),

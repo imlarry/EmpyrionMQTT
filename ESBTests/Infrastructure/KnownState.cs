@@ -1,3 +1,7 @@
+using System;
+using System.Threading.Tasks;
+using Newtonsoft.Json.Linq;
+
 namespace ESBTests.Infrastructure;
 
 /// <summary>
@@ -31,11 +35,11 @@ public static class KnownState
     public const string BaseGlobalPos = "{\"X\":-156.5,\"Y\":51.0,\"Z\":50.5}";
 
     // Player spawn point above the base (for V2 Player.Teleport tests — uppercase X,Y,Z)
-    public const string PlayerSpawnPos = "{\"X\":-155.3,\"Y\":53.1,\"Z\":29.3}";
+    public const string PlayerSpawnPos = "{\"X\":-155.3,\"Y\":53.3,\"Z\":29.3}";
 
     // V1 ChangePlayfield return spawn — lowercase x,y,z as required by ParsePVec.
     // Y is advisory; raise it if the player clips into terrain on arrival.
-    public const string PlayerSpawnPosV1 = "{\"x\":-155.3,\"y\":53.0,\"z\":29.3}";
+    public const string PlayerSpawnPosV1 = "{\"x\":-155.3,\"y\":53.3,\"z\":29.3}";
     public const string PlayerSpawnRotV1 = "{\"x\":0,\"y\":0,\"z\":0}";
 
     // Local player entity ID — set to the active player's entity ID before running V1 tests.
@@ -55,6 +59,30 @@ public static class KnownState
     public const string TeleporterName = "Teleport";
 
     /// <summary>
+    /// Polls V2.Structure.Info until IsReady is true, then returns.
+    /// Throws if the structure is not ready within maxWaitMs.
+    /// Call before any test that uses GetDevicePositions or other IsReady-gated operations.
+    /// </summary>
+    public static async Task WaitForStructureReadyAsync(
+        MqttTestClient mqtt, int entityId, int maxWaitMs = 5000)
+    {
+        var deadline = DateTime.UtcNow.AddMilliseconds(maxWaitMs);
+        while (DateTime.UtcNow < deadline)
+        {
+            var (topic, payload) = await mqtt.RequestAsync(
+                "V2.Structure.Info",
+                $"{{\"EntityId\":{entityId}}}");
+            if (topic.StartsWith($"{AppId}/R/V2.Structure.Info/") &&
+                (bool?)payload["IsReady"] == true)
+            {
+                return;
+            }
+            await Task.Delay(500);
+        }
+        throw new Exception($"Structure {entityId} not ready after {maxWaitMs}ms");
+    }
+
+    /// <summary>
     /// Constants for Tier 3 destructive tests. All values must be confirmed in the
     /// live save before running Integration_Destructive tests.
     /// </summary>
@@ -62,12 +90,12 @@ public static class KnownState
     {
         // A second playfield that exists in the save, used by the ChangePlayfield test.
         // The player is teleported there and immediately returned to Akua/PlayerSpawnPos.
-        public const string TestPlayfield = "Skillon";
+        public const string TestPlayfield = "Ningues";
 
         // Spawn coordinates on TestPlayfield — lowercase x,y,z as required by ParsePVec.
         // Y is advisory; the game places the player at terrain height on arrival.
         // Raise Y if the player clips into terrain or spawns underground.
-        public const string TestPlayfieldSpawnPos = "{\"x\":5,\"y\":100,\"z\":5}";
+        public const string TestPlayfieldSpawnPos = "{\"x\":5,\"y\":55,\"z\":5}";
         public const string TestPlayfieldSpawnRot = "{\"x\":0,\"y\":0,\"z\":0}";
 
         // V2 Playfield spawn test constants.

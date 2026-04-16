@@ -36,24 +36,43 @@ namespace ESB.TopicHandlers.V2
             _ctx.Messenger.RegisterHandler("V2.Structure.ScanFloor",              ScanFloor);
         }
 
-        // Shared lookup: entity from cache → structure, or send an exception and return null.
+        // Shared lookup: fresh IStructure from ClientPlayfield, or send exception and return null.
+        // Uses ClientPlayfield.Entities for a live reference rather than the LoadedEntity cache,
+        // which can hold stale IStructure game objects after V1 structure updates.
         private async Task<Eleon.Modding.IStructure> GetStructure(string topic, int entityId)
         {
-            var entity = _ctx.GetEntityByKey(entityId);
-            if (entity == null)
+            Eleon.Modding.IStructure structure;
+            try
             {
-                var cached = string.Join(", ", _ctx.LoadedEntity.Keys);
+                var playfield = _ctx.ModApi.ClientPlayfield;
+                if (playfield == null)
+                {
+                    await _ctx.Messenger.SendAsync(MessageClass.Exception, topic,
+                        MessageHelpers.ErrorJson("ClientPlayfield is null -- no playfield loaded on this process"));
+                    return null;
+                }
+                IEntity entity;
+                if (!playfield.Entities.TryGetValue(entityId, out entity) || entity == null)
+                {
+                    await _ctx.Messenger.SendAsync(MessageClass.Exception, topic,
+                        MessageHelpers.ErrorJson($"Entity {entityId} not found in ClientPlayfield.Entities"));
+                    return null;
+                }
+                structure = entity.Structure;
+            }
+            catch (System.Exception ex)
+            {
                 await _ctx.Messenger.SendAsync(MessageClass.Exception, topic,
-                    MessageHelpers.ErrorJson($"Entity {entityId} not found in LoadedEntity cache. Cached IDs: [{cached}]"));
+                    MessageHelpers.ErrorJson($"Entity {entityId} Structure inaccessible: {ex.Message}"));
                 return null;
             }
-            if (entity.Structure == null)
+            if (structure == null)
             {
                 await _ctx.Messenger.SendAsync(MessageClass.Exception, topic,
                     MessageHelpers.ErrorJson($"Entity {entityId} has no Structure (not a structure entity)"));
                 return null;
             }
-            return entity.Structure;
+            return structure;
         }
 
         // -----------------------------------------------------------------------
@@ -87,7 +106,9 @@ namespace ESB.TopicHandlers.V2
                     json.Add("SizeClass",             S(() => structure.SizeClass));
                     json.Add("LastVisitedTicks",      S(() => structure.LastVisitedTicks));
 
-                    if (structure.IsReady)
+                    bool isReady = false;
+                    try { isReady = structure.IsReady; } catch { }
+                    if (isReady)
                     {
                         json.Add("IsPowered",            S(() => structure.IsPowered));
                         json.Add("IsOfflineProtectable", S(() => structure.IsOfflineProtectable));
@@ -167,12 +188,20 @@ namespace ESB.TopicHandlers.V2
                 if (structure == null) return;
 
                 string[] names = null;
+                string structureError = null;
                 await _ctx.MainThreadRunner.RunOnMainThread(async () =>
                 {
-                    names = structure.GetAllCustomDeviceNames();
+                    try { names = structure.GetAllCustomDeviceNames(); }
+                    catch (System.Exception ex) { structureError = ex.Message; }
                     await Task.CompletedTask;
                 });
 
+                if (structureError != null)
+                {
+                    await _ctx.Messenger.SendAsync(MessageClass.Exception, topic,
+                        MessageHelpers.ErrorJson($"GetAllCustomDeviceNames failed for entity {entityId}: {structureError}"));
+                    return;
+                }
                 var json = new JObject(
                     new JProperty("EntityId", entityId),
                     new JProperty("DeviceNames", new JArray(names ?? new string[0])));

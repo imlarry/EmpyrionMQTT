@@ -1,3 +1,4 @@
+using Eleon.Modding;
 using ESB.TopicHandlers.WIP;
 using ESB.Messaging;
 using Newtonsoft.Json;
@@ -103,17 +104,22 @@ namespace ESB.TopicHandlers.V2
                 {
                     try
                     {
-                        if (_ctx.GetEntityByKey(entityId) == null)
+                        var pfInit = _ctx.ModApi.ClientPlayfield;
+                        IEntity entInit;
+                        if (pfInit == null || !pfInit.Entities.TryGetValue(entityId, out entInit) || entInit == null)
                         {
-                            await _ctx.Messenger.SendAsync(MessageClass.Exception, topic, MessageHelpers.ErrorJson($"Entity {entityId} not found in LoadedEntity cache"));
+                            await _ctx.Messenger.SendAsync(MessageClass.Exception, topic, MessageHelpers.ErrorJson($"Entity {entityId} not found in ClientPlayfield.Entities"));
                             return;
                         }
 
                         DateTime startTime = DateTime.Now;
                         while ((DateTime.Now - startTime).TotalSeconds < duration)
                         {
-                            // Re-check cache each tick - entity may have been killed/unloaded
-                            var entity = _ctx.GetEntityByKey(entityId);
+                            // Re-check each tick - entity may have been killed/unloaded
+                            var pfTick = _ctx.ModApi.ClientPlayfield;
+                            IEntity entity;
+                            if (pfTick != null) pfTick.Entities.TryGetValue(entityId, out entity);
+                            else entity = null;
                             if (entity == null)
                             {
                                 await _ctx.Messenger.SendAsync(MessageClass.Event, topic,
@@ -163,11 +169,11 @@ namespace ESB.TopicHandlers.V2
             {
                 JObject applicationArgs = JObject.Parse(payload);
                 int entityId = Convert.ToInt32(applicationArgs.GetValue("EntityId"));
-                var entity = _ctx.GetEntityByKey(entityId);
-
-                if (entity == null)
+                var pfShow = _ctx.ModApi.ClientPlayfield;
+                IEntity entity;
+                if (pfShow == null || !pfShow.Entities.TryGetValue(entityId, out entity) || entity == null)
                 {
-                    await _ctx.Messenger.SendAsync(MessageClass.Exception, topic, MessageHelpers.ErrorJson($"Entity {entityId} not found in LoadedEntity cache"));
+                    await _ctx.Messenger.SendAsync(MessageClass.Exception, topic, MessageHelpers.ErrorJson($"Entity {entityId} not found in ClientPlayfield.Entities"));
                     return;
                 }
 

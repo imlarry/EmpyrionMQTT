@@ -21,7 +21,6 @@ namespace ESB
         {
             await Execute(async () =>
             {
-                _ctx.LoadedPlayfield.Remove(playfield.Name);
                 playfield.OnEntityLoaded -= _entityLoadedHandler.Handle;
                 playfield.OnEntityUnloaded -= _entityUnloadedHandler.Handle;
 

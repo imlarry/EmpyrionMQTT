@@ -3,7 +3,6 @@ using ESB.GameApi;
 using ESB.BusService;
 using ESB.Configuration;
 using ESB.Messaging;
-using System.Collections.Generic;
 
 namespace ESB
 {
@@ -22,21 +21,5 @@ namespace ESB
         public BusManager BusManager { get; set; }
         public GameManager GameManager { get; set; }
         public MainThreadRunner MainThreadRunner { get; } = new MainThreadRunner(); // should I constuct this here?
-
-        // cache prealloc to expected max + safety to avoid GC (TODO: dial in via dynamic alloc and watching actual max)
-        private const int PlayfieldListEntries = 5;
-        private const int EntityListEntries = 100;
-        public Dictionary<string, IPlayfield> LoadedPlayfield { get; set; } = new Dictionary<string, IPlayfield>(PlayfieldListEntries);
-        public Dictionary<int, IEntity> LoadedEntity { get; set; } = new Dictionary<int, IEntity>(EntityListEntries);
-
-        // METHODS
-        public IPlayfield GetPlayfieldByKey(string Name)
-        {
-            return LoadedPlayfield.TryGetValue(Name, out var playfield) ? playfield : null;
-        }
-        public IEntity GetEntityByKey(int EntityId)
-        {
-            return LoadedEntity.TryGetValue(EntityId, out var entity) ? entity : null;
-        }
     }
 }

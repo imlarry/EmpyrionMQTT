@@ -163,10 +163,11 @@ namespace ESB.TopicHandlers.V2
             {
                 JObject args = JObject.Parse(payload);
                 int entityId = args.GetValue("EntityId").Value<int>();
-                var entityInterface = _ctx.GetEntityByKey(entityId);
-                if (entityInterface == null)
+                var pf = _ctx.ModApi.ClientPlayfield;
+                IEntity entityInterface;
+                if (pf == null || !pf.Entities.TryGetValue(entityId, out entityInterface) || entityInterface == null)
                 {
-                    await _ctx.Messenger.SendAsync(MessageClass.Exception, topic, MessageHelpers.ErrorJson($"Entity {entityId} not found in LoadedEntity cache"));
+                    await _ctx.Messenger.SendAsync(MessageClass.Exception, topic, MessageHelpers.ErrorJson($"Entity {entityId} not found in ClientPlayfield.Entities"));
                     return;
                 }
 

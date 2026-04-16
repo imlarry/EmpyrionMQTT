@@ -27,20 +27,38 @@ namespace ESB.TopicHandlers.V2
 
         private async Task<Eleon.Modding.IStructure> GetStructure(string topic, int entityId)
         {
-            var entity = _ctx.GetEntityByKey(entityId);
-            if (entity == null)
+            Eleon.Modding.IStructure structure;
+            try
+            {
+                var playfield = _ctx.ModApi.ClientPlayfield;
+                if (playfield == null)
+                {
+                    await _ctx.Messenger.SendAsync(MessageClass.Exception, topic,
+                        MessageHelpers.ErrorJson("ClientPlayfield is null -- no playfield loaded on this process"));
+                    return null;
+                }
+                IEntity entity;
+                if (!playfield.Entities.TryGetValue(entityId, out entity) || entity == null)
+                {
+                    await _ctx.Messenger.SendAsync(MessageClass.Exception, topic,
+                        MessageHelpers.ErrorJson($"Entity {entityId} not found in ClientPlayfield.Entities"));
+                    return null;
+                }
+                structure = entity.Structure;
+            }
+            catch (Exception ex)
             {
                 await _ctx.Messenger.SendAsync(MessageClass.Exception, topic,
-                    MessageHelpers.ErrorJson($"Entity {entityId} not found in LoadedEntity cache"));
+                    MessageHelpers.ErrorJson($"Entity {entityId} Structure inaccessible: {ex.Message}"));
                 return null;
             }
-            if (entity.Structure == null)
+            if (structure == null)
             {
                 await _ctx.Messenger.SendAsync(MessageClass.Exception, topic,
                     MessageHelpers.ErrorJson($"Entity {entityId} has no Structure (not a structure entity)"));
                 return null;
             }
-            return entity.Structure;
+            return structure;
         }
 
         private static JObject ColorJson(Color c) => new JObject(
