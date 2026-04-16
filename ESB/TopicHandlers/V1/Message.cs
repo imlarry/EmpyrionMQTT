@@ -29,7 +29,7 @@ namespace ESB.TopicHandlers.V1
         // Payload: {"EntityId": int, "Message": string, "Priority": int (0=Alarm,1=Message,2=Info),
         //           "Duration": float (seconds, optional, default 10)}
         // Response: {"Ok": true}
-        // Note: bypasses the TimeSpan.Zero wrapper so we wait for Event_Ok/Event_Error.
+        // Note: fire-and-forget -- game does not fire Event_Ok for InGameMessage commands.
         // -------------------------------------------------------------------------
         public async Task ToPlayer(string topic, string payload)
         {
@@ -41,16 +41,7 @@ namespace ESB.TopicHandlers.V1
                 var prio     = (byte)(args["Priority"]?.Value<int>() ?? 1);
                 var time     = args["Duration"]?.Value<float>()      ?? 10f;
 
-                var requestTask = _ctx.ModBase.Broker.SendRequestAsync<bool>(
-                    CmdId.Request_InGameMessage_SinglePlayer, new IdMsgPrio(entityId, msg, prio, time));
-                if (await Task.WhenAny(requestTask, Task.Delay(5000)) != requestTask)
-                {
-                    await _ctx.Messenger.SendAsync(MessageClass.Exception, topic,
-                        MessageHelpers.ErrorJson($"No response from game for ToPlayer message to entity {entityId}"));
-                    return;
-                }
-                await requestTask;
-
+                await _ctx.ModBase.Broker.Request_InGameMessage_SinglePlayer(new IdMsgPrio(entityId, msg, prio, time));
                 await _ctx.Messenger.SendAsync(MessageClass.Response, topic, "{\"Ok\":true}");
             }
             catch (Exception ex)
@@ -64,7 +55,7 @@ namespace ESB.TopicHandlers.V1
         // Payload: {"Message": string, "Priority": int (0=Alarm,1=Message,2=Info),
         //           "Duration": float (seconds, optional, default 10)}
         // Response: {"Ok": true}
-        // Note: bypasses the TimeSpan.Zero wrapper so we wait for Event_Ok/Event_Error.
+        // Note: fire-and-forget -- game does not fire Event_Ok for InGameMessage commands.
         // -------------------------------------------------------------------------
         public async Task ToAll(string topic, string payload)
         {
@@ -75,16 +66,7 @@ namespace ESB.TopicHandlers.V1
                 var prio = (byte)(args["Priority"]?.Value<int>() ?? 1);
                 var time = args["Duration"]?.Value<float>()      ?? 10f;
 
-                var requestTask = _ctx.ModBase.Broker.SendRequestAsync<bool>(
-                    CmdId.Request_InGameMessage_AllPlayers, new IdMsgPrio(0, msg, prio, time));
-                if (await Task.WhenAny(requestTask, Task.Delay(5000)) != requestTask)
-                {
-                    await _ctx.Messenger.SendAsync(MessageClass.Exception, topic,
-                        MessageHelpers.ErrorJson("No response from game for ToAll message"));
-                    return;
-                }
-                await requestTask;
-
+                await _ctx.ModBase.Broker.Request_InGameMessage_AllPlayers(new IdMsgPrio(0, msg, prio, time));
                 await _ctx.Messenger.SendAsync(MessageClass.Response, topic, "{\"Ok\":true}");
             }
             catch (Exception ex)
@@ -98,7 +80,7 @@ namespace ESB.TopicHandlers.V1
         // Payload: {"FactionId": int, "Message": string, "Priority": int,
         //           "Duration": float (seconds, optional, default 10)}
         // Response: {"Ok": true}
-        // Note: bypasses the TimeSpan.Zero wrapper so we wait for Event_Ok/Event_Error.
+        // Note: fire-and-forget -- game does not fire Event_Ok for InGameMessage commands.
         // -------------------------------------------------------------------------
         public async Task ToFaction(string topic, string payload)
         {
@@ -110,16 +92,7 @@ namespace ESB.TopicHandlers.V1
                 var prio      = (byte)(args["Priority"]?.Value<int>() ?? 1);
                 var time      = args["Duration"]?.Value<float>()      ?? 10f;
 
-                var requestTask = _ctx.ModBase.Broker.SendRequestAsync<bool>(
-                    CmdId.Request_InGameMessage_Faction, new IdMsgPrio(factionId, msg, prio, time));
-                if (await Task.WhenAny(requestTask, Task.Delay(5000)) != requestTask)
-                {
-                    await _ctx.Messenger.SendAsync(MessageClass.Exception, topic,
-                        MessageHelpers.ErrorJson($"No response from game for ToFaction message to faction {factionId}"));
-                    return;
-                }
-                await requestTask;
-
+                await _ctx.ModBase.Broker.Request_InGameMessage_Faction(new IdMsgPrio(factionId, msg, prio, time));
                 await _ctx.Messenger.SendAsync(MessageClass.Response, topic, "{\"Ok\":true}");
             }
             catch (Exception ex)
@@ -146,7 +119,7 @@ namespace ESB.TopicHandlers.V1
                 var posButton = args["PosButton"]?.Value<string>() ?? "OK";
                 var negButton = args["NegButton"]?.Value<string>() ?? "";
 
-                var result = await _ctx.ModBase.Request_ShowDialog_SinglePlayer(
+                var result = await _ctx.ModBase.Broker.Request_ShowDialog_SinglePlayer(
                     new DialogBoxData
                     {
                         Id            = entityId,

@@ -33,7 +33,7 @@ namespace ESB.TopicHandlers.V1
         {
             try
             {
-                var result = await _ctx.ModBase.Request_Dedi_Stats();
+                var result = await _ctx.ModBase.Broker.Request_Dedi_Stats();
 
                 var json = new JObject(new JProperty("Data",
                     result != null ? JObject.FromObject(result) : (JToken)JValue.CreateNull()));

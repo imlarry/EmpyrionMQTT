@@ -15,9 +15,9 @@ public static class KnownState
     public const string V1AppId     = "DedicatedServer";
     public const string Playfield   = "Akua";
 
-    // VNS Akua - the test base entity
+    // ESB Test Entity - the test base entity
     public const int    BaseEntityId    = 5320;
-    public const string BaseName        = "VNS Akua";
+    public const string BaseName        = "ESB Test Entity";
 
     // Block positions (struct-space)
     public const string LeverSwitchBlock = "{\"X\":2,\"Y\":130,\"Z\":1}";

@@ -118,7 +118,7 @@ namespace ESB.TopicHandlers.V1
                 var args = JObject.Parse(payload);
                 var entityId = Convert.ToInt32(args.GetValue("EntityId"));
 
-                var requestTask = _ctx.ModBase.Request_Structure_Touch(new Id(entityId));
+                var requestTask = _ctx.ModBase.Broker.Request_Structure_Touch(new Id(entityId));
                 if (await Task.WhenAny(requestTask, Task.Delay(3000)) != requestTask)
                 {
                     await _ctx.Messenger.SendAsync(MessageClass.Exception, topic,
@@ -147,7 +147,7 @@ namespace ESB.TopicHandlers.V1
                 var args = JObject.Parse(payload);
                 var entityId = Convert.ToInt32(args.GetValue("EntityId"));
 
-                var requestTask = _ctx.ModBase.Request_Structure_BlockStatistics(new Id(entityId));
+                var requestTask = _ctx.ModBase.Broker.Request_Structure_BlockStatistics(new Id(entityId));
                 if (await Task.WhenAny(requestTask, Task.Delay(3000)) != requestTask)
                 {
                     await _ctx.Messenger.SendAsync(MessageClass.Exception, topic,

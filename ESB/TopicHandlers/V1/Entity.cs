@@ -49,7 +49,7 @@ namespace ESB.TopicHandlers.V1
                 var args = JObject.Parse(payload);
                 var entityId = Convert.ToInt32(args.GetValue("EntityId"));
 
-                var requestTask = _ctx.ModBase.Request_Entity_PosAndRot(new Id(entityId));
+                var requestTask = _ctx.ModBase.Broker.Request_Entity_PosAndRot(new Id(entityId));
                 if (await Task.WhenAny(requestTask, Task.Delay(3000)) != requestTask)
                 {
                     await _ctx.Messenger.SendAsync(MessageClass.Exception, topic,
@@ -83,7 +83,7 @@ namespace ESB.TopicHandlers.V1
                 var pos      = ParsePVec(args["Pos"]);
                 var rot      = ParsePVec(args["Rot"]);
 
-                var requestTask = _ctx.ModBase.Request_Entity_Teleport(
+                var requestTask = _ctx.ModBase.Broker.Request_Entity_Teleport(
                     new IdPositionRotation(entityId, pos, rot));
                 if (await Task.WhenAny(requestTask, Task.Delay(3000)) != requestTask)
                 {
@@ -118,7 +118,7 @@ namespace ESB.TopicHandlers.V1
                 var pos       = ParsePVec(args["Pos"]);
                 var rot       = ParsePVec(args["Rot"]);
 
-                var requestTask = _ctx.ModBase.Request_Entity_ChangePlayfield(
+                var requestTask = _ctx.ModBase.Broker.Request_Entity_ChangePlayfield(
                     new IdPlayfieldPositionRotation(entityId, playfield, pos, rot));
                 if (await Task.WhenAny(requestTask, Task.Delay(3000)) != requestTask)
                 {
@@ -149,7 +149,7 @@ namespace ESB.TopicHandlers.V1
                 var args     = JObject.Parse(payload);
                 var entityId = Convert.ToInt32(args.GetValue("EntityId"));
 
-                var requestTask = _ctx.ModBase.Request_Entity_Destroy(new Id(entityId));
+                var requestTask = _ctx.ModBase.Broker.Request_Entity_Destroy(new Id(entityId));
                 if (await Task.WhenAny(requestTask, Task.Delay(3000)) != requestTask)
                 {
                     await _ctx.Messenger.SendAsync(MessageClass.Exception, topic,
@@ -203,7 +203,7 @@ namespace ESB.TopicHandlers.V1
                     exportedEntityDat = args["ExportedEntityDat"]?.Value<string>(),
                 };
 
-                var requestTask = _ctx.ModBase.Request_Entity_Spawn(info);
+                var requestTask = _ctx.ModBase.Broker.Request_Entity_Spawn(info);
                 if (await Task.WhenAny(requestTask, Task.Delay(3000)) != requestTask)
                 {
                     await _ctx.Messenger.SendAsync(MessageClass.Exception, topic,
@@ -234,7 +234,7 @@ namespace ESB.TopicHandlers.V1
                 var playfield = (string)args["Playfield"];
                 var name      = (string)args["Name"];
 
-                var requestTask = _ctx.ModBase.Request_Entity_SetName(
+                var requestTask = _ctx.ModBase.Broker.Request_Entity_SetName(
                     new IdPlayfieldName(entityId, playfield, name));
                 if (await Task.WhenAny(requestTask, Task.Delay(3000)) != requestTask)
                 {
@@ -271,7 +271,7 @@ namespace ESB.TopicHandlers.V1
                     isForceUnload = args["IsForceUnload"]?.Value<bool>() ?? false,
                 };
 
-                var requestTask = _ctx.ModBase.Request_Entity_Export(info);
+                var requestTask = _ctx.ModBase.Broker.Request_Entity_Export(info);
                 if (await Task.WhenAny(requestTask, Task.Delay(3000)) != requestTask)
                 {
                     await _ctx.Messenger.SendAsync(MessageClass.Exception, topic,
@@ -298,7 +298,7 @@ namespace ESB.TopicHandlers.V1
         {
             try
             {
-                var requestTask = _ctx.ModBase.Request_NewEntityId();
+                var requestTask = _ctx.ModBase.Broker.Request_NewEntityId();
                 if (await Task.WhenAny(requestTask, Task.Delay(3000)) != requestTask)
                 {
                     await _ctx.Messenger.SendAsync(MessageClass.Exception, topic,

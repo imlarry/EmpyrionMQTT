@@ -1,7 +1,7 @@
 using System;
 using System.Threading.Tasks;
 using Eleon.Modding;
-using EmpyrionNetAPIAccess;
+using ESB.GameApi;
 using ESB.EventHandlers;
 
 // EmpyrionMQTT .. mod entrypoint for MQTT integration with Empyrion Galactic Survival

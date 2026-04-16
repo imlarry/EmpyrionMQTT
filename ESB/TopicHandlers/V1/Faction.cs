@@ -67,7 +67,7 @@ namespace ESB.TopicHandlers.V1
         {
             try
             {
-                var requestTask = _ctx.ModBase.Request_AlliancesAll();
+                var requestTask = _ctx.ModBase.Broker.Request_AlliancesAll();
                 if (await Task.WhenAny(requestTask, Task.Delay(3000)) != requestTask)
                 {
                     await _ctx.Messenger.SendAsync(MessageClass.Exception, topic,
@@ -101,7 +101,7 @@ namespace ESB.TopicHandlers.V1
                 var faction1Id = Convert.ToInt32(args.GetValue("Faction1Id"));
                 var faction2Id = Convert.ToInt32(args.GetValue("Faction2Id"));
 
-                var requestTask = _ctx.ModBase.Request_AlliancesFaction(
+                var requestTask = _ctx.ModBase.Broker.Request_AlliancesFaction(
                     new AlliancesFaction { faction1Id = faction1Id, faction2Id = faction2Id });
                 if (await Task.WhenAny(requestTask, Task.Delay(3000)) != requestTask)
                 {

@@ -33,7 +33,7 @@ namespace ESB.TopicHandlers.V1
         {
             try
             {
-                var result = await _ctx.ModBase.Request_Playfield_List();
+                var result = await _ctx.ModBase.Broker.Request_Playfield_List();
 
                 var json = new JObject(new JProperty("Data",
                     result?.playfields != null
@@ -60,7 +60,7 @@ namespace ESB.TopicHandlers.V1
                 var args = JObject.Parse(payload);
                 var name = args["Playfield"].Value<string>();
 
-                var result = await _ctx.ModBase.Request_Playfield_Stats(new PString(name));
+                var result = await _ctx.ModBase.Broker.Request_Playfield_Stats(new PString(name));
 
                 var json = new JObject(new JProperty("Data",
                     result != null ? JObject.FromObject(result) : (JToken)JValue.CreateNull()));
@@ -89,7 +89,7 @@ namespace ESB.TopicHandlers.V1
                 var sec  = args["Seconds"]?.Value<float>()   ?? 0f;
                 var pid  = args["ProcessId"]?.Value<int>()   ?? 0;
 
-                var requestTask = _ctx.ModBase.Request_Load_Playfield(new PlayfieldLoad(sec, name, pid));
+                var requestTask = _ctx.ModBase.Broker.Request_Load_Playfield(new PlayfieldLoad(sec, name, pid));
                 if (await Task.WhenAny(requestTask, Task.Delay(3000)) != requestTask)
                 {
                     await _ctx.Messenger.SendAsync(MessageClass.Exception, topic,
@@ -118,7 +118,7 @@ namespace ESB.TopicHandlers.V1
                 var args = JObject.Parse(payload);
                 var name = args["Playfield"].Value<string>();
 
-                var result = await _ctx.ModBase.Request_Playfield_Entity_List(new PString(name));
+                var result = await _ctx.ModBase.Broker.Request_Playfield_Entity_List(new PString(name));
 
                 var json = new JObject(new JProperty("Data",
                     result != null ? JObject.FromObject(result) : (JToken)JValue.CreateNull()));

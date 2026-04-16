@@ -36,7 +36,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="EmpyrionNetAPI" Version="6.3.1" />
     <PackageReference Include="MQTTnet" Version="4.3.3.952" />
     <PackageReference Include="System.Runtime.CompilerServices.Unsafe" Version="6.0.0">
       <ExcludeAssets>runtime</ExcludeAssets>

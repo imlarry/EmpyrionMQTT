@@ -63,7 +63,7 @@ namespace ESB.TopicHandlers.V1
                 var args = JObject.Parse(payload);
                 var entityId = Convert.ToInt32(args.GetValue("EntityId"));
 
-                var inv = await _ctx.ModBase.Request_Player_GetInventory(new Id(entityId));
+                var inv = await _ctx.ModBase.Broker.Request_Player_GetInventory(new Id(entityId));
 
                 var json = new JObject(new JProperty("Data",
                     inv != null ? JObject.FromObject(inv) : (JToken)JValue.CreateNull()));
@@ -89,7 +89,7 @@ namespace ESB.TopicHandlers.V1
                 // (structures, vessels, etc.) -- Event_Player_Info never fires and the task
                 // hangs indefinitely. Guard with a timeout and return X so callers get a
                 // clean error instead of a silent hang.
-                var infoTask = _ctx.ModBase.Request_Player_Info(new Id(entityId));
+                var infoTask = _ctx.ModBase.Broker.Request_Player_Info(new Id(entityId));
                 if (await Task.WhenAny(infoTask, Task.Delay(3000)) != infoTask)
                 {
                     await _ctx.Messenger.SendAsync(MessageClass.Exception, topic,
@@ -117,7 +117,7 @@ namespace ESB.TopicHandlers.V1
         {
             try
             {
-                var result = await _ctx.ModBase.Request_Player_List();
+                var result = await _ctx.ModBase.Broker.Request_Player_List();
 
                 var json = new JObject(new JProperty("Data",
                     result?.list != null ? JArray.FromObject(result.list) : new JArray()));
@@ -139,7 +139,7 @@ namespace ESB.TopicHandlers.V1
                 var args = JObject.Parse(payload);
                 var entityId = Convert.ToInt32(args.GetValue("EntityId"));
 
-                var result = await _ctx.ModBase.Request_Player_Credits(new Id(entityId));
+                var result = await _ctx.ModBase.Broker.Request_Player_Credits(new Id(entityId));
 
                 var json = new JObject(new JProperty("Data", JObject.FromObject(result)));
                 await _ctx.Messenger.SendAsync(MessageClass.Response, topic, json.ToString(Formatting.None));
@@ -163,9 +163,9 @@ namespace ESB.TopicHandlers.V1
                 var entityId = Convert.ToInt32(args.GetValue("EntityId"));
                 var credits  = args["Credits"].Value<double>();
 
-                await _ctx.ModBase.Request_Player_SetCredits(new IdCredits(entityId, credits));
+                await _ctx.ModBase.Broker.Request_Player_SetCredits(new IdCredits(entityId, credits));
 
-                var result = await _ctx.ModBase.Request_Player_Credits(new Id(entityId));
+                var result = await _ctx.ModBase.Broker.Request_Player_Credits(new Id(entityId));
                 var json = new JObject(new JProperty("Data", JObject.FromObject(result)));
                 await _ctx.Messenger.SendAsync(MessageClass.Response, topic, json.ToString(Formatting.None));
             }
@@ -188,9 +188,9 @@ namespace ESB.TopicHandlers.V1
                 var entityId = Convert.ToInt32(args.GetValue("EntityId"));
                 var amount   = args["Credits"].Value<double>();
 
-                await _ctx.ModBase.Request_Player_AddCredits(new IdCredits(entityId, amount));
+                await _ctx.ModBase.Broker.Request_Player_AddCredits(new IdCredits(entityId, amount));
 
-                var result = await _ctx.ModBase.Request_Player_Credits(new Id(entityId));
+                var result = await _ctx.ModBase.Broker.Request_Player_Credits(new Id(entityId));
                 var json = new JObject(new JProperty("Data", JObject.FromObject(result)));
                 await _ctx.Messenger.SendAsync(MessageClass.Response, topic, json.ToString(Formatting.None));
             }
@@ -211,7 +211,7 @@ namespace ESB.TopicHandlers.V1
                 var args = JObject.Parse(payload);
                 var entityId = Convert.ToInt32(args.GetValue("EntityId"));
 
-                var inv = await _ctx.ModBase.Request_Player_GetAndRemoveInventory(new Id(entityId));
+                var inv = await _ctx.ModBase.Broker.Request_Player_GetAndRemoveInventory(new Id(entityId));
 
                 var json = new JObject(new JProperty("Data",
                     inv != null ? JObject.FromObject(inv) : (JToken)JValue.CreateNull()));
@@ -239,7 +239,7 @@ namespace ESB.TopicHandlers.V1
                 var toolbelt = ParseItemStacks(args["Toolbelt"] as JArray);
                 var bag      = ParseItemStacks(args["Bag"]      as JArray);
 
-                var result = await _ctx.ModBase.Request_Player_SetInventory(new Inventory(playerId, toolbelt, bag));
+                var result = await _ctx.ModBase.Broker.Request_Player_SetInventory(new Inventory(playerId, toolbelt, bag));
 
                 var json = new JObject(new JProperty("Data", JObject.FromObject(result)));
                 await _ctx.Messenger.SendAsync(MessageClass.Response, topic, json.ToString(Formatting.None));
@@ -264,7 +264,7 @@ namespace ESB.TopicHandlers.V1
                 var itemId   = args["ItemId"].Value<int>();
                 var count    = args["Count"].Value<int>();
 
-                await _ctx.ModBase.Request_Player_AddItem(new IdItemStack(entityId, new ItemStack(itemId, count)));
+                await _ctx.ModBase.Broker.Request_Player_AddItem(new IdItemStack(entityId, new ItemStack(itemId, count)));
 
                 await _ctx.Messenger.SendAsync(MessageClass.Response, topic, "{\"Ok\":true}");
             }
@@ -291,7 +291,7 @@ namespace ESB.TopicHandlers.V1
                 var buttonText = args["ButtonText"]?.Value<string>() ?? "OK";
                 var items      = ParseItemStacks(args["Items"] as JArray);
 
-                var result = await _ctx.ModBase.Request_Player_ItemExchange(
+                var result = await _ctx.ModBase.Broker.Request_Player_ItemExchange(
                     new ItemExchangeInfo(entityId, title, desc, buttonText, items));
 
                 var json = new JObject(new JProperty("Data",
@@ -338,7 +338,7 @@ namespace ESB.TopicHandlers.V1
                     factionRole      = args["FactionRole"] != null ? (byte?)args["FactionRole"].Value<int>() : null,
                 };
 
-                await _ctx.ModBase.Request_Player_SetPlayerInfo(infoSet);
+                await _ctx.ModBase.Broker.Request_Player_SetPlayerInfo(infoSet);
 
                 await _ctx.Messenger.SendAsync(MessageClass.Response, topic, "{\"Ok\":true}");
             }
@@ -365,7 +365,7 @@ namespace ESB.TopicHandlers.V1
                 var pos       = ParsePVec(args["Pos"]);
                 var rot       = ParsePVec(args["Rot"]);
 
-                await _ctx.ModBase.Request_Player_ChangePlayerfield(
+                await _ctx.ModBase.Broker.Request_Player_ChangePlayerfield(
                     new IdPlayfieldPositionRotation(entityId, playfield, pos, rot));
 
                 await _ctx.Messenger.SendAsync(MessageClass.Response, topic, "{\"Ok\":true}");

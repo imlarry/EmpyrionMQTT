@@ -1,5 +1,5 @@
 ﻿using ESB.Interfaces;
-using static EmpyrionNetAPIAccess.EmpyrionModBase;
+using static ESB.GameApi.EmpyrionModBase;
 
 namespace ESB
 {
