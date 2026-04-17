@@ -124,12 +124,12 @@ namespace EDNAClient.Core
             EnsureHookInstalled();
             SnapWindows();
 
-            // Start Lua host with the game-specific scripts directory
+            // Start Lua host with the save-game-specific scripts directory
             try
             {
                 var j            = JObject.Parse(payload);
                 var gameMode     = j["GameMode"]?.ToString();
-                var gameDataPath = j["GameDataPath"]?.ToString();
+                var saveGamePath = j["SaveGamePath"]?.ToString();
 
                 // Resolve which ESB instance owns authoritative game state.
                 // ApplicationName is captured at mod-load (lobby) so the SourceId is always
@@ -138,9 +138,9 @@ namespace EDNAClient.Core
                 _ctx.AuthoritativeSource = gameMode == "SinglePlayer"
                     ? topic.Split('/')[0]                          // "Client" in SP
                     : "DedicatedServer";                           // separate Dedi in MP
-                if (!string.IsNullOrEmpty(gameDataPath))
+                if (!string.IsNullOrEmpty(saveGamePath))
                 {
-                    var ednaScriptsDir = Path.Combine(gameDataPath, "LUAscripts");
+                    var ednaScriptsDir = Path.Combine(saveGamePath, "Content", "Mods", "ESB", "EDNA");
                     await _luaHost.StartAsync(_ctx.Messenger, ednaScriptsDir);
                 }
             }
@@ -152,6 +152,7 @@ namespace EDNAClient.Core
         private Task OnGameExit(string topic, string payload)
         {
             _luaHost.Broadcast("on_game_exit", topic, payload);
+            _luaHost.Stop();
             return Task.CompletedTask;
         }
 
