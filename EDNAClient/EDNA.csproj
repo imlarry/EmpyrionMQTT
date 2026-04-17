@@ -44,20 +44,30 @@
 
   <Target Name="DeployEDNA" AfterTargets="Build">
     <ItemGroup>
-      <!-- Copy everything the framework-dependent exe needs to run -->
-      <_DeployFiles Include="$(TargetDir)*.exe;$(TargetDir)*.dll;$(TargetDir)*.yaml;$(TargetDir)*.json;$(TargetDir)*.runtimeconfig.json;$(TargetDir)scripts\**\*.*" />
+      <_DeployFiles   Include="$(TargetDir)*.exe;$(TargetDir)*.dll;$(TargetDir)*.yaml;$(TargetDir)*.json;$(TargetDir)*.runtimeconfig.json" />
+      <_DeployScripts Include="$(TargetDir)scripts\*.lua" />
     </ItemGroup>
     <Message Importance="High" Text="EDNA deploy -> Empyrion client: @(_DeployFiles->'%(Filename)%(Extension)', ', ')"
              Condition="Exists('C:\Program Files (x86)\Steam\steamapps\common\Empyrion - Galactic Survival\Content\Mods\ESB')" />
     <Copy SourceFiles="@(_DeployFiles)"
-          DestinationFiles="@(_DeployFiles->'C:\Program Files (x86)\Steam\steamapps\common\Empyrion - Galactic Survival\Content\Mods\ESB\EDNA\%(RecursiveDir)%(Filename)%(Extension)')"
+          DestinationFiles="@(_DeployFiles->'C:\Program Files (x86)\Steam\steamapps\common\Empyrion - Galactic Survival\Content\Mods\ESB\EDNA\%(Filename)%(Extension)')"
+          SkipUnchangedFiles="false"
+          ContinueOnError="WarnAndContinue"
+          Condition="Exists('C:\Program Files (x86)\Steam\steamapps\common\Empyrion - Galactic Survival\Content\Mods\ESB')" />
+    <Copy SourceFiles="@(_DeployScripts)"
+          DestinationFiles="@(_DeployScripts->'C:\Program Files (x86)\Steam\steamapps\common\Empyrion - Galactic Survival\Content\Mods\ESB\EDNA\scripts\%(Filename)%(Extension)')"
           SkipUnchangedFiles="false"
           ContinueOnError="WarnAndContinue"
           Condition="Exists('C:\Program Files (x86)\Steam\steamapps\common\Empyrion - Galactic Survival\Content\Mods\ESB')" />
     <Message Importance="High" Text="EDNA deploy -> Dedicated Server: @(_DeployFiles->'%(Filename)%(Extension)', ', ')"
              Condition="Exists('C:\Program Files (x86)\Steam\steamapps\common\Empyrion - Dedicated Server\Content\Mods\ESB')" />
     <Copy SourceFiles="@(_DeployFiles)"
-          DestinationFiles="@(_DeployFiles->'C:\Program Files (x86)\Steam\steamapps\common\Empyrion - Dedicated Server\Content\Mods\ESB\EDNA\%(RecursiveDir)%(Filename)%(Extension)')"
+          DestinationFiles="@(_DeployFiles->'C:\Program Files (x86)\Steam\steamapps\common\Empyrion - Dedicated Server\Content\Mods\ESB\EDNA\%(Filename)%(Extension)')"
+          SkipUnchangedFiles="false"
+          ContinueOnError="WarnAndContinue"
+          Condition="Exists('C:\Program Files (x86)\Steam\steamapps\common\Empyrion - Dedicated Server\Content\Mods\ESB')" />
+    <Copy SourceFiles="@(_DeployScripts)"
+          DestinationFiles="@(_DeployScripts->'C:\Program Files (x86)\Steam\steamapps\common\Empyrion - Dedicated Server\Content\Mods\ESB\EDNA\scripts\%(Filename)%(Extension)')"
           SkipUnchangedFiles="false"
           ContinueOnError="WarnAndContinue"
           Condition="Exists('C:\Program Files (x86)\Steam\steamapps\common\Empyrion - Dedicated Server\Content\Mods\ESB')" />
