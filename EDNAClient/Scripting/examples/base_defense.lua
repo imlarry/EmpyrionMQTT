@@ -25,10 +25,10 @@
     EDNA/E/Signal.ThreatCount/lua/0   number as string
 ]]
 
-local Drone    = require("edna.drone")
-local Squadron = require("edna.squadron")
-local BT       = require("edna.bt")
-local Signals  = require("edna.signals")
+local Drone    = require("scripts.drone")
+local Squadron = require("scripts.squadron")
+local BT       = require("scripts.bt")
+local Signals  = require("scripts.signals")
 
 -- ── Drones ────────────────────────────────────────────────────────────────
 -- Each Drone.create() call subscribes to +/E/Drone.State.{id}/+/+

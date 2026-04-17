@@ -1,5 +1,5 @@
 --[[
-  edna.drone — Per-drone state object
+  scripts.drone — Per-drone state object
 
   Drone.create(entity_id) returns a fully self-contained drone instance:
     - Subscribes to its own MQTT state topic on creation (Drone.State.{id})
@@ -12,7 +12,7 @@
   though they share the same engine and the same tree logic.
 
   Usage:
-    local Drone = require("edna.drone")
+    local Drone = require("scripts.drone")
     local d = Drone.create(42)
     d:set_tree(my_tree)
     -- squadron calls d:decide() on each scan event

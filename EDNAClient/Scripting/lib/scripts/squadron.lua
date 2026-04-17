@@ -1,5 +1,5 @@
 --[[
-  edna.squadron — Multi-drone coordinator
+  scripts.squadron — Multi-drone coordinator
 
   Owns a single MQTT subscription for scan events on behalf of all member drones.
   On each event: assigns distinct threats (Predator faction) round-robin across
@@ -9,7 +9,7 @@
   The squadron is the shared thing; drone state remains isolated.
 
   Usage:
-    local Squadron = require("edna.squadron")
+    local Squadron = require("scripts.squadron")
     local sq = Squadron.create({ d1, d2, d3 })
 
     -- Wire to scan events; optional callback fires after all drones have decided

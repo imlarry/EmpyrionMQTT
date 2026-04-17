@@ -12,9 +12,10 @@ namespace EDNAClient.Configuration
     /// </summary>
     public static class WellKnownPaths
     {
-        // ESB_Info.yaml -- placed next to the executable by deployment; read-only at runtime
+        // ESB_Info.yaml -- lives one level up in the ESB mod folder (ESB/ESB_Info.yaml);
+        // EDNA is deployed to ESB/EDNA/ so "../ESB_Info.yaml" is the canonical copy.
         private static readonly string EsbInfoFile = Path.Combine(
-            AppDomain.CurrentDomain.BaseDirectory, "ESB_Info.yaml");
+            AppDomain.CurrentDomain.BaseDirectory, "..", "ESB_Info.yaml");
 
         // EDNA_Info.yaml -- read/write; lives alongside the executable in the mod folder
         public static readonly string EdnaInfoFile = Path.Combine(

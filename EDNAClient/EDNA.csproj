@@ -12,11 +12,6 @@
 
   <ItemGroup>
     <Content Include="Resources\edna.ico" />
-    <!-- ESB_Info.yaml is read from AppDomain.BaseDirectory at runtime; keep in sync with ESB\Configuration\ESB_Info.yaml -->
-    <None Include="..\ESB\Configuration\ESB_Info.yaml">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-      <Link>ESB_Info.yaml</Link>
-    </None>
     <!-- EDNA_Info.yaml is read/written from AppDomain.BaseDirectory at runtime -->
     <None Include="Configuration\EDNA_Info.yaml">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>

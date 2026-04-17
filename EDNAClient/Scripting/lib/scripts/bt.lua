@@ -1,12 +1,12 @@
 --[[
-  edna.bt — Behavior Tree node factories
+  scripts.bt — Behavior Tree node factories
 
   Nodes are plain functions: (ctx) → "success" | "failure" | "running"
   ctx is the object being evaluated (e.g. a Drone instance).
   No classes, no metatables — just composable closures.
 
   Usage:
-    local BT = require("edna.bt")
+    local BT = require("scripts.bt")
 
     local tree = BT.selector(
       BT.sequence(BT.when("fuel_low"),   BT.do_("return_to_base")),

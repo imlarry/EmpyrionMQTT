@@ -1,5 +1,5 @@
 --[[
-  edna.signals — Signal publishing helpers
+  scripts.signals — Signal publishing helpers
 
   Signals are named MQTT events on the bus. Any EDNA script or external client
   (e.g. an esp32 display, Home Assistant) can subscribe to them.
@@ -7,7 +7,7 @@
   Convention: topic = "EDNA/E/Signal.{Name}/lua/0"
 
   Usage:
-    local Signals = require("edna.signals")
+    local Signals = require("scripts.signals")
     Signals.emit("BaseThreat",    true)
     Signals.emit("ThreatCount",   3)
     Signals.emit_json("Squadron", { threat_count = 2, modes = {"engaging","patrolling"} })

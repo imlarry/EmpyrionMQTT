@@ -1,12 +1,12 @@
 --[[
-  edna.state — Base self-updating state object
+  scripts.state — Base self-updating state object
 
   Provides a lightweight foundation for MQTT-driven state objects.
   Handles topic subscription, JSON decoding, and field storage.
-  Domain-specific state objects (e.g. edna.drone) build on this.
+  Domain-specific state objects (e.g. scripts.drone) build on this.
 
   Usage:
-    local State = require("edna.state")
+    local State = require("scripts.state")
     local s = State.create()
 
     -- Bind a topic: fn(self, decoded_payload, raw_topic) updates self's fields
