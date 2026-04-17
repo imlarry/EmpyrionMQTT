@@ -1,5 +1,6 @@
 ﻿using ESB.TopicHandlers.V2;
 using ESB.TopicHandlers.V1;
+using ESB.TopicHandlers.Diagnostics;
 using System.Threading.Tasks;
 
 namespace ESB
@@ -19,6 +20,7 @@ namespace ESB
             new ESB.TopicHandlers.V2.Playfield(_ctx).Register();
             new Gui(_ctx).Register();
             new ESB.TopicHandlers.V2.Player(_ctx).Register();
+            new ESB.TopicHandlers.V2.Entity(_ctx).Register();
             new ESB.TopicHandlers.V2.Structure(_ctx).Register();
             new Block(_ctx).Register();
             new Lcd(_ctx).Register();
@@ -26,7 +28,7 @@ namespace ESB
             new Light(_ctx).Register();
             new Teleporter(_ctx).Register();
             new Pda(_ctx).Register();
-            new ESB.TopicHandlers.V2.Utilities(_ctx).Register();
+            new Utilities(_ctx).Register();
             // V1 handlers — only reachable on DedicatedServer in multiplayer.
             // V1 (ModBase) is never initialized in SinglePlayer, so these handlers
             // will never receive a request in SP. Safe to register unconditionally;

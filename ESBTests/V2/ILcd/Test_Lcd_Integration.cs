@@ -69,6 +69,8 @@ public class Test_Lcd_Integration : IAsyncLifetime
     /// <summary>Returns the struct-space position string of the InfoLcd device on the base.</summary>
     private static async Task<string> GetLcdPosAsync(MqttTestClient mqtt)
     {
+        await KnownState.WaitForStructureReadyAsync(mqtt, EID);
+
         var (_, payload) = await mqtt.RequestAsync(
             "V2.Structure.GetDevicePositions",
             $"{{\"EntityId\":{EID},\"DeviceName\":\"{KnownState.LcdName}\"}}");
