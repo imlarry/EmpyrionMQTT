@@ -60,14 +60,14 @@ public sealed class LuaScriptHost : IDisposable
 
         // Configure require() paths for all Script instances:
         //   1. scripts/ — game-specific scripts and user-provided overrides of library modules
-        //   2. {AppBase}/lib/ — library modules shipped with EDNA (scripts.bt, scripts.drone, …)
+        //   2. {AppBase}/scripts/ — library modules shipped with EDNA (scripts.bt, scripts.drone, …)
         // MoonSharp replaces '.' with '/' in module names before matching '?'.
         var loader = new FileSystemScriptLoader
         {
             ModulePaths = new[]
             {
                 Path.Combine(_scriptsDirectory, "?.lua"),
-                Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "lib", "?.lua"),
+                Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "scripts", "?.lua"),
             }
         };
         Script.DefaultOptions.ScriptLoader = loader;

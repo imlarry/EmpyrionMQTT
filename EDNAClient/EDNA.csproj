@@ -20,10 +20,10 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- Lua library modules shipped with EDNA. Copied to {OutputDir}/lib/edna/.
-         Scripts access them via require("edna.bt"), require("edna.drone"), etc. -->
-    <Content Include="Scripting\lib\**\*.lua">
-      <Link>lib\%(RecursiveDir)%(Filename)%(Extension)</Link>
+    <!-- Lua library modules shipped with EDNA. Copied to {OutputDir}/scripts/.
+         Scripts access them via require("scripts.bt"), require("scripts.drone"), etc. -->
+    <Content Include="Scripting\scripts\*.lua">
+      <Link>scripts\%(Filename)%(Extension)</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>
@@ -45,7 +45,7 @@
   <Target Name="DeployEDNA" AfterTargets="Build">
     <ItemGroup>
       <!-- Copy everything the framework-dependent exe needs to run -->
-      <_DeployFiles Include="$(TargetDir)*.exe;$(TargetDir)*.dll;$(TargetDir)*.yaml;$(TargetDir)*.json;$(TargetDir)*.runtimeconfig.json;$(TargetDir)lib\**\*.*" />
+      <_DeployFiles Include="$(TargetDir)*.exe;$(TargetDir)*.dll;$(TargetDir)*.yaml;$(TargetDir)*.json;$(TargetDir)*.runtimeconfig.json;$(TargetDir)scripts\**\*.*" />
     </ItemGroup>
     <Message Importance="High" Text="EDNA deploy -> Empyrion client: @(_DeployFiles->'%(Filename)%(Extension)', ', ')"
              Condition="Exists('C:\Program Files (x86)\Steam\steamapps\common\Empyrion - Galactic Survival\Content\Mods\ESB')" />
