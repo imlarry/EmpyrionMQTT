@@ -34,7 +34,7 @@ namespace ESB.TopicHandlers.V1
 
         private static PVector3 ParsePVec(JToken t) =>
             t != null
-                ? new PVector3(t["x"].Value<float>(), t["y"].Value<float>(), t["z"].Value<float>())
+                ? new PVector3(t["X"].Value<float>(), t["Y"].Value<float>(), t["Z"].Value<float>())
                 : new PVector3(0f, 0f, 0f);
 
         // -------------------------------------------------------------------------
@@ -59,7 +59,7 @@ namespace ESB.TopicHandlers.V1
                 var result = await requestTask;
 
                 var json = new JObject(new JProperty("Data",
-                    result != null ? JObject.FromObject(result) : (JToken)JValue.CreateNull()));
+                    result != null ? JObject.FromObject(result, JsonSerializer.Create(MessageHelpers.PascalCaseSettings)) : (JToken)JValue.CreateNull()));
                 await _ctx.Messenger.SendAsync(MessageClass.Response, topic, json.ToString(Formatting.None));
             }
             catch (Exception ex)
@@ -70,7 +70,7 @@ namespace ESB.TopicHandlers.V1
 
         // -------------------------------------------------------------------------
         // V1.Entity.Teleport -- teleport an entity within its current playfield
-        // Payload: {"EntityId": int, "Pos": {"x":f,"y":f,"z":f}, "Rot": {"x":f,"y":f,"z":f}}
+        // Payload: {"EntityId": int, "Pos": {"X":f,"Y":f,"Z":f}, "Rot": {"X":f,"Y":f,"Z":f}}
         // Response: {"Ok": true}
         // Destructive: moves the entity immediately.
         // -------------------------------------------------------------------------
@@ -104,7 +104,7 @@ namespace ESB.TopicHandlers.V1
         // -------------------------------------------------------------------------
         // V1.Entity.ChangePlayfield -- move an entity to a different playfield
         // Payload: {"EntityId": int, "Playfield": string,
-        //           "Pos": {"x":f,"y":f,"z":f}, "Rot": {"x":f,"y":f,"z":f}}
+        //           "Pos": {"X":f,"Y":f,"Z":f}, "Rot": {"X":f,"Y":f,"Z":f}}
         // Response: {"Ok": true}
         // Destructive: transfers the entity to the destination playfield immediately.
         // -------------------------------------------------------------------------
@@ -291,7 +291,7 @@ namespace ESB.TopicHandlers.V1
         // -------------------------------------------------------------------------
         // V1.Entity.NewId -- allocate a new entity ID from the server
         // Payload: {} (no parameters)
-        // Response: {"Data": {"id": int}}
+        // Response: {"Data": {"Id": int}}
         // Use this to reserve an entity ID before spawning with V1.Entity.Spawn.
         // -------------------------------------------------------------------------
         public async Task NewId(string topic, string payload)
@@ -308,7 +308,7 @@ namespace ESB.TopicHandlers.V1
                 var result = await requestTask;
 
                 var json = new JObject(new JProperty("Data",
-                    result != null ? JObject.FromObject(result) : (JToken)JValue.CreateNull()));
+                    result != null ? JObject.FromObject(result, JsonSerializer.Create(MessageHelpers.PascalCaseSettings)) : (JToken)JValue.CreateNull()));
                 await _ctx.Messenger.SendAsync(MessageClass.Response, topic, json.ToString(Formatting.None));
             }
             catch (Exception ex)

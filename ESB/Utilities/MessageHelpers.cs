@@ -1,5 +1,7 @@
 using Eleon.Modding;
+using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using Newtonsoft.Json.Serialization;
 using System;
 using System.Collections.Generic;
 using UnityEngine;
@@ -8,6 +10,19 @@ namespace ESB
 {
     internal static class MessageHelpers
     {
+        private sealed class PascalCaseContractResolver : DefaultContractResolver
+        {
+            protected override string ResolvePropertyName(string propertyName)
+            {
+                if (string.IsNullOrEmpty(propertyName)) return propertyName;
+                return char.ToUpperInvariant(propertyName[0]) + propertyName.Substring(1);
+            }
+        }
+
+        internal static readonly JsonSerializerSettings PascalCaseSettings =
+            new JsonSerializerSettings { ContractResolver = new PascalCaseContractResolver() };
+
+
         /// <summary>Returns a JSON error payload for a known/expected error condition.</summary>
         internal static string ErrorJson(string message) =>
             new JObject(

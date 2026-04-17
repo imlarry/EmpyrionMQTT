@@ -38,9 +38,9 @@ public class Test_Entity_Integration
 
         var data = payload["Data"] as JObject;
         Assert.NotNull(data);
-        Assert.Equal(KnownState.BaseEntityId, data["id"]!.Value<int>());
-        Assert.NotNull(data["pos"] as JObject);
-        Assert.NotNull(data["rot"] as JObject);
+        Assert.Equal(KnownState.BaseEntityId, data["Id"]!.Value<int>());
+        Assert.NotNull(data["Pos"] as JObject);
+        Assert.NotNull(data["Rot"] as JObject);
     }
 
     // -------------------------------------------------------------------------
@@ -62,6 +62,6 @@ public class Test_Entity_Integration
 
         var data = payload["Data"] as JObject;
         Assert.NotNull(data);
-        Assert.True(data["id"]!.Value<int>() > 0, "Expected a positive entity ID");
+        Assert.True(data["Id"]!.Value<int>() > 0, "Expected a positive entity ID");
     }
 }

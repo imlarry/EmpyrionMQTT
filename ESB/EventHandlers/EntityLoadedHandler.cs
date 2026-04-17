@@ -18,11 +18,7 @@ namespace ESB
                     new JProperty("Id", entity.Id),
                     new JProperty("Name", entity.Name),
                     new JProperty("Faction", entity.Faction.ToString()),
-                    new JProperty("Position", new JObject(
-                        new JProperty("PosX", entity.Position.x),
-                        new JProperty("PosY", entity.Position.y),
-                        new JProperty("PosZ", entity.Position.z)
-                    )),
+                    new JProperty("Position", MessageHelpers.Vec(entity.Position)),
                     //new JProperty("Forward", new JObject(
                     //    new JProperty("ForX", entity.Forward.x),
                     //    new JProperty("ForY", entity.Forward.y),

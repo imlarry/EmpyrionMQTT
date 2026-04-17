@@ -83,8 +83,8 @@ public class Test_Player_Integration
         var data = payload["Data"] as JObject;
         Assert.NotNull(data);
         // PlayerInfo must carry the entity id and player name
-        Assert.Equal(KnownState.PlayerEntityId, data["entityId"]!.Value<int>());
-        Assert.False(string.IsNullOrEmpty(data["playerName"]?.Value<string>()));
+        Assert.Equal(KnownState.PlayerEntityId, data["EntityId"]!.Value<int>());
+        Assert.False(string.IsNullOrEmpty(data["PlayerName"]?.Value<string>()));
     }
 
     // -------------------------------------------------------------------------
@@ -149,8 +149,8 @@ public class Test_Player_Integration
 
         var data = payload["Data"] as JObject;
         Assert.NotNull(data);
-        Assert.Equal(KnownState.PlayerEntityId, data["id"]!.Value<int>());
-        Assert.True(data["credits"]!.Value<double>() >= 0d);
+        Assert.Equal(KnownState.PlayerEntityId, data["Id"]!.Value<int>());
+        Assert.True(data["Credits"]!.Value<double>() >= 0d);
     }
 
     // -------------------------------------------------------------------------
@@ -173,7 +173,7 @@ public class Test_Player_Integration
 
         var data = payload["Data"] as JObject;
         Assert.NotNull(data);
-        Assert.Equal(KnownState.PlayerEntityId, data["id"]!.Value<int>());
+        Assert.Equal(KnownState.PlayerEntityId, data["Id"]!.Value<int>());
     }
 
     // -------------------------------------------------------------------------
@@ -191,7 +191,7 @@ public class Test_Player_Integration
             $"{{\"EntityId\":{KnownState.PlayerEntityId}}}",
             appId: KnownState.V1AppId);
 
-        double currentCredits = getPayload["Data"]!["credits"]!.Value<double>();
+        double currentCredits = getPayload["Data"]!["Credits"]!.Value<double>();
 
         // Set to same amount
         var (topic, setPayload) = await mqtt.RequestAsync(
@@ -205,6 +205,6 @@ public class Test_Player_Integration
 
         var data = setPayload["Data"] as JObject;
         Assert.NotNull(data);
-        Assert.Equal(currentCredits, data["credits"]!.Value<double>(), precision: 2);
+        Assert.Equal(currentCredits, data["Credits"]!.Value<double>(), precision: 2);
     }
 }

@@ -89,7 +89,7 @@ namespace ESB.TopicHandlers.V2
                 var pfServerInfos = _ctx.ModApi.Application.GetPfServerInfos();
                 if (pfServerInfos != null)
                 {
-                    string json = JsonConvert.SerializeObject(pfServerInfos);
+                    string json = JsonConvert.SerializeObject(pfServerInfos, MessageHelpers.PascalCaseSettings);
                     await _ctx.Messenger.SendAsync(MessageClass.Response, topic, json);
                 }
                 else
@@ -108,7 +108,7 @@ namespace ESB.TopicHandlers.V2
             try
             {
                 var playerEntityIds = _ctx.ModApi.Application.GetPlayerEntityIds();
-                string json = JsonConvert.SerializeObject(playerEntityIds);
+                string json = JsonConvert.SerializeObject(playerEntityIds, MessageHelpers.PascalCaseSettings);
                 await _ctx.Messenger.SendAsync(MessageClass.Response, topic, json);
             }
             catch (Exception ex)
@@ -129,7 +129,7 @@ namespace ESB.TopicHandlers.V2
                     return;
                 }
                 var playerData = _ctx.ModApi.Application.GetPlayerDataFor(playerEntityId.Value);
-                string json = JsonConvert.SerializeObject(playerData);
+                string json = JsonConvert.SerializeObject(playerData, MessageHelpers.PascalCaseSettings);
                 await _ctx.Messenger.SendAsync(MessageClass.Response, topic, json);
             }
             catch (Exception ex)
@@ -365,7 +365,7 @@ namespace ESB.TopicHandlers.V2
             try
             {
                 var blockAndItemMapping = _ctx.ModApi.Application.GetBlockAndItemMapping();
-                var json = JsonConvert.SerializeObject(blockAndItemMapping);
+                var json = JsonConvert.SerializeObject(blockAndItemMapping, MessageHelpers.PascalCaseSettings);
                 await _ctx.Messenger.SendAsync(MessageClass.Response, topic, json);
             }
             catch (Exception ex)
@@ -445,8 +445,8 @@ namespace ESB.TopicHandlers.V2
                     json.Add("IsPoi",            S(() => localPlayer.IsPoi));
                     json.Add("BelongsTo",        S(() => localPlayer.BelongsTo));
                     json.Add("DockedTo",         S(() => localPlayer.DockedTo));
-                    json.Add("Toolbar",          S(() => localPlayer.Toolbar != null ? (object)JArray.FromObject(localPlayer.Toolbar) : new JArray()));
-                    json.Add("Bag",              S(() => localPlayer.Bag != null ? (object)JArray.FromObject(localPlayer.Bag) : new JArray()));
+                    json.Add("Toolbar",          S(() => localPlayer.Toolbar != null ? (object)JArray.FromObject(localPlayer.Toolbar, JsonSerializer.Create(MessageHelpers.PascalCaseSettings)) : new JArray()));
+                    json.Add("Bag",              S(() => localPlayer.Bag != null ? (object)JArray.FromObject(localPlayer.Bag, JsonSerializer.Create(MessageHelpers.PascalCaseSettings)) : new JArray()));
                     await Task.CompletedTask;
                 });
 

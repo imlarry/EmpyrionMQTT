@@ -37,7 +37,7 @@ namespace ESB.TopicHandlers.V1
 
                 var json = new JObject(new JProperty("Data",
                     result?.playfields != null
-                        ? JArray.FromObject(result.playfields)
+                        ? JArray.FromObject(result.playfields, JsonSerializer.Create(MessageHelpers.PascalCaseSettings))
                         : new JArray()));
                 await _ctx.Messenger.SendAsync(MessageClass.Response, topic, json.ToString(Formatting.None));
             }
@@ -50,8 +50,8 @@ namespace ESB.TopicHandlers.V1
         // -------------------------------------------------------------------------
         // V1.Playfield.Stats -- read performance stats for a specific playfield
         // Payload: {"Playfield": string}
-        // Response: {"Data": {"playfield": string, "fps": float, "mem": int,
-        //                     "players": int, "mobs": int, "structs": int, ...}}
+        // Response: {"Data": {"Playfield": string, "Fps": float, "Mem": int,
+        //                     "Players": int, "Mobs": int, "Structs": int, ...}}
         // -------------------------------------------------------------------------
         public async Task Stats(string topic, string payload)
         {
@@ -63,7 +63,7 @@ namespace ESB.TopicHandlers.V1
                 var result = await _ctx.ModBase.Broker.Request_Playfield_Stats(new PString(name));
 
                 var json = new JObject(new JProperty("Data",
-                    result != null ? JObject.FromObject(result) : (JToken)JValue.CreateNull()));
+                    result != null ? JObject.FromObject(result, JsonSerializer.Create(MessageHelpers.PascalCaseSettings)) : (JToken)JValue.CreateNull()));
                 await _ctx.Messenger.SendAsync(MessageClass.Response, topic, json.ToString(Formatting.None));
             }
             catch (Exception ex)
@@ -109,7 +109,7 @@ namespace ESB.TopicHandlers.V1
         // -------------------------------------------------------------------------
         // V1.Playfield.EntityList -- list entities on a specific playfield
         // Payload: {"Playfield": string}
-        // Response: {"Data": {"playfield": string, "entities": [EntityInfo, ...]}}
+        // Response: {"Data": {"Playfield": string, "Entities": [EntityInfo, ...]}}
         // -------------------------------------------------------------------------
         public async Task EntityList(string topic, string payload)
         {
@@ -121,7 +121,7 @@ namespace ESB.TopicHandlers.V1
                 var result = await _ctx.ModBase.Broker.Request_Playfield_Entity_List(new PString(name));
 
                 var json = new JObject(new JProperty("Data",
-                    result != null ? JObject.FromObject(result) : (JToken)JValue.CreateNull()));
+                    result != null ? JObject.FromObject(result, JsonSerializer.Create(MessageHelpers.PascalCaseSettings)) : (JToken)JValue.CreateNull()));
                 await _ctx.Messenger.SendAsync(MessageClass.Response, topic, json.ToString(Formatting.None));
             }
             catch (Exception ex)

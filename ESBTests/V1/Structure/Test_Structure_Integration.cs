@@ -37,10 +37,10 @@ public class Test_Structure_Integration
 
         var data = payload["Data"] as JObject;
         Assert.NotNull(data);
-        var dict = data["globalStructures"] as JObject;
+        var dict = data["GlobalStructures"] as JObject;
         Assert.NotNull(dict);
         // At least the test playfield must appear
-        Assert.True(dict.Count > 0, "globalStructures is empty -- no structures on any playfield");
+        Assert.True(dict.Count > 0, "GlobalStructures is empty -- no structures on any playfield");
     }
 
     // -------------------------------------------------------------------------
@@ -60,13 +60,13 @@ public class Test_Structure_Integration
             topic.StartsWith($"{KnownState.V1AppId}/R/V1.Structure.ListGlobal/"),
             $"Expected R/ but got: {topic} -- {payload["Error"]?.Value<string>()}");
 
-        var dict = payload["Data"]!["globalStructures"] as JObject;
+        var dict = payload["Data"]!["GlobalStructures"] as JObject;
         Assert.NotNull(dict);
 
         // Flatten all structures across all playfields and look for BaseEntityId
         var allIds = dict.Properties()
             .SelectMany(p => (p.Value as JArray) ?? new JArray())
-            .Select(e => e["id"]?.Value<int>() ?? 0);
+            .Select(e => e["Id"]?.Value<int>() ?? 0);
 
         Assert.Contains(KnownState.BaseEntityId, allIds);
     }
@@ -90,11 +90,11 @@ public class Test_Structure_Integration
 
         var data = payload["Data"] as JObject;
         Assert.NotNull(data);
-        Assert.Equal(KnownState.BaseEntityId, data["id"]!.Value<int>());
-        // blockStatistics must be a non-empty dictionary (any structure has at least one block type)
-        var stats = data["blockStatistics"] as JObject;
+        Assert.Equal(KnownState.BaseEntityId, data["Id"]!.Value<int>());
+        // BlockStatistics must be a non-empty dictionary (any structure has at least one block type)
+        var stats = data["BlockStatistics"] as JObject;
         Assert.NotNull(stats);
-        Assert.True(stats.Count > 0, "blockStatistics is empty -- structure has no blocks?");
+        Assert.True(stats.Count > 0, "BlockStatistics is empty -- structure has no blocks?");
     }
 
     // -------------------------------------------------------------------------

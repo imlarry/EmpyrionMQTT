@@ -37,10 +37,10 @@ public static class KnownState
     // Player spawn point above the base (for V2 Player.Teleport tests — uppercase X,Y,Z)
     public const string PlayerSpawnPos = "{\"X\":-155.3,\"Y\":53.3,\"Z\":29.3}";
 
-    // V1 ChangePlayfield return spawn — lowercase x,y,z as required by ParsePVec.
+    // V1 ChangePlayfield return spawn.
     // Y is advisory; raise it if the player clips into terrain on arrival.
-    public const string PlayerSpawnPosV1 = "{\"x\":-155.3,\"y\":53.3,\"z\":29.3}";
-    public const string PlayerSpawnRotV1 = "{\"x\":0,\"y\":0,\"z\":0}";
+    public const string PlayerSpawnPosV1 = "{\"X\":-155.3,\"Y\":53.3,\"Z\":29.3}";
+    public const string PlayerSpawnRotV1 = "{\"X\":0,\"Y\":0,\"Z\":0}";
 
     // Local player entity ID — set to the active player's entity ID before running V1 tests.
     // Visible in-game via console: "di" or via V2.Application.GetPlayerEntityIds.
@@ -92,11 +92,11 @@ public static class KnownState
         // The player is teleported there and immediately returned to Akua/PlayerSpawnPos.
         public const string TestPlayfield = "Ningues";
 
-        // Spawn coordinates on TestPlayfield — lowercase x,y,z as required by ParsePVec.
+        // Spawn coordinates on TestPlayfield.
         // Y is advisory; the game places the player at terrain height on arrival.
         // Raise Y if the player clips into terrain or spawns underground.
-        public const string TestPlayfieldSpawnPos = "{\"x\":5,\"y\":55,\"z\":5}";
-        public const string TestPlayfieldSpawnRot = "{\"x\":0,\"y\":0,\"z\":0}";
+        public const string TestPlayfieldSpawnPos = "{\"X\":5,\"Y\":55,\"Z\":5}";
+        public const string TestPlayfieldSpawnRot = "{\"X\":0,\"Y\":0,\"Z\":0}";
 
         // V2 Playfield spawn test constants.
         // SpawnEntityTypeV2: entity type string passed to IPlayfield.SpawnEntity

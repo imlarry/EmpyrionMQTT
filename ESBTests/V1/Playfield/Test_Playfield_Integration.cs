@@ -60,10 +60,10 @@ public class Test_Playfield_Integration
 
         var data = payload["Data"] as JObject;
         Assert.NotNull(data);
-        Assert.Equal(KnownState.Playfield, data["playfield"]!.Value<string>());
-        Assert.True(data["fps"]!.Value<float>()  >= 0f);
-        Assert.True(data["mem"]!.Value<int>()    >= 0);
-        Assert.True(data["uptime"]!.Value<int>() >= 0);
+        Assert.Equal(KnownState.Playfield, data["Playfield"]!.Value<string>());
+        Assert.True(data["Fps"]!.Value<float>()  >= 0f);
+        Assert.True(data["Mem"]!.Value<int>()    >= 0);
+        Assert.True(data["Uptime"]!.Value<int>() >= 0);
     }
 
     // -------------------------------------------------------------------------
@@ -88,16 +88,16 @@ public class Test_Playfield_Integration
 
         var data = payload["Data"] as JObject;
         Assert.NotNull(data);
-        Assert.Equal(KnownState.Playfield, (string)data["playfield"]);
+        Assert.Equal(KnownState.Playfield, (string)data["Playfield"]);
 
-        var entities = data["entities"] as JArray;
+        var entities = data["Entities"] as JArray;
         Assert.NotNull(entities);
         Assert.True(entities.Count > 0, "Entity list is empty");
         Assert.All(entities, e =>
         {
-            Assert.NotNull(e["id"]);
-            Assert.NotNull(e["type"]);
-            Assert.NotNull(e["pos"]);
+            Assert.NotNull(e["Id"]);
+            Assert.NotNull(e["Type"]);
+            Assert.NotNull(e["Pos"]);
         });
     }
 

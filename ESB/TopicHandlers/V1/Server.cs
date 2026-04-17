@@ -26,8 +26,8 @@ namespace ESB.TopicHandlers.V1
         // -------------------------------------------------------------------------
         // V1.Server.Stats -- read dedicated server performance metrics
         // Payload: {} (no parameters)
-        // Response: {"Data": {"fps": float, "mem": int, "players": int,
-        //                     "uptime": int, "ticks": ulong}}
+        // Response: {"Data": {"Fps": float, "Mem": int, "Players": int,
+        //                     "Uptime": int, "Ticks": ulong}}
         // -------------------------------------------------------------------------
         public async Task Stats(string topic, string payload)
         {
@@ -36,7 +36,7 @@ namespace ESB.TopicHandlers.V1
                 var result = await _ctx.ModBase.Broker.Request_Dedi_Stats();
 
                 var json = new JObject(new JProperty("Data",
-                    result != null ? JObject.FromObject(result) : (JToken)JValue.CreateNull()));
+                    result != null ? JObject.FromObject(result, JsonSerializer.Create(MessageHelpers.PascalCaseSettings)) : (JToken)JValue.CreateNull()));
                 await _ctx.Messenger.SendAsync(MessageClass.Response, topic, json.ToString(Formatting.None));
             }
             catch (Exception ex)
@@ -80,7 +80,7 @@ namespace ESB.TopicHandlers.V1
         // -------------------------------------------------------------------------
         // V1.Server.BannedPlayers -- list banned players
         // Payload: {} (no parameters)
-        // Response: {"Data": [{"steam64Id": ulong, "dateTime": long}, ...]}
+        // Response: {"Data": [{"Steam64Id": ulong, "DateTime": long}, ...]}
         // Note: the broker wrapper Request_GetBannedPlayers() is typed as IdList but
         // the game actually sends BannedPlayerData. Bypass the wrong-typed wrapper
         // and call SendRequestAsync<BannedPlayerData> directly.
@@ -96,8 +96,8 @@ namespace ESB.TopicHandlers.V1
                 if (result?.BannedPlayers != null)
                     foreach (var entry in result.BannedPlayers)
                         arr.Add(new JObject(
-                            new JProperty("steam64Id", entry.steam64Id),
-                            new JProperty("dateTime",  entry.dateTime)));
+                            new JProperty("Steam64Id", entry.steam64Id),
+                            new JProperty("DateTime",  entry.dateTime)));
 
                 var json = new JObject(new JProperty("Data", arr));
                 await _ctx.Messenger.SendAsync(MessageClass.Response, topic, json.ToString(Formatting.None));

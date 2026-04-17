@@ -29,7 +29,7 @@ namespace ESB.TopicHandlers.V1
         // V1.Structure.ListGlobal -- list all structures server-wide, including on
         // idle/unloaded playfields.
         // Payload: {"PlayfieldId": int?} -- 0 or omitted returns all structures
-        // Response: {"Data": {"globalStructures": {playfieldName: [GlobalStructureInfo, ...]}}}
+        // Response: {"Data": {"GlobalStructures": {playfieldName: [GlobalStructureInfo, ...]}}}
         // Note: the ModBase wrapper for Request_GlobalStructure_List has the wrong parameter
         // type (expects Timeouts). Use the Broker directly with the raw Id argument.
         // -------------------------------------------------------------------------
@@ -53,7 +53,7 @@ namespace ESB.TopicHandlers.V1
                 var result = await requestTask;
 
                 var json = new JObject(new JProperty("Data",
-                    result != null ? JObject.FromObject(result) : (JToken)JValue.CreateNull()));
+                    result != null ? JObject.FromObject(result, JsonSerializer.Create(MessageHelpers.PascalCaseSettings)) : (JToken)JValue.CreateNull()));
                 await _ctx.Messenger.SendAsync(MessageClass.Response, topic, json.ToString(Formatting.None));
             }
             catch (Exception ex)
@@ -144,7 +144,7 @@ namespace ESB.TopicHandlers.V1
         // -------------------------------------------------------------------------
         // V1.Structure.BlockStats -- read block-type counts for a structure
         // Payload: {"EntityId": int}
-        // Response: {"Data": {"id": int, "blockStatistics": {blockTypeId: count, ...}}}
+        // Response: {"Data": {"Id": int, "BlockStatistics": {blockTypeId: count, ...}}}
         // -------------------------------------------------------------------------
         public async Task BlockStats(string topic, string payload)
         {
@@ -163,7 +163,7 @@ namespace ESB.TopicHandlers.V1
                 var result = await requestTask;
 
                 var json = new JObject(new JProperty("Data",
-                    result != null ? JObject.FromObject(result) : (JToken)JValue.CreateNull()));
+                    result != null ? JObject.FromObject(result, JsonSerializer.Create(MessageHelpers.PascalCaseSettings)) : (JToken)JValue.CreateNull()));
                 await _ctx.Messenger.SendAsync(MessageClass.Response, topic, json.ToString(Formatting.None));
             }
             catch (Exception ex)

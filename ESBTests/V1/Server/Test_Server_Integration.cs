@@ -37,10 +37,10 @@ public class Test_Server_Integration
         var data = payload["Data"] as JObject;
         Assert.NotNull(data);
         // fps and uptime must be non-negative; ticks must be positive once the server has been up
-        Assert.True(data["fps"]!.Value<float>()  >= 0f);
-        Assert.True(data["mem"]!.Value<int>()    >= 0);
-        Assert.True(data["players"]!.Value<int>() >= 0);
-        Assert.True(data["uptime"]!.Value<int>() >= 0);
+        Assert.True(data["Fps"]!.Value<float>()    >= 0f);
+        Assert.True(data["Mem"]!.Value<int>()      >= 0);
+        Assert.True(data["Players"]!.Value<int>()  >= 0);
+        Assert.True(data["Uptime"]!.Value<int>()   >= 0);
     }
 
     // -------------------------------------------------------------------------
@@ -81,12 +81,12 @@ public class Test_Server_Integration
             topic.StartsWith($"{KnownState.V1AppId}/R/V1.Server.BannedPlayers/"),
             $"Expected R/ but got: {topic} -- {payload["Error"]?.Value<string>()}");
 
-        // Data must be an array; entries (if any) must carry steam64Id and dateTime
+        // Data must be an array; entries (if any) must carry Steam64Id and DateTime
         var data = Assert.IsType<JArray>(payload["Data"]);
         foreach (JObject entry in data)
         {
-            Assert.True(entry.ContainsKey("steam64Id"), "entry missing steam64Id");
-            Assert.True(entry.ContainsKey("dateTime"),  "entry missing dateTime");
+            Assert.True(entry.ContainsKey("Steam64Id"), "entry missing Steam64Id");
+            Assert.True(entry.ContainsKey("DateTime"),  "entry missing DateTime");
         }
     }
 }

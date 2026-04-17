@@ -97,9 +97,9 @@ public class Test_Player_Integration
             Assert.NotNull(bag);
             foreach (JObject item in bag)
             {
-                Assert.NotNull(item["id"]);
-                Assert.NotNull(item["count"]);
-                Assert.NotNull(item["slotIdx"]);
+                Assert.NotNull(item["Id"]);
+                Assert.NotNull(item["Count"]);
+                Assert.NotNull(item["SlotIdx"]);
             }
         }
         else
@@ -128,9 +128,9 @@ public class Test_Player_Integration
             Assert.NotNull(toolbar);
             foreach (JObject item in toolbar)
             {
-                Assert.NotNull(item["id"]);
-                Assert.NotNull(item["count"]);
-                Assert.NotNull(item["slotIdx"]);
+                Assert.NotNull(item["Id"]);
+                Assert.NotNull(item["Count"]);
+                Assert.NotNull(item["SlotIdx"]);
             }
         }
         else

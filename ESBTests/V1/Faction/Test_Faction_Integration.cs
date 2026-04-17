@@ -40,9 +40,9 @@ public class Test_Faction_Integration
         // Every entry must carry the required fields
         foreach (JObject entry in data)
         {
-            Assert.True(entry.ContainsKey("factionId"), "entry missing factionId");
-            Assert.True(entry.ContainsKey("name"),      "entry missing name");
-            Assert.True(entry.ContainsKey("abbrev"),    "entry missing abbrev");
+            Assert.True(entry.ContainsKey("FactionId"), "entry missing FactionId");
+            Assert.True(entry.ContainsKey("Name"),      "entry missing Name");
+            Assert.True(entry.ContainsKey("Abbrev"),    "entry missing Abbrev");
         }
     }
 
@@ -66,7 +66,7 @@ public class Test_Faction_Integration
 
         var data = payload["Data"] as JObject;
         Assert.NotNull(data);
-        Assert.True(data.ContainsKey("alliances"), "Data missing alliances field");
+        Assert.True(data.ContainsKey("Alliances"), "Data missing Alliances field");
     }
 
     // -------------------------------------------------------------------------
@@ -91,7 +91,7 @@ public class Test_Faction_Integration
             allTopic.StartsWith($"{KnownState.V1AppId}/R/V1.Faction.AlliancesAll/"),
             $"AlliancesAll failed: {allTopic} -- {allPayload["Error"]?.Value<string>()}");
 
-        var alliances = allPayload["Data"]?["alliances"] as JArray;
+        var alliances = allPayload["Data"]?["Alliances"] as JArray;
         if (alliances == null || alliances.Count < 2)
         {
             // No allied pairs on this server -- cannot exercise AlliancesByFaction
@@ -112,8 +112,8 @@ public class Test_Faction_Integration
 
         var data = payload["Data"] as JObject;
         Assert.NotNull(data);
-        Assert.True(data.ContainsKey("faction1Id"), "Data missing faction1Id");
-        Assert.True(data.ContainsKey("faction2Id"), "Data missing faction2Id");
-        Assert.True(data.ContainsKey("isAllied"),   "Data missing isAllied");
+        Assert.True(data.ContainsKey("Faction1Id"), "Data missing Faction1Id");
+        Assert.True(data.ContainsKey("Faction2Id"), "Data missing Faction2Id");
+        Assert.True(data.ContainsKey("IsAllied"),   "Data missing IsAllied");
     }
 }

@@ -45,8 +45,8 @@ public class Test_Player_Destructive
 
         var inv = getPayload["Data"] as JObject;
         Assert.NotNull(inv);
-        var toolbelt = inv["toolbelt"] as JArray ?? new JArray();
-        var bag      = inv["bag"]      as JArray ?? new JArray();
+        var toolbelt = inv["Toolbelt"] as JArray ?? new JArray();
+        var bag      = inv["Bag"]      as JArray ?? new JArray();
 
         // Step 2: clear inventory — fails here = nothing mutated yet
         var (removeTopic, removePayload) = await mqtt.RequestAsync(
@@ -95,8 +95,8 @@ public class Test_Player_Destructive
 
         var inv = getPayload["Data"] as JObject;
         Assert.NotNull(inv);
-        var toolbelt = inv["toolbelt"] as JArray ?? new JArray();
-        var bag      = inv["bag"]      as JArray ?? new JArray();
+        var toolbelt = inv["Toolbelt"] as JArray ?? new JArray();
+        var bag      = inv["Bag"]      as JArray ?? new JArray();
 
         // Step 2: set empty inventory as the test mutation
         var (setTopic, setPayload) = await mqtt.RequestAsync(
@@ -145,17 +145,17 @@ public class Test_Player_Destructive
 
         var inv = getPayload["Data"] as JObject;
         Assert.NotNull(inv);
-        var toolbelt = inv["toolbelt"] as JArray ?? new JArray();
-        var bag      = inv["bag"]      as JArray ?? new JArray();
+        var toolbelt = inv["Toolbelt"] as JArray ?? new JArray();
+        var bag      = inv["Bag"]      as JArray ?? new JArray();
 
         // Pick the bag item with the lowest count — most likely to have stack room.
         var testItem = bag.OfType<JObject>()
-            .OrderBy(t => (int?)t["count"] ?? int.MaxValue)
+            .OrderBy(t => (int?)t["Count"] ?? int.MaxValue)
             .FirstOrDefault();
         Skip.If(testItem == null,
             "Player bag is empty -- place at least one item in the player bag " +
             "(not armor or escape pod) before running the AddItem destructive test.");
-        int testItemId = (int)testItem!["id"]!;
+        int testItemId = (int)testItem!["Id"]!;
 
         // Step 2: add one of that item (the call under test)
         var (addTopic, addPayload) = await mqtt.RequestAsync(
@@ -219,7 +219,7 @@ public class Test_Player_Destructive
 
         var data = infoPayload["Data"] as JObject;
         Assert.NotNull(data);
-        int originalHealth = data["health"]!.Value<int>();
+        int originalHealth = data["Health"]!.Value<int>();
 
         // Step 2: patch health to a different value (avoid underflow)
         int testHealth = originalHealth == 100 ? 90 : 100;
@@ -325,7 +325,7 @@ public class Test_Player_Destructive
             $"\"Title\":\"ESB Test\"," +
             $"\"Desc\":\"Click OK to continue.\"," +
             $"\"ButtonText\":\"OK\"," +
-            $"\"Items\":[{{\"id\":4314,\"count\":1,\"slotIdx\":15,\"ammo\":0,\"decay\":0}}]}}",
+            $"\"Items\":[{{\"Id\":4314,\"Count\":1,\"SlotIdx\":15,\"Ammo\":0,\"Decay\":0}}]}}",
             appId: KnownState.V1AppId);
 
         Assert.True(

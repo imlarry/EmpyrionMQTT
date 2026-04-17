@@ -149,11 +149,11 @@ namespace ESB.TopicHandlers.V2
             if (stacks == null) return arr;
             foreach (var s in stacks)
                 arr.Add(new JObject(
-                    new JProperty("id",      s.id),
-                    new JProperty("count",   s.count),
-                    new JProperty("slotIdx", s.slotIdx),
-                    new JProperty("ammo",    s.ammo),
-                    new JProperty("decay",   s.decay)));
+                    new JProperty("Id",      s.id),
+                    new JProperty("Count",   s.count),
+                    new JProperty("SlotIdx", s.slotIdx),
+                    new JProperty("Ammo",    s.ammo),
+                    new JProperty("Decay",   s.decay)));
             return arr;
         }
 

@@ -84,8 +84,8 @@ public class Test_Entity_Destructive
 
         var data = getPayload["Data"] as JObject;
         Assert.NotNull(data);
-        var origPos = data["pos"] as JObject;
-        var origRot = data["rot"] as JObject;
+        var origPos = data["Pos"] as JObject;
+        var origRot = data["Rot"] as JObject;
         Assert.NotNull(origPos);
         Assert.NotNull(origRot);
 
@@ -102,17 +102,15 @@ public class Test_Entity_Destructive
             $"Teleport (go) failed: {goTopic} -- {goPayload["Error"]?.Value<string>()}");
 
         // Step 3: restore to captured position -- fails here = player moved, restore from save
-        // Convert captured pos/rot from uppercase (IdPositionRotation serialises uppercase X,Y,Z)
-        // back to lowercase as required by ParsePVec.
-        float ox = origPos["x"]?.Value<float>() ?? origPos["X"]!.Value<float>();
-        float oy = origPos["y"]?.Value<float>() ?? origPos["Y"]!.Value<float>();
-        float oz = origPos["z"]?.Value<float>() ?? origPos["Z"]!.Value<float>();
-        float rx = origRot["x"]?.Value<float>() ?? origRot["X"]!.Value<float>();
-        float ry = origRot["y"]?.Value<float>() ?? origRot["Y"]!.Value<float>();
-        float rz = origRot["z"]?.Value<float>() ?? origRot["Z"]!.Value<float>();
+        float ox = origPos["X"]!.Value<float>();
+        float oy = origPos["Y"]!.Value<float>();
+        float oz = origPos["Z"]!.Value<float>();
+        float rx = origRot["X"]!.Value<float>();
+        float ry = origRot["Y"]!.Value<float>();
+        float rz = origRot["Z"]!.Value<float>();
 
-        var restorePos = $"{{\"x\":{ox},\"y\":{oy},\"z\":{oz}}}";
-        var restoreRot = $"{{\"x\":{rx},\"y\":{ry},\"z\":{rz}}}";
+        var restorePos = $"{{\"X\":{ox},\"Y\":{oy},\"Z\":{oz}}}";
+        var restoreRot = $"{{\"X\":{rx},\"Y\":{ry},\"Z\":{rz}}}";
 
         var (returnTopic, returnPayload) = await mqtt.RequestAsync(
             "V1.Entity.Teleport",

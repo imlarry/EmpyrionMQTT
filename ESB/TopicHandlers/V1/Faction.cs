@@ -26,8 +26,8 @@ namespace ESB.TopicHandlers.V1
         // -------------------------------------------------------------------------
         // V1.Faction.List -- list all factions known to the server
         // Payload: {} (no parameters)
-        // Response: {"Data": [{"origin": byte, "factionId": int, "name": string,
-        //                      "abbrev": string}, ...]}
+        // Response: {"Data": [{"Origin": byte, "FactionId": int, "Name": string,
+        //                      "Abbrev": string}, ...]}
         // Note: the ModBase wrapper for Request_Get_Factions requires arguments.
         // Use the Broker directly with null data.
         // -------------------------------------------------------------------------
@@ -47,7 +47,7 @@ namespace ESB.TopicHandlers.V1
 
                 var json = new JObject(new JProperty("Data",
                     result?.factions != null
-                        ? JArray.FromObject(result.factions)
+                        ? JArray.FromObject(result.factions, JsonSerializer.Create(MessageHelpers.PascalCaseSettings))
                         : new JArray()));
                 await _ctx.Messenger.SendAsync(MessageClass.Response, topic, json.ToString(Formatting.None));
             }
@@ -61,7 +61,7 @@ namespace ESB.TopicHandlers.V1
         // V1.Faction.AlliancesAll -- list the set of faction IDs participating in
         // any alliance on this server
         // Payload: {} (no parameters)
-        // Response: {"Data": {"alliances": [factionId, ...]}}
+        // Response: {"Data": {"Alliances": [factionId, ...]}}
         // -------------------------------------------------------------------------
         public async Task AlliancesAll(string topic, string payload)
         {
@@ -77,7 +77,7 @@ namespace ESB.TopicHandlers.V1
                 var result = await requestTask;
 
                 var json = new JObject(new JProperty("Data",
-                    result != null ? JObject.FromObject(result) : (JToken)JValue.CreateNull()));
+                    result != null ? JObject.FromObject(result, JsonSerializer.Create(MessageHelpers.PascalCaseSettings)) : (JToken)JValue.CreateNull()));
                 await _ctx.Messenger.SendAsync(MessageClass.Response, topic, json.ToString(Formatting.None));
             }
             catch (Exception ex)
@@ -89,7 +89,7 @@ namespace ESB.TopicHandlers.V1
         // -------------------------------------------------------------------------
         // V1.Faction.AlliancesByFaction -- query whether two specific factions are allied
         // Payload: {"Faction1Id": int, "Faction2Id": int}
-        // Response: {"Data": {"faction1Id": int, "faction2Id": int, "isAllied": bool}}
+        // Response: {"Data": {"Faction1Id": int, "Faction2Id": int, "IsAllied": bool}}
         // Note: the game requires both faction IDs to be non-zero; omitting or zeroing
         // Faction2Id causes the game to return ErrorType.MissingParameter.
         // -------------------------------------------------------------------------
@@ -112,7 +112,7 @@ namespace ESB.TopicHandlers.V1
                 var result = await requestTask;
 
                 var json = new JObject(new JProperty("Data",
-                    result != null ? JObject.FromObject(result) : (JToken)JValue.CreateNull()));
+                    result != null ? JObject.FromObject(result, JsonSerializer.Create(MessageHelpers.PascalCaseSettings)) : (JToken)JValue.CreateNull()));
                 await _ctx.Messenger.SendAsync(MessageClass.Response, topic, json.ToString(Formatting.None));
             }
             catch (Exception ex)

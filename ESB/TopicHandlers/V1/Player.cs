@@ -40,17 +40,17 @@ namespace ESB.TopicHandlers.V1
         private static ItemStack[] ParseItemStacks(JArray arr)
         {
             if (arr == null) return Array.Empty<ItemStack>();
-            return arr.Select(t => new ItemStack(t["id"].Value<int>(), t["count"].Value<int>())
+            return arr.Select(t => new ItemStack(t["Id"].Value<int>(), t["Count"].Value<int>())
             {
-                slotIdx = (byte)(t["slotIdx"]?.Value<int>() ?? 0),
-                ammo    = t["ammo"]?.Value<int>()   ?? 0,
-                decay   = t["decay"]?.Value<int>()  ?? 0,
+                slotIdx = (byte)(t["SlotIdx"]?.Value<int>() ?? 0),
+                ammo    = t["Ammo"]?.Value<int>()   ?? 0,
+                decay   = t["Decay"]?.Value<int>()  ?? 0,
             }).ToArray();
         }
 
         private static PVector3 ParsePVec(JToken t) =>
             t != null
-                ? new PVector3(t["x"].Value<float>(), t["y"].Value<float>(), t["z"].Value<float>())
+                ? new PVector3(t["X"].Value<float>(), t["Y"].Value<float>(), t["Z"].Value<float>())
                 : new PVector3(0f, 0f, 0f);
 
         // -------------------------------------------------------------------------
@@ -66,7 +66,7 @@ namespace ESB.TopicHandlers.V1
                 var inv = await _ctx.ModBase.Broker.Request_Player_GetInventory(new Id(entityId));
 
                 var json = new JObject(new JProperty("Data",
-                    inv != null ? JObject.FromObject(inv) : (JToken)JValue.CreateNull()));
+                    inv != null ? JObject.FromObject(inv, JsonSerializer.Create(MessageHelpers.PascalCaseSettings)) : (JToken)JValue.CreateNull()));
                 await _ctx.Messenger.SendAsync(MessageClass.Response, topic, json.ToString(Formatting.None));
             }
             catch (Exception ex)
@@ -99,7 +99,7 @@ namespace ESB.TopicHandlers.V1
 
                 var info = await infoTask;
                 var json = new JObject(new JProperty("Data",
-                    info != null ? JObject.FromObject(info) : (JToken)JValue.CreateNull()));
+                    info != null ? JObject.FromObject(info, JsonSerializer.Create(MessageHelpers.PascalCaseSettings)) : (JToken)JValue.CreateNull()));
                 await _ctx.Messenger.SendAsync(MessageClass.Response, topic, json.ToString(Formatting.None));
             }
             catch (Exception ex)
@@ -120,7 +120,7 @@ namespace ESB.TopicHandlers.V1
                 var result = await _ctx.ModBase.Broker.Request_Player_List();
 
                 var json = new JObject(new JProperty("Data",
-                    result?.list != null ? JArray.FromObject(result.list) : new JArray()));
+                    result?.list != null ? JArray.FromObject(result.list, JsonSerializer.Create(MessageHelpers.PascalCaseSettings)) : new JArray()));
                 await _ctx.Messenger.SendAsync(MessageClass.Response, topic, json.ToString(Formatting.None));
             }
             catch (Exception ex)
@@ -141,7 +141,7 @@ namespace ESB.TopicHandlers.V1
 
                 var result = await _ctx.ModBase.Broker.Request_Player_Credits(new Id(entityId));
 
-                var json = new JObject(new JProperty("Data", JObject.FromObject(result)));
+                var json = new JObject(new JProperty("Data", JObject.FromObject(result, JsonSerializer.Create(MessageHelpers.PascalCaseSettings))));
                 await _ctx.Messenger.SendAsync(MessageClass.Response, topic, json.ToString(Formatting.None));
             }
             catch (Exception ex)
@@ -153,7 +153,7 @@ namespace ESB.TopicHandlers.V1
         // -------------------------------------------------------------------------
         // V1.Player.SetCredits — overwrite credits for a player
         // Payload: {"EntityId": int, "Credits": double}
-        // Response: {"Data": {"id": int, "credits": double}} (confirmed state)
+        // Response: {"Data": {"Id": int, "Credits": double}} (confirmed state)
         // -------------------------------------------------------------------------
         public async Task SetCredits(string topic, string payload)
         {
@@ -166,7 +166,7 @@ namespace ESB.TopicHandlers.V1
                 await _ctx.ModBase.Broker.Request_Player_SetCredits(new IdCredits(entityId, credits));
 
                 var result = await _ctx.ModBase.Broker.Request_Player_Credits(new Id(entityId));
-                var json = new JObject(new JProperty("Data", JObject.FromObject(result)));
+                var json = new JObject(new JProperty("Data", JObject.FromObject(result, JsonSerializer.Create(MessageHelpers.PascalCaseSettings))));
                 await _ctx.Messenger.SendAsync(MessageClass.Response, topic, json.ToString(Formatting.None));
             }
             catch (Exception ex)
@@ -178,7 +178,7 @@ namespace ESB.TopicHandlers.V1
         // -------------------------------------------------------------------------
         // V1.Player.AddCredits — add (positive) or subtract (negative) credits
         // Payload: {"EntityId": int, "Credits": double}
-        // Response: {"Data": {"id": int, "credits": double}} (new balance)
+        // Response: {"Data": {"Id": int, "Credits": double}} (new balance)
         // -------------------------------------------------------------------------
         public async Task AddCredits(string topic, string payload)
         {
@@ -191,7 +191,7 @@ namespace ESB.TopicHandlers.V1
                 await _ctx.ModBase.Broker.Request_Player_AddCredits(new IdCredits(entityId, amount));
 
                 var result = await _ctx.ModBase.Broker.Request_Player_Credits(new Id(entityId));
-                var json = new JObject(new JProperty("Data", JObject.FromObject(result)));
+                var json = new JObject(new JProperty("Data", JObject.FromObject(result, JsonSerializer.Create(MessageHelpers.PascalCaseSettings))));
                 await _ctx.Messenger.SendAsync(MessageClass.Response, topic, json.ToString(Formatting.None));
             }
             catch (Exception ex)
@@ -214,7 +214,7 @@ namespace ESB.TopicHandlers.V1
                 var inv = await _ctx.ModBase.Broker.Request_Player_GetAndRemoveInventory(new Id(entityId));
 
                 var json = new JObject(new JProperty("Data",
-                    inv != null ? JObject.FromObject(inv) : (JToken)JValue.CreateNull()));
+                    inv != null ? JObject.FromObject(inv, JsonSerializer.Create(MessageHelpers.PascalCaseSettings)) : (JToken)JValue.CreateNull()));
                 await _ctx.Messenger.SendAsync(MessageClass.Response, topic, json.ToString(Formatting.None));
             }
             catch (Exception ex)
@@ -226,7 +226,7 @@ namespace ESB.TopicHandlers.V1
         // -------------------------------------------------------------------------
         // V1.Player.SetInventory — overwrite player toolbar and bag
         // Payload: {"PlayerId": int, "Toolbelt": [...], "Bag": [...]}
-        //   Item: {"id": int, "count": int, "slotIdx": int, "ammo": int, "decay": int}
+        //   Item: {"Id": int, "Count": int, "SlotIdx": int, "Ammo": int, "Decay": int}
         // Response: {"Data": {inventory}} (confirmed state)
         // ⚠ Destructive: replaces the player's entire inventory.
         // -------------------------------------------------------------------------
@@ -241,7 +241,7 @@ namespace ESB.TopicHandlers.V1
 
                 var result = await _ctx.ModBase.Broker.Request_Player_SetInventory(new Inventory(playerId, toolbelt, bag));
 
-                var json = new JObject(new JProperty("Data", JObject.FromObject(result)));
+                var json = new JObject(new JProperty("Data", JObject.FromObject(result, JsonSerializer.Create(MessageHelpers.PascalCaseSettings))));
                 await _ctx.Messenger.SendAsync(MessageClass.Response, topic, json.ToString(Formatting.None));
             }
             catch (Exception ex)
@@ -295,7 +295,7 @@ namespace ESB.TopicHandlers.V1
                     new ItemExchangeInfo(entityId, title, desc, buttonText, items));
 
                 var json = new JObject(new JProperty("Data",
-                    result != null ? JObject.FromObject(result) : (JToken)JValue.CreateNull()));
+                    result != null ? JObject.FromObject(result, JsonSerializer.Create(MessageHelpers.PascalCaseSettings)) : (JToken)JValue.CreateNull()));
                 await _ctx.Messenger.SendAsync(MessageClass.Response, topic, json.ToString(Formatting.None));
             }
             catch (Exception ex)
@@ -351,7 +351,7 @@ namespace ESB.TopicHandlers.V1
         // -------------------------------------------------------------------------
         // V1.Player.ChangePlayfield — move a player to a different playfield
         // Payload: {"EntityId": int, "Playfield": string,
-        //           "Pos": {"x":f,"y":f,"z":f}, "Rot": {"x":f,"y":f,"z":f}}
+        //           "Pos": {"X":f,"Y":f,"Z":f}, "Rot": {"X":f,"Y":f,"Z":f}}
         // Response: {"Ok": true}
         // ⚠ Disruptive: teleports the player to another playfield immediately.
         // -------------------------------------------------------------------------
