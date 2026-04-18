@@ -10,7 +10,8 @@ namespace EDNAClient.Skills.FloorMap
     {
         private readonly FloorMapViewModel _viewModel;
         private readonly WorkspaceWindow   _workspace;
-        private FloorMapper? _mapper;
+        private FloorMapper?  _mapper;
+        private FloorMapView? _panel;
 
         public string Id    => "FloorMap";
         public string Title => "Floor Map";
@@ -22,39 +23,34 @@ namespace EDNAClient.Skills.FloorMap
         }
 
         public System.Windows.Controls.UserControl CreatePanel()
-        {
-            return new FloorMapView(_viewModel);
-        }
+            => _panel ??= new FloorMapView(_viewModel);
 
         public async Task StartAsync(IMessenger messenger)
         {
             _mapper = new FloorMapper(messenger, _viewModel);
             await _mapper.StartAsync();
-            _workspace.AddSkillTab(this);
-            if (!_workspace.IsVisible) _workspace.Show();
         }
 
         public void Stop()
         {
             _mapper?.Stop();
             _mapper = null;
-            _workspace.RemoveSkillTab(Id);
-            if (_workspace.IsVisible) _workspace.SaveAndHide();
+            _panel  = null;
+            _workspace.RemoveDocument(Id);
         }
 
-        public void SnapToGameWindow()
-        {
-            if (_workspace.IsVisible) _workspace.SnapToGameWindow();
-        }
+        public void SnapToGameWindow() { }
 
         public IEnumerable<HotkeyRequest> GetHotkeyRequests()
         {
-            // Ctrl+Shift+R -- refresh floor map data on demand
+            // Ctrl+Shift+R -- open floor map and refresh data
             yield return new HotkeyRequest(
                 HotkeyRequest.ModControl | HotkeyRequest.ModShift | HotkeyRequest.NoRepeat,
                 0x52,   // VK_R
                 () =>
                 {
+                    _workspace.OpenDocument(Title, Id, CreatePanel());
+
                     if (_mapper == null) return;
                     _viewModel.StatusText = "Scanning...";
                     _viewModel.IsLoading  = true;

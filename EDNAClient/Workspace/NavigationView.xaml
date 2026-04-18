@@ -3,10 +3,14 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              Background="#1E1E1E">
 
-    <TreeView ItemsSource="{Binding RootNodes}"
+    <TreeView x:Name="NavTree"
+              ItemsSource="{Binding RootNodes}"
               Background="#1E1E1E"
               Foreground="#D4D4D4"
-              BorderThickness="0">
+              BorderThickness="0"
+              SelectedItemChanged="OnSelectedItemChanged"
+              PreviewMouseRightButtonDown="OnRightClick"
+              PreviewMouseLeftButtonDown="OnLeftButtonDown">
 
         <TreeView.ItemContainerStyle>
             <Style TargetType="TreeViewItem">

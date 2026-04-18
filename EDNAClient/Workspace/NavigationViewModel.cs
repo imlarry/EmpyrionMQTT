@@ -1,10 +1,21 @@
+using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 
 namespace EDNAClient.Workspace
 {
-    public enum NavNodeType { Galaxy, System, Planet, Structure, Floor }
+    public enum NavNodeType { Galaxy, System, Planet, Structure, Floor, ScriptFolder, ScriptFile }
+
+    public class NavMenuItem
+    {
+        public string Header      { get; set; } = "";
+        public Action Execute     { get; set; } = () => { };
+        public bool   IsSeparator { get; set; }
+
+        public static NavMenuItem Separator() => new NavMenuItem { IsSeparator = true };
+    }
 
     public class NavNode : INotifyPropertyChanged
     {
@@ -13,8 +24,12 @@ namespace EDNAClient.Workspace
 
         public string      Name     { get; set; } = "";
         public NavNodeType NodeType { get; set; }
+        public object?     Tag      { get; set; }
 
         public ObservableCollection<NavNode> Children { get; } = new();
+
+        public Action?            OnSelected   { get; set; }
+        public List<NavMenuItem>? ContextItems { get; set; }
 
         public bool IsExpanded
         {
@@ -39,20 +54,30 @@ namespace EDNAClient.Workspace
 
         public NavigationViewModel()
         {
-            // Stub root -- replaced by live data as skills publish context.
-            // Future skills call UpdateStructureContext() to populate the tree.
             RootNodes.Add(new NavNode
             {
-                Name        = "Local Galaxy",
-                NodeType    = NavNodeType.Galaxy,
-                IsExpanded  = true,
+                Name       = "Galaxy",
+                NodeType   = NavNodeType.Galaxy,
+                IsExpanded = false,
             });
+        }
+
+        public void AddRootSection(NavNode node)
+        {
+            RemoveRootSection(node.Name);
+            RootNodes.Add(node);
+        }
+
+        public void RemoveRootSection(string name)
+        {
+            for (int i = RootNodes.Count - 1; i >= 0; i--)
+                if (RootNodes[i].Name == name)
+                    RootNodes.RemoveAt(i);
         }
 
         /// <summary>
         /// Called by map skills to upsert the Galaxy > System > Planet > Structure > Floor
-        /// hierarchy and select the active floor node. Designed additively: skills extend
-        /// the tree without replacing existing nodes.
+        /// hierarchy. Designed additively: skills extend the tree without replacing existing nodes.
         /// </summary>
         public void UpdateStructureContext(
             string   galaxy,
@@ -61,7 +86,7 @@ namespace EDNAClient.Workspace
             string   structure,
             string[] floors)
         {
-            // Stub -- full implementation added when LandMap/SystemMap skills are built.
+            // stub -- full implementation added when LandMap/SystemMap skills are built.
         }
 
         public event PropertyChangedEventHandler? PropertyChanged;

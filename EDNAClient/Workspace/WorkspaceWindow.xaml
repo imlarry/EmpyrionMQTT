@@ -7,34 +7,51 @@
         MinWidth="480" MinHeight="320"
         WindowStyle="SingleBorderWindow"
         ResizeMode="CanResizeWithGrip"
-        ShowInTaskbar="True"
-        Closing="OnWindowClosing">
+        ShowInTaskbar="True">
 
-    <ad:DockingManager x:Name="DockManager"
-                       AllowMixedOrientation="True">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
 
-        <ad:LayoutRoot>
-            <ad:LayoutPanel Orientation="Horizontal">
+        <ad:DockingManager x:Name="DockManager"
+                           Grid.Row="0"
+                           AllowMixedOrientation="True">
 
-                <!-- Left: Navigator pane, pinned ~220px, can auto-hide, cannot float or close -->
-                <ad:LayoutAnchorablePaneGroup DockWidth="220">
-                    <ad:LayoutAnchorablePane>
-                        <ad:LayoutAnchorable x:Name="NavPane"
-                                             Title="Navigator"
-                                             CanClose="False"
-                                             CanHide="True"
-                                             CanFloat="False"/>
-                    </ad:LayoutAnchorablePane>
-                </ad:LayoutAnchorablePaneGroup>
+            <ad:LayoutRoot>
+                <ad:LayoutPanel Orientation="Horizontal">
 
-                <!-- Center: tabbed map document area -->
-                <ad:LayoutDocumentPaneGroup>
-                    <ad:LayoutDocumentPane x:Name="MapPane"/>
-                </ad:LayoutDocumentPaneGroup>
+                    <!-- Left: Navigator pane, pinned ~220px, can auto-hide, cannot float or close -->
+                    <ad:LayoutAnchorablePaneGroup DockWidth="220">
+                        <ad:LayoutAnchorablePane>
+                            <ad:LayoutAnchorable x:Name="NavPane"
+                                                 Title="Navigator"
+                                                 ContentId="Navigator"
+                                                 CanClose="False"
+                                                 CanHide="False"
+                                                 CanAutoHide="False"
+                                                 CanFloat="False"/>
+                        </ad:LayoutAnchorablePane>
+                    </ad:LayoutAnchorablePaneGroup>
 
-            </ad:LayoutPanel>
-        </ad:LayoutRoot>
+                    <!-- Center: tabbed map document area -->
+                    <ad:LayoutDocumentPaneGroup>
+                        <ad:LayoutDocumentPane x:Name="MapPane"/>
+                    </ad:LayoutDocumentPaneGroup>
 
-    </ad:DockingManager>
+                </ad:LayoutPanel>
+            </ad:LayoutRoot>
+
+        </ad:DockingManager>
+
+        <!-- Status bar -->
+        <StatusBar Grid.Row="1"
+                   Background="#007ACC"
+                   Foreground="#FFFFFF"
+                   Height="24">
+        </StatusBar>
+
+    </Grid>
 
 </Window>
