@@ -1,7 +1,8 @@
-using EDNAClient.Scripting.Api;
+using EDNAClient.Core;
+using EDNAClient.Skills.Scripting.Api;
 using MoonSharp.Interpreter;
 
-namespace EDNAClient.Scripting;
+namespace EDNAClient.Skills.Scripting;
 
 /// <summary>
 /// Wraps a single MoonSharp Script instance with a sandboxed environment.
@@ -38,6 +39,7 @@ public sealed class LuaEngine
         Name   = name;
         Script = new Script(Sandbox);
         Script.Globals["json"] = UserData.Create(new LuaJsonApi());
+        EdnaLogger.Detail($"[LuaEngine] sandbox created: {name}");
     }
 
     /// <summary>Execute a Lua source string inside this engine.</summary>

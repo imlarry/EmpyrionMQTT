@@ -1,8 +1,5 @@
-using System;
-using System.Collections.Generic;
-using System.Threading;
-using System.Threading.Tasks;
-using System.Windows;
+using EDNAClient.Core;
+using EDNAClient.Helpers;
 using ESB.Messaging;
 using Newtonsoft.Json.Linq;
 
@@ -45,7 +42,9 @@ namespace EDNAClient.Skills.ThreatRadar
 
         private Task OnPlayfieldEntered(string topic, string payload)
         {
-            _ = RequestScanAsync();
+            _ = RequestScanAsync().ContinueWith(t =>
+                EdnaLogger.Error("RequestScanAsync failed on PlayfieldEntered", t.Exception?.InnerException),
+                System.Threading.Tasks.TaskContinuationOptions.OnlyOnFaulted);
             return Task.CompletedTask;
         }
 
@@ -77,7 +76,9 @@ namespace EDNAClient.Skills.ThreatRadar
                 // Terminal event — re-arm the feed
                 if (j["Status"] != null)
                 {
-                    _ = RequestScanAsync();
+                    _ = RequestScanAsync().ContinueWith(t =>
+                        EdnaLogger.Error("RequestScanAsync failed on re-arm", t.Exception?.InnerException),
+                        System.Threading.Tasks.TaskContinuationOptions.OnlyOnFaulted);
                     return Task.CompletedTask;
                 }
 
@@ -89,11 +90,7 @@ namespace EDNAClient.Skills.ThreatRadar
                     // Piloting — tacradar has it; clear EDNA display and yield
                     if (player["IsPilot"]?.Value<bool>() == true)
                     {
-                        Application.Current.Dispatcher.Invoke(() =>
-                        {
-                            _threats.Clear();
-                            _viewModel.ClearAll();
-                        });
+                        UI.Invoke(() => { _threats.Clear(); _viewModel.ClearAll(); });
                         return Task.CompletedTask;
                     }
 
@@ -127,8 +124,8 @@ namespace EDNAClient.Skills.ThreatRadar
                     }
                 }
 
-                // Apply to UI thread atomically
-                Application.Current.Dispatcher.Invoke(() =>
+                EdnaLogger.Detail($"[ThreatTracker] snapshot: {newThreats.Count} threats");
+                UI.Invoke(() =>
                 {
                     _playerX = px;
                     _playerZ = pz;
@@ -142,7 +139,12 @@ namespace EDNAClient.Skills.ThreatRadar
                     Recompute();
                 });
             }
-            catch { /* malformed payload — ignore */ }
+            catch (Exception ex)
+            {
+#if DEBUG
+                EdnaLogger.Warn($"OnScanSnapshot malformed payload: {ex.Message}");
+#endif
+            }
             return Task.CompletedTask;
         }
 

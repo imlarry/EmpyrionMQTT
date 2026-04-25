@@ -1,9 +1,7 @@
 using MoonSharp.Interpreter;
 using Newtonsoft.Json.Linq;
-using System;
-using System.Linq;
 
-namespace EDNAClient.Scripting.Api
+namespace EDNAClient.Skills.Scripting.Api
 {
     /// <summary>
     /// Replaces MoonSharp's built-in json module (CoreModules.Json) as the 'json' global.

@@ -6,6 +6,196 @@ _Run `dotnet run --project Scripts/ExtractApi` to regenerate._
 
 ---
 
+## Object Hierarchy
+
+Pseudocode navigation paths showing how interfaces relate through properties and methods.
+
+```
+IModApi
+  .Application : IApplication
+      .GameTicks : ulong
+      .LocalPlayer : IPlayer
+      .Mode : ApplicationMode
+      .State : GameState
+      .GetAllPlayfields() : IPlayfieldDescr[]
+      .GetBlockAndItemMapping() : Dictionary<string,int>
+      .GetPathFor(AppFolder) : string
+      .GetPfServerInfos() : Dictionary<int,List<string>>
+      .GetPlayerDataFor(playerEntityId) : PlayerData?
+      .GetPlayerEntityIds() : IEnumerable<int>
+      .GetStructure(entityId) : GlobalStructureInfo      // async callback
+      .GetStructures(playfieldName,...) : IEnumerable<GlobalStructureInfo>  // async callback
+      .SendChatMessage(MessageData)
+      .ShowDialogBox(playerEntityId, DialogConfig, ...)
+
+  .ClientPlayfield : IPlayfield
+      .Name : string
+      .PlanetClass : string
+      .PlanetType : string
+      .PlayfieldType : string
+      .IsPvP : bool
+      .SolarSystemName : string
+      .SolarSystemCoordinates : VectorInt3
+      .Entities : Dictionary<int, IEntity>
+          [id] : IEntity
+              .Id : int
+              .Name : string
+              .Type : EntityType
+              .Position : Vector3
+              .Rotation : Quaternion
+              .Forward : Vector3
+              .Faction : FactionData
+              .IsLocal : bool
+              .IsProxy : bool
+              .IsPoi : bool
+              .BelongsTo : int
+              .DockedTo : int
+              .Structure : IStructure
+                  .Id : int
+                  .Entity : IEntity
+                  .BlockCount : int
+                  .DeviceCount : int
+                  .LightCount : int
+                  .CoreType : CoreType
+                  .DamageLevel : float
+                  .Fuel : float
+                  .IsPowered : bool
+                  .IsReady : bool
+                  .IsShieldActive : bool
+                  .ShieldLevel : int
+                  .SizeClass : int
+                  .TotalMass : float
+                  .TriangleCount : int
+                  .MaxPos, .MinPos : VectorInt3
+                  .HasLandClaimDevice : bool
+                  .IsOfflineProtectable : bool
+                  .LastVisitedTicks : ulong
+                  .PlayerCreatedSteamId : string
+                  .PowerConsumption : int
+                  .PowerOutCapacity : int
+                  .Pilot : IPlayer
+                  .FuelTank : IStructureTank
+                      .Capacity : float
+                      .Content : float
+                      .UsesIntegerAmounts : bool
+                      .AddContent(amount)
+                  .OxygenTank : IStructureTank      // same shape
+                  .PentaxidTank : IStructureTank    // same shape
+                  .GetBlock(x, y, z) : IBlock
+                      .CustomName : string
+                      .LockCode : int?
+                      .ParentBlock : IBlock
+                      .Get(out type, out shape, out rotation, out active)
+                      .Set(type?, shape?, rotation?, active?)
+                      .SetDamage(damage) / GetDamage() / GetHitPoints()
+                      .GetTextures(...) / SetTextures(...) / SetTextureForWholeBlock(texIdx)
+                      .GetColors(...) / SetColors(...) / SetColorForWholeBlock(colorIdx)
+                      .GetSwitchState(index) / SetSwitchState(state, index)
+                  .GetDevice<IContainer>(name|pos) : IContainer
+                      .VolumeCapacity : float
+                      .DecayFactor : float
+                      .GetContent() : List<ItemStack>
+                      .SetContent(List<ItemStack>)
+                      .AddItems(type, count) / RemoveItems(type, count)
+                      .Contains(type) / GetTotalItems(type)
+                      .Clear()
+                  .GetDevice<ILcd>(name|pos) : ILcd
+                      .GetText() / SetText(text)
+                      .GetTextColor() / SetTextColor(Color)
+                      .GetBackgroundColor() / SetBackgroundColor(Color)
+                      .GetFontSize() / SetFontSize(fontSize)
+                  .GetDevice<ILight>(name|pos) : ILight
+                      .GetColor() / SetColor(Color)
+                      .GetIntensity() / SetIntensity(float)
+                      .GetRange() / SetRange(float)
+                      .GetLightType() / SetLightType(LightType)
+                      .GetSpotAngle() / SetSpotAngle(float)
+                      .GetBlinkData(...) / SetBlinkData(interval, length, offset)
+                  .GetDevice<ITeleporter>(name|pos) : ITeleporter
+                      .TargetData : TeleporterData
+                          .TargetEntityNameOrGroup : string
+                          .TargetPlayfield : string
+                          .TargetSolarSystemName : string
+                          .Origin : byte
+                  .GetAllCustomDeviceNames() : string[]
+                  .GetDevicePositions(customDeviceName) : List<VectorInt3>
+                  .GetDevices(DeviceTypeName) : IDevicePosList
+                      .Count : int
+                      .GetAt(index) : VectorInt3
+                  .GetDockedVessels() : List<IStructure>
+                  .GetPassengers() : List<IPlayer>
+                  .GetBlockSignals(filter?) : List<SenderSignal>
+                  .GetControlPanelSignals() : List<SenderSignal>
+                  .GetSignalState(name) : bool
+                  .GetSignalReceivers(name) : List<SignalFunction>
+                  .GetSendSignalName(pos) : string
+                  .SetFaction(FactionGroup, entityId)
+                  .StructToGlobalPos(VectorInt3) : Vector3
+                  .GlobalToStructPos(Vector3) : VectorInt3
+              .DamageEntity(amount, type)
+              .Move(Vector3) / .MoveForward(speed) / .MoveStop()
+              .LoadFromDSL()
+      .Players : Dictionary<int, IPlayer>
+          [id] : IPlayer          // extends IEntity (all IEntity members apply)
+              .SteamId : string
+              .SteamOwnerId : string
+              .StartPlayfield : string
+              .Origin : byte
+              .Permission : int
+              .Health / .HealthMax : float
+              .Oxygen / .OxygenMax : float
+              .Stamina / .StaminaMax : float
+              .Food / .FoodMax : float
+              .Radiation / .RadiationMax : float
+              .BodyTemp / .BodyTempMax : float
+              .Credits : double
+              .ExperiencePoints : int
+              .UpgradePoints : int
+              .Kills : int
+              .Died : int
+              .Ping : int
+              .HomeBaseId : int
+              .IsPilot : bool
+              .FactionData : FactionData
+              .FactionRole : FactionRole
+              .CurrentStructure : IStructure
+              .DrivingEntity : IEntity
+              .Toolbar : List<ItemStack>
+              .Bag : List<ItemStack>
+              .Teleport(pos) / .Teleport(playfield, pos, rot)
+              .DamageEntity(amount, type)
+      .SpawnEntity(entityType, pos, rot) : int
+      .SpawnPrefab(prefabName, pos) : int
+      .RemoveEntity(entityId)
+      .MoveEntity(entityId, pos)          // not on IPlayfield directly; via ESB handler
+      .IsStructureDeviceLocked(structureId, posInStruct) : bool
+
+  .GUI : IGui
+      .IsWorldVisible : bool
+      .ShowGameMessage(text, prio, duration)
+      .ShowDialog(DialogConfig, handler, customValue)
+
+  .PDA : IPda
+      .Activate(reset)
+      .CreateId(title) : int
+      .CreateWaveAttack(WaveStartData) : uint
+      .GiveReward(RewardData, playerId)
+      .SpawnDropBox(RewardData, dropPosition, dropHeight)
+      .SetMapMarker(activate, position, markerName, distance, playerId)
+      .GetPoiLocation(poiName) : Vector3
+      .GetPoiEntityId(poiName) : int
+      .GetBlockLocation(entityId, blockName, out worldPos) : Vector3
+      .GetBlockName(blockVal) : string
+      .SpawnPrefabAtBlock(poiName, blockName, prefabName, height) : int
+      .SpawnPrefabAtPosition(prefabName, position) : int
+      .SpawnEntityAtPosition(position, className, faction, ...) : int
+      .ShowPdaMessage(message, duration, hasPrio, cleanupFirst, playerId)
+      .ShowPdaDialog(message, ModApiDialogButtons)
+      .ShowPdaChapterBriefing(ChapterData, ...)
+```
+
+---
+
 ## ModApi.dll
 
 ### ModApi.dll - Interfaces

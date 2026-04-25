@@ -1,48 +1,31 @@
-using System;
-using System.Collections.Generic;
 using System.IO;
-using System.Linq;
-using System.Threading.Tasks;
-using System.Windows;
-using AvalonDock.Layout;
 using EDNAClient.Core;
+using EDNAClient.Helpers;
 using EDNAClient.Workspace;
 using ESB.Messaging;
 
-namespace EDNAClient.Skills.ScriptEditor
+namespace EDNAClient.Skills.Scripting.ScriptEditor
 {
-    public class ScriptEditorSkill : IEdnaSkill, IGameContextReceiver
+    public class ScriptEditorSkill : IEdnaSkill, IGameContextReceiver, IDocumentSkill
     {
-        private readonly WorkspaceWindow _workspace;
+        private readonly ISkillWorkspace  _workspace;
+        private readonly DocumentTracker  _docs = new DocumentTracker();
         private string?  _scriptsDir;
         private NavNode? _rootNode;
 
-        private readonly Dictionary<string, LayoutDocument> _openDocs = new();
-
         public string Id => "ScriptEditor";
 
-        public ScriptEditorSkill(WorkspaceWindow workspace)
+        public ScriptEditorSkill(ISkillWorkspace workspace)
         {
             _workspace = workspace;
         }
 
+        // ── IEdnaSkill ────────────────────────────────────────────────────────
+
         public Task StartAsync(IMessenger messenger) => Task.CompletedTask;
 
-        public void Stop()
-        {
-            Application.Current.Dispatcher.Invoke(() =>
-            {
-                if (_rootNode != null)
-                    _workspace.NavViewModel.RemoveRootSection("Scripting");
-                _rootNode = null;
-
-                foreach (var contentId in _openDocs.Keys.ToList())
-                    _workspace.RemoveDocument(contentId);
-                _openDocs.Clear();
-
-                _scriptsDir = null;
-            });
-        }
+        // Full stop: same as OnGameExit since ScriptEditor has no MQTT subscriptions.
+        public void Stop() => OnGameExit();
 
         public void SnapToGameWindow() { }
 
@@ -56,11 +39,42 @@ namespace EDNAClient.Skills.ScriptEditor
                 EdnaLogger.Log($"ScriptEditor GameEnter: scriptsDir={_scriptsDir}");
                 Directory.CreateDirectory(_scriptsDir);
                 EdnaLogger.Log("Scripts directory ready");
-                Application.Current.Dispatcher.Invoke(BuildNavTree);
+                UI.Invoke(BuildNavTree);
             }
             catch (Exception ex)
             {
                 EdnaLogger.Error("ScriptEditor GameEnter failed", ex);
+            }
+        }
+
+        // Closes all open documents and removes the nav section.
+        public void OnGameExit()
+        {
+            UI.Invoke(() =>
+            {
+                if (_rootNode != null)
+                    _workspace.NavViewModel.RemoveRootSection("Scripting");
+                _rootNode   = null;
+                _scriptsDir = null;
+                _docs.CloseAll(_workspace);
+            });
+        }
+
+        // ── IDocumentSkill ────────────────────────────────────────────────────
+
+        public IReadOnlyList<string> GetOpenDocumentIds() => _docs.GetOpenIds();
+
+        // Re-opens script files from a previous session.
+        // contentIds are lowercased file paths (the DocumentTracker key format).
+        public void RestoreDocuments(IReadOnlyList<string> contentIds)
+        {
+            foreach (var contentId in contentIds)
+            {
+                EdnaLogger.Log($"[ScriptEditor] restoring document '{contentId}'");
+                if (File.Exists(contentId))
+                    OpenScript(contentId, Path.GetFileName(contentId));
+                else
+                    EdnaLogger.Warn($"[ScriptEditor] restore: file not found '{contentId}'");
             }
         }
 
@@ -72,18 +86,11 @@ namespace EDNAClient.Skills.ScriptEditor
 
             var dir = _scriptsDir;
             EdnaLogger.Log($"Building nav tree from {dir}");
-            _rootNode = new NavNode
-            {
-                Name       = "Scripting",
-                NodeType   = NavNodeType.ScriptFolder,
-                Tag        = dir,
-                IsExpanded = false,
-                ContextItems = new List<NavMenuItem>
-                {
-                    new NavMenuItem { Header = "New Script", Execute = () => CreateFile(dir) },
-                    new NavMenuItem { Header = "New Folder", Execute = () => CreateFolder(dir) },
-                },
-            };
+            _rootNode = NavBuilder.RootFolderNode(
+                "Scripting", dir,
+                onNewFile:   () => CreateFile(dir),
+                onNewFolder: () => CreateFolder(dir));
+            _rootNode.IsExpanded = false;
 
             PopulateChildren(_rootNode, dir);
             _workspace.NavViewModel.AddRootSection(_rootNode);
@@ -96,43 +103,29 @@ namespace EDNAClient.Skills.ScriptEditor
 
             foreach (var subDir in Directory.GetDirectories(dir).OrderBy(Path.GetFileName))
             {
-                var capturedDir = subDir;
-                var name        = Path.GetFileName(subDir);
-                var folder      = new NavNode
-                {
-                    Name     = name,
-                    NodeType = NavNodeType.ScriptFolder,
-                    Tag      = capturedDir,
-                    ContextItems = new List<NavMenuItem>
-                    {
-                        new NavMenuItem { Header = "New Script", Execute = () => CreateFile(capturedDir) },
-                        new NavMenuItem { Header = "New Folder", Execute = () => CreateFolder(capturedDir) },
-                        NavMenuItem.Separator(),
-                        new NavMenuItem { Header = "Rename",     Execute = () => RenameEntry(capturedDir, isFolder: true) },
-                        new NavMenuItem { Header = "Delete",     Execute = () => DeleteFolder(capturedDir) },
-                    },
-                };
-                PopulateChildren(folder, capturedDir);
+                var d    = subDir;
+                var name = Path.GetFileName(subDir);
+                var folder = NavBuilder.FolderNode(
+                    name, d,
+                    onNewFile:   () => CreateFile(d),
+                    onNewFolder: () => CreateFolder(d),
+                    onRename:    () => RenameEntry(d, isFolder: true),
+                    onDelete:    () => DeleteFolder(d));
+                EdnaLogger.Detail($"[ScriptEditor] folder node: {name}");
+                PopulateChildren(folder, d);
                 parent.Children.Add(folder);
             }
 
             foreach (var file in Directory.GetFiles(dir, "*.lua").OrderBy(Path.GetFileName))
             {
-                var capturedPath = file;
-                var name         = Path.GetFileName(file);
-                var node         = new NavNode
-                {
-                    Name     = name,
-                    NodeType = NavNodeType.ScriptFile,
-                    Tag      = capturedPath,
-                };
-                node.OnSelected  = () => OpenScript(capturedPath, name);
-                node.ContextItems = new List<NavMenuItem>
-                {
-                    new NavMenuItem { Header = "Open",   Execute = () => OpenScript(capturedPath, name) },
-                    new NavMenuItem { Header = "Rename", Execute = () => RenameEntry(capturedPath, isFolder: false) },
-                    new NavMenuItem { Header = "Delete", Execute = () => DeleteFile(capturedPath) },
-                };
+                var f    = file;
+                var name = Path.GetFileName(file);
+                var node = NavBuilder.FileNode(
+                    name, f,
+                    onOpen:   () => OpenScript(f, name),
+                    onRename: () => RenameEntry(f, isFolder: false),
+                    onDelete: () => DeleteFile(f));
+                EdnaLogger.Detail($"[ScriptEditor] file node: {name}");
                 parent.Children.Add(node);
             }
         }
@@ -148,26 +141,19 @@ namespace EDNAClient.Skills.ScriptEditor
         private void OpenScript(string path, string name)
         {
             var contentId = path.ToLowerInvariant();
-
-            if (_openDocs.TryGetValue(contentId, out var existing))
-            {
-                existing.IsActive = true;
-                return;
-            }
+            if (_docs.TryActivate(contentId)) return;
 
             var panel = new ScriptEditorPanel(path, dirty =>
+                UI.Invoke(() => _docs.UpdateTitle(contentId, dirty ? $"*{name}" : name)));
+
+            _docs.Open(_workspace, name, contentId, panel);
+
+            _workspace.SetDocumentMenuItems(contentId, new[]
             {
-                Application.Current.Dispatcher.Invoke(() =>
-                {
-                    if (_openDocs.TryGetValue(contentId, out var doc))
-                        doc.Title = dirty ? $"*{name}" : name;
-                });
+                new DocumentMenuAction { Header = "Save",   Execute = () => UI.Invoke(() => panel.Save()) },
+                new DocumentMenuAction { Header = "Rename", Execute = () => UI.Invoke(() => RenameEntry(path, isFolder: false)) },
+                new DocumentMenuAction { Header = "Delete", Execute = () => UI.Invoke(() => DeleteFile(path)) },
             });
-
-            var newDoc = _workspace.OpenDocument(name, contentId, panel);
-            _openDocs[contentId] = newDoc;
-
-            newDoc.Closed += (_, _) => _openDocs.Remove(contentId);
         }
 
         // ── CRUD ──────────────────────────────────────────────────────────────
@@ -175,7 +161,7 @@ namespace EDNAClient.Skills.ScriptEditor
         private void CreateFile(string dir)
         {
             var dlg = new InputDialog("New Script", "File name (.lua):", "new_script.lua")
-            { Owner = _workspace };
+            { Owner = _workspace.DialogOwner };
             if (dlg.ShowDialog() != true) return;
 
             var name = dlg.Result.Trim();
@@ -189,7 +175,7 @@ namespace EDNAClient.Skills.ScriptEditor
         private void CreateFolder(string dir)
         {
             var dlg = new InputDialog("New Folder", "Folder name:", "scripts")
-            { Owner = _workspace };
+            { Owner = _workspace.DialogOwner };
             if (dlg.ShowDialog() != true) return;
 
             var name = dlg.Result.Trim();
@@ -202,7 +188,7 @@ namespace EDNAClient.Skills.ScriptEditor
         {
             var oldName = Path.GetFileName(path);
             var dlg     = new InputDialog("Rename", "New name:", oldName)
-            { Owner = _workspace };
+            { Owner = _workspace.DialogOwner };
             if (dlg.ShowDialog() != true) return;
 
             var newName = dlg.Result.Trim();
@@ -217,7 +203,7 @@ namespace EDNAClient.Skills.ScriptEditor
             }
             catch (Exception ex)
             {
-                MessageBox.Show(_workspace, ex.Message, "Rename Failed",
+                MessageBox.Show(_workspace.DialogOwner, ex.Message, "Rename Failed",
                     MessageBoxButton.OK, MessageBoxImage.Warning);
             }
         }
@@ -225,14 +211,11 @@ namespace EDNAClient.Skills.ScriptEditor
         private void DeleteFile(string path)
         {
             var name = Path.GetFileName(path);
-            if (MessageBox.Show(_workspace, $"Delete '{name}'?", "Delete Script",
+            if (MessageBox.Show(_workspace.DialogOwner, $"Delete '{name}'?", "Delete Script",
                     MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes)
                 return;
 
-            var contentId = path.ToLowerInvariant();
-            _workspace.RemoveDocument(contentId);
-            _openDocs.Remove(contentId);
-
+            _docs.Remove(_workspace, path.ToLowerInvariant());
             try { File.Delete(path); }
             catch (Exception ex) { EdnaLogger.Warn($"Delete script '{path}' failed: {ex.Message}"); }
             RebuildTree();
@@ -241,7 +224,7 @@ namespace EDNAClient.Skills.ScriptEditor
         private void DeleteFolder(string path)
         {
             var name = Path.GetFileName(path);
-            if (MessageBox.Show(_workspace, $"Delete folder '{name}' and all its contents?", "Delete Folder",
+            if (MessageBox.Show(_workspace.DialogOwner, $"Delete folder '{name}' and all its contents?", "Delete Folder",
                     MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
                 return;
 

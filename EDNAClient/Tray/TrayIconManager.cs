@@ -1,12 +1,7 @@
 using EDNAClient.Core;
 using Microsoft.Win32;
-using System;
-using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Runtime.InteropServices;
-using System.Windows;
-using System.Windows.Forms;
-
 namespace EDNAClient.Tray
 {
     public class TrayIconManager : IDisposable
@@ -36,6 +31,8 @@ namespace EDNAClient.Tray
         private readonly NotifyIcon        _notifyIcon;
         private readonly ContextMenuStrip  _menu;
         private readonly ToolStripMenuItem _statusItem;
+        private readonly ToolStripMenuItem _systemItem;
+        private readonly ToolStripMenuItem _playfieldItem;
         private readonly Action            _openSettings;
         private readonly bool              _dark;
 
@@ -43,6 +40,7 @@ namespace EDNAClient.Tray
         {
             _openSettings = openSettings;
             _dark         = IsSystemDarkMode();
+            EdnaLogger.Log($"TrayIconManager: init dark={_dark}");
 
             _statusItem = new ToolStripMenuItem("EDNA \u2014 Waiting for game") { Enabled = false };
 
@@ -53,8 +51,13 @@ namespace EDNAClient.Tray
             exitItem.Click += (_, _) =>
                 Application.Current.Dispatcher.Invoke(() => Application.Current.Shutdown());
 
+            _systemItem    = new ToolStripMenuItem("") { Enabled = false, Visible = false };
+            _playfieldItem = new ToolStripMenuItem("") { Enabled = false, Visible = false };
+
             _menu = new ContextMenuStrip { ShowImageMargin = false, ShowCheckMargin = false };
             _menu.Items.Add(_statusItem);
+            _menu.Items.Add(_systemItem);
+            _menu.Items.Add(_playfieldItem);
             _menu.Items.Add(new ToolStripSeparator());
             _menu.Items.Add(settingsItem);
             _menu.Items.Add(new ToolStripSeparator());
@@ -96,6 +99,7 @@ namespace EDNAClient.Tray
                 _                      => (TrayOffline,  "EDNA \u2014 Waiting for game"),
             };
 
+            EdnaLogger.Log($"TrayIconManager: state={state} gameRunning={gameRunning}");
             _notifyIcon.Icon = MakeIcon(color);
             _notifyIcon.Text = label;    // 63-char WinForms limit
             SetItemText(_statusItem, label);
@@ -112,6 +116,28 @@ namespace EDNAClient.Tray
         public void OnGameStarted() { }
 
         public void OnGameExited() { }
+
+        public void UpdateLocation(string solarSystem, string playfield)
+        {
+            void Apply()
+            {
+                _systemItem.Text    = $"Current System: {solarSystem}";
+                _playfieldItem.Text = $"Current Playfield: {playfield}";
+                _systemItem.Visible    = true;
+                _playfieldItem.Visible = true;
+            }
+            if (_menu.InvokeRequired) { _menu.Invoke(Apply); } else { Apply(); }
+        }
+
+        public void ClearLocation()
+        {
+            void Apply()
+            {
+                _systemItem.Visible    = false;
+                _playfieldItem.Visible = false;
+            }
+            if (_menu.InvokeRequired) { _menu.Invoke(Apply); } else { Apply(); }
+        }
 
         public void Dispose()
         {

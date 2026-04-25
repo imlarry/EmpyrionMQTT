@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="utf-8"?>
+<SyntaxDefinition name="Lua"
+    xmlns="http://icsharpcode.net/sharpdevelop/syntaxdefinition/2008">
+
+  <Color name="Comment"  foreground="#57A64A" />
+  <Color name="String"   foreground="#D69D85" />
+  <Color name="Number"   foreground="#B5CEA8" />
+  <Color name="Keyword"  foreground="#569CD6" fontWeight="bold" />
+  <Color name="Builtin"  foreground="#DCDCAA" />
+
+  <RuleSet>
+
+    <!-- Multi-line comment must come before single-line to match --[[ correctly -->
+    <Span color="Comment">
+      <Begin>--\[\[</Begin>
+      <End>\]\]</End>
+    </Span>
+
+    <!-- Single-line comment -->
+    <Span color="Comment" begin="--" singleline="true" />
+
+    <!-- Long string [[...]] -->
+    <Span color="String">
+      <Begin>\[\[</Begin>
+      <End>\]\]</End>
+    </Span>
+
+    <!-- Double-quoted string with backslash escapes -->
+    <Span color="String" multiline="false">
+      <Begin>"</Begin>
+      <End>"</End>
+      <RuleSet>
+        <Span begin="\\" singleline="true" />
+      </RuleSet>
+    </Span>
+
+    <!-- Single-quoted string with backslash escapes -->
+    <Span color="String" multiline="false">
+      <Begin>'</Begin>
+      <End>'</End>
+      <RuleSet>
+        <Span begin="\\" singleline="true" />
+      </RuleSet>
+    </Span>
+
+    <!-- Hex and decimal numbers -->
+    <Rule color="Number">
+      \b(0x[\da-fA-F]+|\d+(\.\d+)?([eE][+-]?\d+)?)\b
+    </Rule>
+
+    <Keywords color="Keyword">
+      <Word>and</Word>      <Word>break</Word>    <Word>do</Word>
+      <Word>else</Word>     <Word>elseif</Word>   <Word>end</Word>
+      <Word>false</Word>    <Word>for</Word>      <Word>function</Word>
+      <Word>goto</Word>     <Word>if</Word>       <Word>in</Word>
+      <Word>local</Word>    <Word>nil</Word>       <Word>not</Word>
+      <Word>or</Word>       <Word>repeat</Word>   <Word>return</Word>
+      <Word>then</Word>     <Word>true</Word>     <Word>until</Word>
+      <Word>while</Word>
+    </Keywords>
+
+    <Keywords color="Builtin">
+      <Word>assert</Word>       <Word>collectgarbage</Word>  <Word>dofile</Word>
+      <Word>error</Word>        <Word>getmetatable</Word>    <Word>ipairs</Word>
+      <Word>load</Word>         <Word>loadfile</Word>        <Word>next</Word>
+      <Word>pairs</Word>        <Word>pcall</Word>           <Word>print</Word>
+      <Word>rawequal</Word>     <Word>rawget</Word>          <Word>rawlen</Word>
+      <Word>rawset</Word>       <Word>require</Word>         <Word>select</Word>
+      <Word>setmetatable</Word> <Word>tostring</Word>        <Word>tonumber</Word>
+      <Word>type</Word>         <Word>unpack</Word>          <Word>xpcall</Word>
+    </Keywords>
+
+  </RuleSet>
+</SyntaxDefinition>

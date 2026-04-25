@@ -1,15 +1,12 @@
-using EDNAClient.Scripting.Api;
+using EDNAClient.Core;
+using EDNAClient.Skills.Scripting.Api;
 using ESB.Messaging;
 using MoonSharp.Interpreter;
 using MoonSharp.Interpreter.Loaders;
 using Newtonsoft.Json;
-using System;
-using System.Collections.Generic;
 using System.IO;
-using System.Threading.Tasks;
-using System.Windows;
 
-namespace EDNAClient.Scripting;
+namespace EDNAClient.Skills.Scripting;
 
 /// <summary>
 /// Manages Lua scripts loaded from a directory. Provides:
@@ -58,6 +55,8 @@ public sealed class LuaScriptHost : IDisposable
         _messenger         = messenger;
         _scriptsDirectory  = scriptsDirectory;
 
+        Log($"Starting at '{scriptsDirectory}'");
+
         // Configure require() paths for all Script instances:
         //   1. scripts/ — game-specific scripts and user-provided overrides of library modules
         //   2. {AppBase}/scripts/ — library modules shipped with EDNA (scripts.bt, scripts.drone, …)
@@ -78,11 +77,13 @@ public sealed class LuaScriptHost : IDisposable
         Directory.CreateDirectory(_scriptsDirectory);
         LoadAll();
         StartWatcher();
+        Log($"Started ({_engines.Count} scripts loaded)");
         return Task.CompletedTask;
     }
 
     public void Stop()
     {
+        Log($"Stopping ({_engines.Count} scripts)");
         _watcher?.Dispose();
         _watcher = null;
 
@@ -99,6 +100,7 @@ public sealed class LuaScriptHost : IDisposable
         foreach (var engine in _engines.Values)
             Log($"Stopped: {engine.Name}");
         _engines.Clear();
+        _messenger = null;
     }
 
     public void Dispose() => Stop();
@@ -113,9 +115,7 @@ public sealed class LuaScriptHost : IDisposable
     /// </summary>
     public void Broadcast(string functionName, params object[] args)
     {
-#if DEBUG
-        PublishInfo("LuaScriptHost.Broadcast", $"{{\"Function\":\"{functionName}\",\"Scripts\":{JsonConvert.SerializeObject(_engines.Keys)}}}");
-#endif
+        EdnaLogger.Detail($"[LuaScriptHost] Broadcast '{functionName}' to {_engines.Count} scripts");
         foreach (var engine in _engines.Values)
         {
             try   { engine.CallFunction(functionName, args); }
@@ -225,9 +225,7 @@ public sealed class LuaScriptHost : IDisposable
             engine.ExecuteFile(path);
             _engines[name] = engine;
             Log($"Loaded: {name}");
-#if DEBUG
-            PublishInfo("LuaScriptHost.Loaded", $"{{\"Script\":\"{name}\"}}");
-#endif
+            EdnaLogger.Detail($"[LuaScriptHost] script globals set: {name}");
         }
         catch (SyntaxErrorException ex)
         {
@@ -287,12 +285,15 @@ public sealed class LuaScriptHost : IDisposable
 
     // ── Logging ────────────────────────────────────────────────────────────
 
-    private static void Log(string msg) =>
-        System.Diagnostics.Debug.WriteLine($"[LuaScriptHost] {msg}");
+    private static void Log(string msg) => EdnaLogger.Log($"[LuaScriptHost] {msg}");
 
     private void PublishInfo(string subjectId, string payload)
     {
-        if (_messenger == null) return;
+        if (_messenger == null)
+        {
+            EdnaLogger.Detail($"[LuaScriptHost] PublishInfo skipped (no messenger): {subjectId}");
+            return;
+        }
         _ = _messenger.SendAsync(ESB.Messaging.MessageClass.Information, subjectId, payload);
     }
 }

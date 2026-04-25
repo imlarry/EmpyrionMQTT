@@ -1,8 +1,10 @@
-using System.Threading;
 using System.Windows;
 using WinFormsApp = System.Windows.Forms.Application;
+using EDNAClient.Configuration;
 using EDNAClient.Core;
 using EDNAClient.Skills.FloorMap;
+using EDNAClient.Skills.Scripting.ScriptEditor;
+using EDNAClient.Skills.GalaxyMap;
 using EDNAClient.Skills.ThreatRadar;
 using EDNAClient.Tray;
 using EDNAClient.Settings;
@@ -29,6 +31,9 @@ namespace EDNAClient
 
             base.OnStartup(e);
 
+            EdnaLogger.Init(WellKnownPaths.LogsDirectory);
+            EdnaLogger.Log("EDNA starting");
+
             // WPF apps must opt out of automatic shutdown when the last window closes,
             // since EDNA runs as a tray-only app until the game is detected.
             ShutdownMode = ShutdownMode.OnExplicitShutdown;
@@ -39,12 +44,10 @@ namespace EDNAClient
             var settings   = EdnaSettings.Load();
             _workspace     = new WorkspaceWindow(settings);
 
-            var threatRadar = new ThreatRadarSkill(new ThreatViewModel());
-            var floorMap    = new FloorMapSkill(new FloorMapViewModel(), _workspace);
-
-            // Register dockable skills so WorkspaceWindow can re-attach panels
-            // during layout deserialization (the LayoutSerializationCallback).
-            _workspace.RegisterSkills(new IDockableSkill[] { floorMap });
+            var threatRadar  = new ThreatRadarSkill(new ThreatViewModel());
+            var floorMap     = new FloorMapSkill(_workspace);
+            var scriptEditor = new ScriptEditorSkill(_workspace);
+            var galaxyMap    = new GalaxyMapSkill(_workspace);
 
             _tray = new TrayIconManager(() =>
             {
@@ -53,20 +56,23 @@ namespace EDNAClient
             });
 
             _service = new EdnaService(
-                skills:   new IEdnaSkill[] { threatRadar, floorMap },
-                tray:     _tray,
-                settings: settings);
+                skills:     new IEdnaSkill[] { threatRadar, floorMap, scriptEditor, galaxyMap },
+                tray:       _tray,
+                settings:   settings,
+                workspace:  _workspace);
             _service.Start();
         }
 
         protected override async void OnExit(ExitEventArgs e)
         {
+            EdnaLogger.Log("EDNA stopping");
             if (_service != null)
                 await _service.StopAsync();
             _workspace?.ForceClose();
             _tray?.Dispose();
             _instanceMutex?.ReleaseMutex();
             _instanceMutex?.Dispose();
+            EdnaLogger.Close();
             base.OnExit(e);
         }
     }

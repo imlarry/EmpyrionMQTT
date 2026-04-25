@@ -11,6 +11,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <EmbeddedResource Include="Skills\Scripting\ScriptEditor\lua.xshd" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Content Include="Resources\edna.ico" />
     <!-- EDNA_Info.yaml is read/written from AppDomain.BaseDirectory at runtime -->
     <None Include="Configuration\EDNA_Info.yaml">
@@ -22,14 +26,15 @@
   <ItemGroup>
     <!-- Lua library modules shipped with EDNA. Copied to {OutputDir}/scripts/.
          Scripts access them via require("scripts.bt"), require("scripts.drone"), etc. -->
-    <Content Include="Scripting\scripts\*.lua">
+    <Content Include="Skills\Scripting\scripts\*.lua">
       <Link>scripts\%(Filename)%(Extension)</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>
 
   <ItemGroup>
-<PackageReference Include="Dirkster.AvalonDock" Version="4.72.1" />
+<PackageReference Include="AvalonEdit" Version="6.3.0.90" />
+    <PackageReference Include="Dirkster.AvalonDock" Version="4.72.1" />
     <PackageReference Include="Dirkster.AvalonDock.Themes.VS2013" Version="4.72.1" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
     <PackageReference Include="Microsoft.Data.Sqlite" Version="8.0.0" />

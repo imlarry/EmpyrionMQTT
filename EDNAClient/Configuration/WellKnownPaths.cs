@@ -21,9 +21,13 @@ namespace EDNAClient.Configuration
         public static readonly string EdnaInfoFile = Path.Combine(
             AppDomain.CurrentDomain.BaseDirectory, "EDNA_Info.yaml");
 
-        // workspace_layout.xml -- AvalonDock layout; written by WorkspaceWindow on close
-        public static readonly string WorkspaceLayoutFile = Path.Combine(
-            AppDomain.CurrentDomain.BaseDirectory, "workspace_layout.xml");
+        // workspace_state.json -- UI state written by WorkspaceWindow; never overwritten by build
+        public static readonly string WorkspaceStateFile = Path.Combine(
+            AppDomain.CurrentDomain.BaseDirectory, "workspace_state.json");
+
+        // logs/ -- one log file per EDNA launch
+        public static readonly string LogsDirectory = Path.Combine(
+            AppDomain.CurrentDomain.BaseDirectory, "logs");
 
         private static readonly IDeserializer Deserializer = new DeserializerBuilder()
             .WithNamingConvention(PascalCaseNamingConvention.Instance)
@@ -47,7 +51,11 @@ namespace EDNAClient.Configuration
                 var yaml = File.ReadAllText(path);
                 return Deserializer.Deserialize<T>(yaml);
             }
-            catch { return null; }
+            catch (Exception ex)
+            {
+                EDNAClient.Core.EdnaLogger.Warn($"LoadInfo<{typeof(T).Name}> failed for '{path}': {ex.Message}");
+                return null;
+            }
         }
 
         /// <summary>Serialize obj to YAML and write to path (creates parent dirs as needed).</summary>
@@ -59,7 +67,10 @@ namespace EDNAClient.Configuration
                 if (dir != null) Directory.CreateDirectory(dir);
                 File.WriteAllText(path, Serializer.Serialize(obj));
             }
-            catch { }
+            catch (Exception ex)
+            {
+                EDNAClient.Core.EdnaLogger.Warn($"SaveInfo failed for '{path}': {ex.Message}");
+            }
         }
     }
 }

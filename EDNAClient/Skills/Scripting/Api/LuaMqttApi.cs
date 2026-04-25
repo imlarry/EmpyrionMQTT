@@ -1,9 +1,9 @@
+using EDNAClient.Core;
 using ESB.Messaging;
 using MoonSharp.Interpreter;
 using Newtonsoft.Json;
-using System.Windows;
 
-namespace EDNAClient.Scripting.Api
+namespace EDNAClient.Skills.Scripting.Api
 {
     /// <summary>
     /// Exposes MQTT messaging to Lua scripts as the 'mqtt' global.
@@ -34,11 +34,17 @@ namespace EDNAClient.Scripting.Api
 
         /// <summary>Publish an event message. Topic should be a fully-formed 5-segment topic.</summary>
         public void publish(string topic, string payload)
-            => _ = _messenger.SendAsync(MessageClass.Event, topic, payload);
+        {
+            EdnaLogger.Detail($"[{_engine.Name}] mqtt.publish {topic}");
+            _ = _messenger.SendAsync(MessageClass.Event, topic, payload);
+        }
 
         /// <summary>Publish a request message. Topic should be a fully-formed 5-segment topic.</summary>
         public void request(string topic, string payload)
-            => _ = _messenger.SendAsync(MessageClass.Request, topic, payload);
+        {
+            EdnaLogger.Detail($"[{_engine.Name}] mqtt.request {topic}");
+            _ = _messenger.SendAsync(MessageClass.Request, topic, payload);
+        }
 
         /// <summary>
         /// Subscribe to a topic filter. The callback fires on the WPF dispatcher thread,
@@ -51,6 +57,7 @@ namespace EDNAClient.Scripting.Api
         /// </summary>
         public void subscribe(string topicFilter, DynValue handler)
         {
+            EdnaLogger.Detail($"[{_engine.Name}] mqtt.subscribe {topicFilter}");
             var task = _messenger.SubscribeEventAsync(topicFilter, (topic, payload) =>
             {
 #if DEBUG

@@ -1,9 +1,7 @@
+using EDNAClient.Core;
 using MoonSharp.Interpreter;
-using System.Collections.Generic;
-using System.Diagnostics;
-using System.Linq;
 
-namespace EDNAClient.Scripting;
+namespace EDNAClient.Skills.Scripting;
 
 /// <summary>
 /// Shared in-process key-value store with reactive watchers.
@@ -69,8 +67,7 @@ internal sealed class LuaBlackboard
             try   { engine.CallFunction(fn, value); }
             catch (ScriptRuntimeException ex)
             {
-                Debug.WriteLine(
-                    $"[Blackboard] Watcher error for key '{key}': {ex.DecoratedMessage}");
+                EdnaLogger.Error($"[Blackboard] Watcher error for key '{key}': {ex.DecoratedMessage}");
                 OnWatcherError?.Invoke(key, engine.Name, ex.DecoratedMessage);
             }
         }

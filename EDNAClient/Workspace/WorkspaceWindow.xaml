@@ -2,12 +2,20 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:ad="https://github.com/Dirkster99/AvalonDock"
+        xmlns:adl="https://github.com/Dirkster99/AvalonDock/Layout"
         Title="EDNA Workspace"
         Width="900" Height="640"
         MinWidth="480" MinHeight="320"
         WindowStyle="SingleBorderWindow"
         ResizeMode="CanResizeWithGrip"
         ShowInTaskbar="True">
+
+    <Window.Resources>
+        <!-- Layout picker dropdown: renders each open document by title -->
+        <DataTemplate x:Key="DocPickerItemTemplate">
+            <TextBlock Text="{Binding Title}" Padding="4,2,12,2" Foreground="#D4D4D4"/>
+        </DataTemplate>
+    </Window.Resources>
 
     <Grid>
         <Grid.RowDefinitions>

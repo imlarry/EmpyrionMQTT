@@ -1,9 +1,9 @@
+using EDNAClient.Core;
 using ESB.Messaging;
 using MoonSharp.Interpreter;
 using Newtonsoft.Json;
-using System.Diagnostics;
 
-namespace EDNAClient.Scripting.Api
+namespace EDNAClient.Skills.Scripting.Api
 {
     /// <summary>
     /// Exposes structured logging to Lua scripts as the 'log' global.
@@ -29,17 +29,17 @@ namespace EDNAClient.Scripting.Api
         }
 
         public void info(string message)
-            => Debug.WriteLine($"[Lua:{_scriptName}] INFO  {message}");
+            => EdnaLogger.Log($"[Lua:{_scriptName}] {message}");
 
         public void warn(string message)
         {
-            Debug.WriteLine($"[Lua:{_scriptName}] WARN  {message}");
+            EdnaLogger.Warn($"[Lua:{_scriptName}] {message}");
             Publish("LuaLog.Warn", message);
         }
 
         public void error(string message)
         {
-            Debug.WriteLine($"[Lua:{_scriptName}] ERROR {message}");
+            EdnaLogger.Error($"[Lua:{_scriptName}] {message}");
             Publish("LuaLog.Error", message);
         }
 

@@ -49,6 +49,11 @@ namespace EDNAClient.Core
             _hookLocation = SetWinEventHook(
                 EVENT_OBJECT_LOCATIONCHANGE, EVENT_OBJECT_LOCATIONCHANGE,
                 IntPtr.Zero, _callback, pid, 0, WINEVENT_OUTOFCONTEXT);
+
+            if (_hookMoveSize == IntPtr.Zero || _hookLocation == IntPtr.Zero)
+                EdnaLogger.Warn($"GameWindowEventHook: one or more hooks failed to install (pid={pid})");
+            else
+                EdnaLogger.Log($"GameWindowEventHook: installed for pid={pid}");
         }
 
         private void OnWinEvent(IntPtr hWinEventHook, uint eventType,
@@ -65,6 +70,7 @@ namespace EDNAClient.Core
         {
             if (_hookMoveSize != IntPtr.Zero) { UnhookWinEvent(_hookMoveSize); _hookMoveSize = IntPtr.Zero; }
             if (_hookLocation != IntPtr.Zero) { UnhookWinEvent(_hookLocation); _hookLocation = IntPtr.Zero; }
+            EdnaLogger.Log("GameWindowEventHook: uninstalled");
         }
     }
 }

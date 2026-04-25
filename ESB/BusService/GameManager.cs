@@ -18,6 +18,7 @@ namespace ESB
         public string SaveGamePath { get; private set; }
         public string GameMode { get; private set; }
         public Dictionary<int, string> BlockAndItemMapping { get; private set; }
+        public IPlayfield CurrentPlayfield { get; set; }
 
         public GameManager(ContextData context)
         {

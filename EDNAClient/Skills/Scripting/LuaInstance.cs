@@ -1,7 +1,7 @@
+using EDNAClient.Core;
 using MoonSharp.Interpreter;
-using System.Diagnostics;
 
-namespace EDNAClient.Scripting;
+namespace EDNAClient.Skills.Scripting;
 
 /// <summary>
 /// A Lua object instance created by calling a factory function in a loaded script.
@@ -57,8 +57,7 @@ public sealed class LuaInstance
         try   { return _engine.CallFunction(fn, args); }
         catch (ScriptRuntimeException ex)
         {
-            Debug.WriteLine(
-                $"[LuaInstance:{ScriptName}/{InstanceId}] '{method}' error: {ex.DecoratedMessage}");
+            EdnaLogger.Error($"[LuaInstance:{ScriptName}/{InstanceId}] '{method}' error: {ex.DecoratedMessage}");
             return null;
         }
     }

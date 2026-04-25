@@ -1,12 +1,11 @@
-using System;
-using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 
 namespace EDNAClient.Workspace
 {
-    public enum NavNodeType { Galaxy, System, Planet, Structure, Floor, ScriptFolder, ScriptFile }
+    public enum NavNodeType { Galaxy, GalaxyFilter, System, Planet, Structure, Floor, ScriptFolder, ScriptFile,
+                              MapRoot, MapSolarSystem, MapPlayfield, MapEntity, MapFloor }
 
     public class NavMenuItem
     {
@@ -52,16 +51,6 @@ namespace EDNAClient.Workspace
     {
         public ObservableCollection<NavNode> RootNodes { get; } = new();
 
-        public NavigationViewModel()
-        {
-            RootNodes.Add(new NavNode
-            {
-                Name       = "Galaxy",
-                NodeType   = NavNodeType.Galaxy,
-                IsExpanded = false,
-            });
-        }
-
         public void AddRootSection(NavNode node)
         {
             RemoveRootSection(node.Name);
@@ -73,6 +62,37 @@ namespace EDNAClient.Workspace
             for (int i = RootNodes.Count - 1; i >= 0; i--)
                 if (RootNodes[i].Name == name)
                     RootNodes.RemoveAt(i);
+        }
+
+        // Returns "Root/Child/GrandChild" paths for every currently-expanded node.
+        public List<string> CollectExpandedPaths()
+        {
+            var result = new List<string>();
+            foreach (var root in RootNodes)
+                CollectExpanded(root, root.Name, result);
+            return result;
+        }
+
+        // Walks the current tree and expands any node whose path is in the saved set.
+        public void ApplyExpandedPaths(IEnumerable<string> paths)
+        {
+            var set = new HashSet<string>(paths, StringComparer.Ordinal);
+            foreach (var root in RootNodes)
+                ApplyExpanded(root, root.Name, set);
+        }
+
+        private static void CollectExpanded(NavNode node, string path, List<string> result)
+        {
+            if (node.IsExpanded) result.Add(path);
+            foreach (var child in node.Children)
+                CollectExpanded(child, path + "/" + child.Name, result);
+        }
+
+        private static void ApplyExpanded(NavNode node, string path, HashSet<string> expanded)
+        {
+            node.IsExpanded = expanded.Contains(path);
+            foreach (var child in node.Children)
+                ApplyExpanded(child, path + "/" + child.Name, expanded);
         }
 
         /// <summary>

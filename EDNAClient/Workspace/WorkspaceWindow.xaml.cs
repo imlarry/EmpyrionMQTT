@@ -1,25 +1,34 @@
+using AvalonDock.Controls;
 using AvalonDock.Layout;
 using AvalonDock.Layout.Serialization;
+using EDNAClient.Configuration;
 using EDNAClient.Core;
-using System;
-using System.Collections.Generic;
+using EDNAClient.Helpers;
+using System.Collections.Specialized;
 using System.ComponentModel;
 using System.IO;
-using System.Linq;
 using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Media;
 using System.Xml.Linq;
 
 namespace EDNAClient.Workspace
 {
-    public partial class WorkspaceWindow : Window
+    public partial class WorkspaceWindow : Window, ISkillWorkspace
     {
+        public Window DialogOwner => this;
+
         private readonly EdnaSettings         _settings;
         private readonly NavigationViewModel  _navViewModel;
         private readonly List<IDockableSkill> _registeredSkills = new();
+        private readonly List<IDocumentSkill> _documentSkills   = new();
+
+        private readonly Dictionary<string, List<DocumentMenuAction>> _documentMenuItems = new();
+        private string? _activeContentId;
+
+        private WorkspaceState _state;
 
         // Live references into the active layout tree.
-        // Initialized from the XAML x:Name bindings; re-pointed after each deserialization
-        // because XmlLayoutSerializer replaces the entire layout tree.
         private LayoutAnchorable   _navPane;
         private LayoutDocumentPane _mapPane;
 
@@ -34,25 +43,56 @@ namespace EDNAClient.Workspace
 
             InitializeComponent();
             ApplyTheme();
+            SetupDocumentMenus();
 
             _navPane = NavPane;
             _mapPane = MapPane;
 
-            if (_settings.WorkspaceBounds is { } bounds)
-            {
-                Left   = bounds.Left;
-                Top    = bounds.Top;
-                Width  = bounds.Width;
-                Height = bounds.Height;
-            }
+            _state = WorkspaceState.Load(WellKnownPaths.WorkspaceStateFile);
+            _state.ApplyBounds(this);
 
             var navView = new NavigationView(_navViewModel);
             _navPane.Content = navView;
 
             RestoreLayout(navView);
 
+            // Re-apply expansion state whenever a new root section is added by a skill.
+            _navViewModel.RootNodes.CollectionChanged += OnNavRootsChanged;
+
             _closingHandler = (s, e) => { e.Cancel = true; SaveAndHide(); };
             Closing += _closingHandler;
+        }
+
+        private void OnNavRootsChanged(object? sender, NotifyCollectionChangedEventArgs e)
+        {
+            if (e.Action == NotifyCollectionChangedAction.Add && _state.ExpandedNav.Count > 0)
+            {
+                EdnaLogger.Log($"[Workspace] nav section added -- applying {_state.ExpandedNav.Count} saved expansion paths");
+                _navViewModel.ApplyExpandedPaths(_state.ExpandedNav);
+            }
+        }
+
+        // ── Document skill registry ───────────────────────────────────────────
+
+        // Skills with documents register so SaveAndHide can query them.
+        public void RegisterDocumentSkill(IDocumentSkill skill)
+        {
+            if (!_documentSkills.Contains(skill))
+                _documentSkills.Add(skill);
+        }
+
+        public void UnregisterDocumentSkill(IDocumentSkill skill) =>
+            _documentSkills.Remove(skill);
+
+        // Returns the saved document IDs for a given skill (from last session).
+        public IReadOnlyList<string> GetSavedDocuments(string skillId)
+        {
+            if (_state.OpenDocuments.TryGetValue(skillId, out var list) && list.Count > 0)
+            {
+                EdnaLogger.Log($"[Workspace] {list.Count} saved doc IDs for '{skillId}'");
+                return list;
+            }
+            return Array.Empty<string>();
         }
 
         // ── Theme ────────────────────────────────────────────────────────────
@@ -68,6 +108,88 @@ namespace EDNAClient.Workspace
                     DockManager.Theme = theme;
             }
             catch (Exception ex) { EdnaLogger.Warn($"ApplyTheme failed: {ex.Message}"); }
+        }
+
+        // ── Document menus ────────────────────────────────────────────────────
+
+        public void SetDocumentMenuItems(string contentId, IEnumerable<DocumentMenuAction> items)
+        {
+            _documentMenuItems[contentId] = items.ToList();
+        }
+
+        private void SetupDocumentMenus()
+        {
+            DockManager.ActiveContentChanged += (s, e) =>
+            {
+                var doc = DockManager.Layout.Descendents()
+                    .OfType<LayoutDocument>()
+                    .FirstOrDefault(d => d.IsActive);
+                if (doc != null)
+                    _activeContentId = doc.ContentId;
+            };
+
+            var menu = new ContextMenu();
+            menu.Opened += OnDocumentContextMenuOpened;
+            DockManager.DocumentContextMenu = menu;
+
+            DockManager.DocumentPaneMenuItemHeaderTemplate =
+                (DataTemplate)Resources["DocPickerItemTemplate"];
+        }
+
+        // Walks the visual (then logical) tree from a starting element to find
+        // an ancestor of the given type.
+        private static T? FindAncestor<T>(DependencyObject start) where T : DependencyObject
+        {
+            var current = start;
+            while (current != null)
+            {
+                if (current is T match) return match;
+                current = VisualTreeHelper.GetParent(current)
+                       ?? LogicalTreeHelper.GetParent(current) as DependencyObject;
+            }
+            return null;
+        }
+
+        private void OnDocumentContextMenuOpened(object sender, RoutedEventArgs e)
+        {
+            var menu = (ContextMenu)sender;
+            menu.Items.Clear();
+
+            // Prefer the tab that was right-clicked over the keyboard-active document.
+            string? contentId = null;
+            if (menu.PlacementTarget is DependencyObject target)
+            {
+                var tabItem = FindAncestor<LayoutDocumentTabItem>(target);
+                contentId = (tabItem?.Model as LayoutDocument)?.ContentId;
+            }
+            contentId = contentId ?? _activeContentId;
+
+            // Skill-provided file-operation items at the top.
+            if (contentId != null &&
+                _documentMenuItems.TryGetValue(contentId, out var skillItems) &&
+                skillItems.Count > 0)
+            {
+                foreach (var action in skillItems)
+                    menu.Items.Add(new MenuItem
+                    {
+                        Header  = action.Header,
+                        Command = new SimpleCommand(action.Execute),
+                    });
+                menu.Items.Add(new Separator());
+            }
+
+            // Standard AvalonDock layout items.
+            var doc        = DockManager.Layout.Descendents()
+                                 .OfType<LayoutDocument>()
+                                 .FirstOrDefault(d => d.ContentId == contentId);
+            var layoutItem = doc != null ? DockManager.GetLayoutItemFromModel(doc) : null;
+
+            menu.Items.Add(new MenuItem { Header = "Float",                   Command = layoutItem?.FloatCommand });
+            menu.Items.Add(new MenuItem { Header = "Dock as Tabbed Document", Command = layoutItem?.DockAsDocumentCommand });
+            menu.Items.Add(new Separator());
+            menu.Items.Add(new MenuItem { Header = "Close",                   Command = layoutItem?.CloseCommand });
+            menu.Items.Add(new MenuItem { Header = "Close All But This",      Command = layoutItem?.CloseAllButThisCommand });
+            menu.Items.Add(new MenuItem { Header = "Close All",               Command = layoutItem?.CloseAllCommand });
         }
 
         // ── Skill tab management ──────────────────────────────────────────────
@@ -137,13 +259,14 @@ namespace EDNAClient.Workspace
 
         public LayoutDocument OpenDocument(string title, string contentId, UIElement content)
         {
-            foreach (var child in _mapPane.Children)
+            // Reactivate if already open anywhere in the layout (docked or floating).
+            var existing = DockManager.Layout.Descendents()
+                .OfType<LayoutDocument>()
+                .FirstOrDefault(d => d.ContentId == contentId);
+            if (existing != null)
             {
-                if (child is LayoutDocument ld && ld.ContentId == contentId)
-                {
-                    ld.IsActive = true;
-                    return ld;
-                }
+                existing.IsActive = true;
+                return existing;
             }
 
             var doc = new LayoutDocument
@@ -155,31 +278,41 @@ namespace EDNAClient.Workspace
             };
             _mapPane.Children.Add(doc);
             doc.IsActive = true;
+            EdnaLogger.Log($"[Workspace] opened document '{contentId}'");
             return doc;
         }
 
+        // Force-removes a document from anywhere in the layout (docked or floating)
+        // without triggering the Closing event. Used by skill cleanup paths.
         public void RemoveDocument(string contentId)
         {
-            for (int i = _mapPane.Children.Count - 1; i >= 0; i--)
+            var doc = DockManager.Layout.Descendents()
+                .OfType<LayoutDocument>()
+                .FirstOrDefault(d => d.ContentId == contentId);
+
+            if (doc?.Parent is ILayoutContainer parent)
             {
-                if (_mapPane.Children[i] is LayoutDocument ld && ld.ContentId == contentId)
-                {
-                    _mapPane.Children.RemoveAt(i);
-                    break;
-                }
+                parent.RemoveChild(doc);
+                EdnaLogger.Log($"[Workspace] removed document '{contentId}'");
             }
+            _documentMenuItems.Remove(contentId);
         }
 
         // ── Persistence ───────────────────────────────────────────────────────
 
         private void RestoreLayout(NavigationView navView)
         {
-            if (_settings.WorkspaceLayout == null) return;
+            if (_state.LayoutXml == null)
+            {
+                EdnaLogger.Log("[Workspace] no saved layout -- using default XAML layout");
+                return;
+            }
+
             try
             {
-                var xdoc = XDocument.Parse(_settings.WorkspaceLayout);
+                EdnaLogger.Log("[Workspace] restoring dock layout from saved state");
+                var xdoc = XDocument.Parse(_state.LayoutXml);
 
-                // Locate the Navigator element anywhere in the document.
                 var navEl = xdoc.Descendants("LayoutAnchorable")
                     .FirstOrDefault(el =>
                         el.Attribute("ContentId")?.Value == "Navigator" ||
@@ -187,14 +320,11 @@ namespace EDNAClient.Workspace
 
                 if (navEl == null)
                 {
-                    EdnaLogger.Warn("Saved layout missing Navigator -- discarding.");
-                    _settings.WorkspaceLayout = null;
+                    EdnaLogger.Warn("[Workspace] saved layout missing Navigator -- discarding");
+                    _state.LayoutXml = null;
                     return;
                 }
 
-                // If it landed in <Hidden> (auto-hide rail), move it back to its previous
-                // pane in the XML before deserializing -- fixing the data rather than
-                // fighting AvalonDock runtime state after the fact.
                 if (navEl.Parent?.Name.LocalName == "Hidden")
                 {
                     var prevId = navEl.Attribute("PreviousContainerId")?.Value;
@@ -204,11 +334,17 @@ namespace EDNAClient.Workspace
                     {
                         navEl.Remove();
                         target.AddFirst(navEl);
+                        EdnaLogger.Log("[Workspace] moved Navigator out of Hidden back into its pane");
                     }
                 }
 
-                // Strip saved document tabs -- documents are recreated on demand by their skills.
+                // Strip all document content -- floating window shells and docked tabs.
+                // Documents are recreated on demand by RestoreDocuments after each GameEnter.
+                int removedFloating = xdoc.Descendants("LayoutDocumentFloatingWindow").Count();
+                xdoc.Descendants("LayoutDocumentFloatingWindow").Remove();
+                int removedDocked = xdoc.Descendants("LayoutDocument").Count();
                 xdoc.Descendants("LayoutDocument").Remove();
+                EdnaLogger.Log($"[Workspace] stripped {removedDocked} docked + {removedFloating} floating document entries from saved layout");
 
                 var serializer = new XmlLayoutSerializer(DockManager);
                 serializer.LayoutSerializationCallback += (s, e) =>
@@ -223,7 +359,6 @@ namespace EDNAClient.Workspace
                 using (var sr = new StringReader(xdoc.ToString()))
                     serializer.Deserialize(sr);
 
-                // Deserialization replaced the layout tree -- re-point our references.
                 _navPane = DockManager.Layout.Descendents()
                                .OfType<LayoutAnchorable>()
                                .FirstOrDefault(a => a.ContentId == "Navigator") ?? _navPane;
@@ -232,31 +367,52 @@ namespace EDNAClient.Workspace
                                .OfType<LayoutDocumentPane>()
                                .FirstOrDefault() ?? _mapPane;
 
-                // Safety net: guarantee the Navigator always has content.
                 if (_navPane.Content == null)
                     _navPane.Content = navView;
+
+                EdnaLogger.Log("[Workspace] dock layout restored successfully");
             }
             catch (Exception ex)
             {
-                EdnaLogger.Warn($"Layout restore failed: {ex.Message}");
-                _settings.WorkspaceLayout = null;
+                EdnaLogger.Warn($"[Workspace] layout restore failed: {ex.Message}");
+                _state.LayoutXml = null;
             }
         }
 
+        // Captures full workspace state and saves to disk, then hides the window.
+        // Must be called while skills are still alive (nav/docs still present).
         internal void SaveAndHide()
         {
-            _settings.WorkspaceBounds = new Rect(Left, Top, Width, Height);
+            _state.CaptureBounds(this);
+
+            // Collect open document IDs from registered skills.
+            _state.OpenDocuments = new Dictionary<string, List<string>>();
+            foreach (var skill in _documentSkills)
+            {
+                var ids = skill.GetOpenDocumentIds();
+                if (ids.Count > 0)
+                    _state.OpenDocuments[skill.Id] = ids.ToList();
+            }
+
+            // Collect nav expansion state while sections are still present.
+            _state.ExpandedNav = _navViewModel.CollectExpandedPaths();
+
+            EdnaLogger.Log($"[Workspace] saving state: bounds={_state.Left:F0},{_state.Top:F0} docs={_state.OpenDocuments.Values.Sum(v => v.Count)} navPaths={_state.ExpandedNav.Count}");
 
             try
             {
                 var serializer = new XmlLayoutSerializer(DockManager);
                 using var sw = new StringWriter();
                 serializer.Serialize(sw);
-                _settings.WorkspaceLayout = sw.ToString();
+                _state.LayoutXml = sw.ToString();
+                EdnaLogger.Log("[Workspace] dock layout serialized");
             }
-            catch (Exception ex) { EdnaLogger.Warn($"Layout save failed: {ex.Message}"); }
+            catch (Exception ex)
+            {
+                EdnaLogger.Warn($"[Workspace] layout serialize failed: {ex.Message}");
+            }
 
-            _settings.Save();
+            _state.Save(WellKnownPaths.WorkspaceStateFile);
             Hide();
         }
 
