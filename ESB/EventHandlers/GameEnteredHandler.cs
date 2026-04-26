@@ -20,13 +20,16 @@ namespace ESB
                     new JProperty("GameDataPath", _ctx.GameManager.GameDataPath),
                     new JProperty("SaveGamePath", _ctx.GameManager.SaveGamePath),
                     new JProperty("GameMode", _ctx.GameManager.GameMode));
+                string enteredJson = json.ToString(Newtonsoft.Json.Formatting.None);
                 if (hasEntered)
                 {
-                    await _ctx.Messenger.SendAsync(MessageClass.Event, "Application.GameEnter", json.ToString(Newtonsoft.Json.Formatting.None));
+                    await _ctx.Messenger.SendAsync(MessageClass.Event, "Application.GameEnter", enteredJson);
+                    await EmitEmpEventAsync("App", "GameEnter", enteredJson);
                 }
                 else
                 {
-                    await _ctx.Messenger.SendAsync(MessageClass.Event, "Application.GameExit", json.ToString(Newtonsoft.Json.Formatting.None));
+                    await _ctx.Messenger.SendAsync(MessageClass.Event, "Application.GameExit", enteredJson);
+                    await EmitEmpEventAsync("App", "GameExit", enteredJson);
                 }
             });
         }

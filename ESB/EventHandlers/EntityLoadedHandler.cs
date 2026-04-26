@@ -35,10 +35,11 @@ namespace ESB
                     new JProperty("IsPoi", entity.IsPoi),
                     new JProperty("BelongsTo", entity.BelongsTo),
                     new JProperty("DockedTo", entity.DockedTo),
-                    new JProperty("Type", entity.Type.ToString()),
-                    new JProperty("Structure", null)
+                    new JProperty("Type", entity.Type.ToString())
                 );
-                await _ctx.Messenger.SendAsync(MessageClass.Event, "Playfield.EntityLoaded", json.ToString(Newtonsoft.Json.Formatting.None));
+                string loadedJson = json.ToString(Newtonsoft.Json.Formatting.None);
+                await _ctx.Messenger.SendAsync(MessageClass.Event, "Playfield.EntityLoaded", loadedJson);
+                await EmitEmpEventAsync("Playfield", "EntityLoaded", loadedJson);
             });
         }
     }

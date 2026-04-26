@@ -53,7 +53,9 @@ namespace ESB
                 new JProperty("IsPvP", playfield.IsPvP)
                 );
 
-                await _ctx.Messenger.SendAsync(MessageClass.Event, "Application.OnPlayfieldLoaded", json.ToString(Newtonsoft.Json.Formatting.None));
+                string pfLoadedJson = json.ToString(Newtonsoft.Json.Formatting.None);
+                await _ctx.Messenger.SendAsync(MessageClass.Event, "Application.OnPlayfieldLoaded", pfLoadedJson);
+                await EmitEmpEventAsync("Playfield", "Loaded", pfLoadedJson);
             });
         }
     }

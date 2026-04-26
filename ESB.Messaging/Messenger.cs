@@ -23,7 +23,8 @@ namespace ESB.Messaging
         private int _pubSeqId = 0;
         private MqttFactory _mqttFactory;
         private IMqttClient _mqttClient;
-        private readonly Dictionary<string, Func<string, string, Task>> _methods = new Dictionary<string, Func<string, string, Task>>();    // topic-to-action lookup
+        private readonly Dictionary<string, Func<string, string, Task>> _methods = new Dictionary<string, Func<string, string, Task>>();
+        private readonly Dictionary<string, Func<EmpMessageContext, Task>> _empMethods = new Dictionary<string, Func<EmpMessageContext, Task>>();
 
         // ApplicationId ... returns the ApplicationId associated with the connection
         public string ApplicationId()
@@ -64,6 +65,44 @@ namespace ESB.Messaging
             return parsedTopic;
         }
 
+        // ParseEmpTopic ... parses an EMP/ schema topic into an EmpParsedTopic.
+        // Standard (6 segments):      EMP/{type}/{connId}/{scope}/{dir}/{op}
+        // Device sub-scope (8 segs):  EMP/{type}/{connId}/Structure/Device/{deviceName}/{dir}/{op}
+        internal EmpParsedTopic ParseEmpTopic(string topic)
+        {
+            var p = topic.Split('/');
+            // device sub-scope: parts[3]=="Structure" && parts[4]=="Device"
+            if (p.Length >= 8 && p[3] == "Structure" && p[4] == "Device")
+            {
+                var devDir = p[6];
+                var devOp  = string.Join("/", p, 7, p.Length - 7);
+                return new EmpParsedTopic
+                {
+                    ParticipantType = p[1],
+                    ConnectionId    = p[2],
+                    Scope           = p[3],
+                    DeviceName      = p[5],
+                    Dir             = devDir,
+                    Operation       = devOp,
+                    DispatchKey     = $"Structure/Device/{p[5]}/{devDir}/{devOp}"
+                };
+            }
+            // standard form: EMP/{type}/{connId}/{scope}/{dir}/{op...}
+            // operation may be multi-segment: "get/GameTicks", "call/Teleport"
+            var stdDir = p[4];
+            var stdOp  = string.Join("/", p, 5, p.Length - 5);
+            return new EmpParsedTopic
+            {
+                ParticipantType = p[1],
+                ConnectionId    = p[2],
+                Scope           = p[3],
+                DeviceName      = null,
+                Dir             = stdDir,
+                Operation       = stdOp,
+                DispatchKey     = $"{p[3]}/{stdDir}/{stdOp}"
+            };
+        }
+
         // MsgClass ... function used to convert MessageClass enum into topic encoding
         public char MsgClass(MessageClass messageClass)
         {
@@ -80,13 +119,13 @@ namespace ESB.Messaging
         }
 
         // MqttClientOptions ... function used to create an MQTT client options object
-        public MqttClientOptions CreateMqttClientOptions(string withTcpServer = "localhost", int port = 0, string username = null, string password = null, string caFilePath = null)
+        public MqttClientOptions CreateMqttClientOptions(string withTcpServer = "localhost", int port = 0, string username = null, string password = null, string caFilePath = null, string willTopic = null)
         {
             int defaultPort = caFilePath != null ? 8883 : 1883;
             int resolvedPort = port > 0 ? port : defaultPort;
             var optionsBuilder = new MqttClientOptionsBuilder()
                 .WithTcpServer(withTcpServer ?? "localhost", resolvedPort)
-                .WithProtocolVersion(MqttProtocolVersion.V500); // Use MQTT v5.0
+                .WithProtocolVersion(MqttProtocolVersion.V500);
 
             if (!string.IsNullOrEmpty(username) && !string.IsNullOrEmpty(password))
             {
@@ -105,6 +144,14 @@ namespace ESB.Messaging
                     .WithClientCertificates(certificates)
                     .Build();
                 optionsBuilder.WithTlsOptions(tlsOptions);
+            }
+
+            // Will message clears the registry entry if the client disconnects unexpectedly.
+            if (!string.IsNullOrEmpty(willTopic))
+            {
+                optionsBuilder.WithWillTopic(willTopic)
+                    .WithWillPayload("")
+                    .WithWillRetain(true);
             }
 
             return optionsBuilder.Build();
@@ -127,17 +174,12 @@ namespace ESB.Messaging
         public static string GenerateMachineId(string secretKey)
         {
             string macAddress = GetMacAddress();
-            string rawId = macAddress + (secretKey ?? ""); 
+            string rawId = macAddress + (secretKey ?? "");
 
             using (SHA256 sha256Hash = SHA256.Create())
             {
                 byte[] bytes = sha256Hash.ComputeHash(Encoding.UTF8.GetBytes(rawId));
-                StringBuilder builder = new StringBuilder();
-                for (int i = 0; i < bytes.Length; i++)
-                {
-                    builder.Append(bytes[i].ToString("x2"));
-                }
-                return builder.ToString();
+                return IdEncoder.ToBase36(bytes, 6);
             }
         }
 
@@ -147,23 +189,24 @@ namespace ESB.Messaging
             _ctx = ctx;
             _applicationId = applicationId;
             _machineId = GenerateMachineId(password);
-            _clientId = Guid.NewGuid().ToString().Substring(25);
+            _clientId = IdEncoder.ToBase36(Guid.NewGuid().ToByteArray(), 4);
             _mqttFactory = new MqttFactory();
             _mqttClient = _mqttFactory.CreateMqttClient();
             _mqttClient.ApplicationMessageReceivedAsync += ProcessMessageAsync;
 
+            string willTopic = $"EMP/Registry/{_clientId}";
             MqttClientOptions mqttClientOptions;
             if (string.IsNullOrEmpty(username) && string.IsNullOrEmpty(password) && string.IsNullOrEmpty(caFilePath))
             {
-                mqttClientOptions = CreateMqttClientOptions(withTcpServer, port);
+                mqttClientOptions = CreateMqttClientOptions(withTcpServer, port, willTopic: willTopic);
             }
             else if (string.IsNullOrEmpty(caFilePath))
             {
-                mqttClientOptions = CreateMqttClientOptions(withTcpServer, port, username, password);
+                mqttClientOptions = CreateMqttClientOptions(withTcpServer, port, username, password, willTopic: willTopic);
             }
             else
             {
-                mqttClientOptions = CreateMqttClientOptions(withTcpServer, port, username, password, caFilePath);
+                mqttClientOptions = CreateMqttClientOptions(withTcpServer, port, username, password, caFilePath, willTopic);
             }
 
             await _mqttClient.ConnectAsync(mqttClientOptions, CancellationToken.None);
@@ -198,6 +241,13 @@ namespace ESB.Messaging
                 _methods[subjectId] = handler;
         }
 
+        // RegisterEmpHandler ... register an emp/ schema handler by dispatch key (e.g. "player/req/get")
+        public void RegisterEmpHandler(string dispatchKey, Func<EmpMessageContext, Task> handler)
+        {
+            if (handler != null)
+                _empMethods[dispatchKey] = handler;
+        }
+
         // SubscribeRequestsAsync ... single broker subscription covering all registered handlers
         // Matches: {appId}/Q/{anyHandler}/{myClientId}/{seqNum}  (targeted)
         //      and {appId}/Q/{anyHandler}/*/{seqNum}             (multicast)
@@ -213,6 +263,38 @@ namespace ESB.Messaging
                 new JProperty("MulticastFilter", $"{_applicationId}/Q/+/*/#"),
                 new JProperty("RegisteredHandlers", AvailableTopics()));
             await SendAsync(MessageClass.Information, "Messenger.Subscribed", json.ToString(Newtonsoft.Json.Formatting.None));
+        }
+
+        // SubscribeBrokerAsync ... subscribe to an arbitrary broker topic filter with no dispatch wiring.
+        // Use this for schema-specific filters constructed by the caller (e.g. SubscriptionHandler).
+        public async Task SubscribeBrokerAsync(string topicFilter)
+        {
+            var mqttSubscribeOptions = _mqttFactory.CreateSubscribeOptionsBuilder()
+                .WithTopicFilter(f => f.WithTopic(topicFilter))
+                .Build();
+            await _mqttClient.SubscribeAsync(mqttSubscribeOptions, CancellationToken.None);
+        }
+
+        // ReplyAsync ... publish a response to an emp/ request using MQTT5 ResponseTopic + CorrelationData
+        public async Task ReplyAsync(string responseTopic, byte[] correlationData, string payload)
+        {
+            var message = new MqttApplicationMessageBuilder()
+                .WithTopic(responseTopic)
+                .WithPayload(payload)
+                .WithCorrelationData(correlationData)
+                .Build();
+            await _mqttClient.PublishAsync(message, CancellationToken.None);
+        }
+
+        // PublishRetainedAsync ... publish a retained message (used for registry entries)
+        public async Task PublishRetainedAsync(string topic, string payload)
+        {
+            var message = new MqttApplicationMessageBuilder()
+                .WithTopic(topic)
+                .WithPayload(payload)
+                .WithRetainFlag(true)
+                .Build();
+            await _mqttClient.PublishAsync(message, CancellationToken.None);
         }
 
         // SubscribeEventAsync ... subscribe directly to a broker topic filter (for event consumers
@@ -318,18 +400,44 @@ namespace ESB.Messaging
             json = new JObject( new JProperty("Topic", topic), new JProperty("Payload", payload) ); 
             await SendAsync(MessageClass.Information, "Messenger.ProcessingMessage", json.ToString(Newtonsoft.Json.Formatting.None)); 
 #endif
-            var pt = ParseTopic(topic);
-
-            if (_methods.TryGetValue(pt.SubjectId, out var method))
+            if (topic.StartsWith("EMP/"))
             {
-                await method(topic, payload);
+                var ept = ParseEmpTopic(topic);
+                string responseTopic = e.ApplicationMessage.ResponseTopic;
+                byte[] correlationData = e.ApplicationMessage.CorrelationData;
+                if (_empMethods.TryGetValue(ept.DispatchKey, out var empMethod))
+                {
+                    await empMethod(new EmpMessageContext
+                    {
+                        ParsedTopic     = ept,
+                        Payload         = payload,
+                        ResponseTopic   = responseTopic,
+                        CorrelationData = correlationData
+                    });
+                }
+                else
+                {
+                    json = new JObject(
+                        new JProperty("Topic", topic),
+                        new JProperty("Exception", "No emp handler " + ept.DispatchKey + " defined"));
+                    await SendAsync(MessageClass.Information, "Messenger.ProcessMessageAsync", json.ToString(Newtonsoft.Json.Formatting.None));
+                }
             }
             else
             {
-                json = new JObject(
-                    new JProperty("Topic", topic),
-                    new JProperty("Exception", "No handler " + pt.SubjectId + " defined"));
-                await SendAsync(MessageClass.Information, "Messenger.ProcessMessageAsync", json.ToString(Newtonsoft.Json.Formatting.None));
+                var pt = ParseTopic(topic);
+
+                if (_methods.TryGetValue(pt.SubjectId, out var method))
+                {
+                    await method(topic, payload);
+                }
+                else
+                {
+                    json = new JObject(
+                        new JProperty("Topic", topic),
+                        new JProperty("Exception", "No handler " + pt.SubjectId + " defined"));
+                    await SendAsync(MessageClass.Information, "Messenger.ProcessMessageAsync", json.ToString(Newtonsoft.Json.Formatting.None));
+                }
             }
         }
     }

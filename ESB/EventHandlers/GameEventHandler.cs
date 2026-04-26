@@ -57,6 +57,7 @@ namespace ESB
 
                 string jsonString = json?.ToString(Newtonsoft.Json.Formatting.None);
                 await _ctx.Messenger.SendAsync(MessageClass.Event, "GameEvent." + type.ToString(), jsonString);
+                await EmitEmpEventAsync("App", type.ToString(), jsonString);
             });
         }
     }

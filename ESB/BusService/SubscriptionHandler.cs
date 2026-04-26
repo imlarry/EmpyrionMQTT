@@ -1,6 +1,7 @@
 ﻿using ESB.TopicHandlers.V2;
 using ESB.TopicHandlers.V1;
 using ESB.TopicHandlers.Diagnostics;
+using ESB.TopicHandlers.Emp;
 using System.Threading.Tasks;
 
 namespace ESB
@@ -42,7 +43,12 @@ namespace ESB
             new ESB.TopicHandlers.V1.Faction(_ctx).Register();
             new ESB.TopicHandlers.V1.Blueprint(_ctx).Register();
 
+            // emp/ schema handlers
+            new EmpApplication(_ctx).Register();
+            new EmpPlayer(_ctx).Register();
+
             await _ctx.Messenger.SubscribeRequestsAsync();
+            await _ctx.Messenger.SubscribeBrokerAsync($"EMP/+/{_ctx.Messenger.ClientId()}/+/Req/#");
         }
     }
 }

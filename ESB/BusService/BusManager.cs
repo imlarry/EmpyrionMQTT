@@ -1,8 +1,11 @@
-﻿using System.IO;
+﻿using System.Collections.Generic;
+using System.IO;
 using System.Threading.Tasks;
 using System.Reflection;
 using ESB.Configuration;
 using ESB.Helpers;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 
 namespace ESB
 {
@@ -11,32 +14,37 @@ namespace ESB
         private readonly ContextData _ctx;
         private readonly EventManager _eMgr;
 
-        public string ApplicationName { get; private set; }
-        public string ESBModPath { get; private set; }
+        public string ApplicationName  { get; private set; }
+        public string ParticipantType  { get; private set; }
+        public string ESBModPath       { get; private set; }
+
+        // Maps Eleon ApplicationMode.ToString() values to EMP/ participant type tokens.
+        private static readonly Dictionary<string, string> ParticipantTypeMap = new Dictionary<string, string>
+        {
+            { "Client",          "Client" },
+            { "DedicatedServer", "Ds"     },
+            { "PlayfieldServer", "Pfs"    },
+        };
 
         public BusManager(ContextData context, EventManager eMgr)
         {
-            // preserve context, event manager, and BusManager references
             _ctx = context;
             _eMgr = eMgr;
             _ctx.BusManager = this;
 
-            // player app returns "client" because modload init occurs in lobby (a "client" mode)
             ApplicationName = _ctx.ModApi.Application.Mode.ToString();
+            ParticipantTypeMap.TryGetValue(ApplicationName, out var pt);
+            ParticipantType = pt ?? "Agent";
 
-            // determine root path for ESB mod
             Assembly currentAssembly = Assembly.GetExecutingAssembly();
-            string location = currentAssembly.Location;
-            ESBModPath = Path.GetDirectoryName(location);
+            ESBModPath = Path.GetDirectoryName(currentAssembly.Location);
         }
 
         public async Task Init()
         {
-            // open and parse yaml config file
             string configPath = Path.Combine(ESBModPath, "ESB_Info.yaml");
             _ctx.ESBConfig = YamlFileReader.ReadYamlFile<ESBConfig>(configPath);
 
-            // create client and open a channel to broker
             await _ctx.Messenger.ConnectAsync
                     (_ctx
                     , ApplicationName
@@ -46,20 +54,33 @@ namespace ESB
                     , _ctx.ESBConfig.MQTThost.Password
                     , _ctx.ESBConfig.MQTThost.CAFilePath);
 
-            // subscribe to defined topics and associate topic handlers
+            await PublishRegistryEntryAsync();
+
             var subscriptionHandler = new SubscriptionHandler(_ctx);
             await subscriptionHandler.SubscribeAll();
 
-            // enable event handlers
             _eMgr.EnableEventHandlers();
         }
 
         public async Task Shutdown()
         {
-            // shutdown
             _eMgr.DisableEventHandlers();
+            await ClearRegistryEntryAsync();
             await _ctx.Messenger.DisconnectAsync();
         }
 
+        private async Task PublishRegistryEntryAsync()
+        {
+            string connId = _ctx.Messenger.ClientId();
+            var json = new JObject(new JProperty("type", ParticipantType));
+            await _ctx.Messenger.PublishRetainedAsync($"EMP/Registry/{connId}", json.ToString(Formatting.None));
+        }
+
+        private async Task ClearRegistryEntryAsync()
+        {
+            string connId = _ctx.Messenger.ClientId();
+            // empty retained payload instructs the broker to discard the retained message
+            await _ctx.Messenger.PublishRetainedAsync($"EMP/Registry/{connId}", "");
+        }
     }
 }

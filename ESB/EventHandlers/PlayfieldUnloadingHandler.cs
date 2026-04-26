@@ -28,7 +28,9 @@ namespace ESB
                 JObject json = new JObject(
                     new JProperty("GameTicks", _ctx.ModApi.Application.GameTicks),
                     new JProperty("Name", playfield.Name));
-                await _ctx.Messenger.SendAsync(MessageClass.Event, "Application.OnPlayfieldUnloading", json.ToString(Newtonsoft.Json.Formatting.None));
+                string pfUnloadingJson = json.ToString(Newtonsoft.Json.Formatting.None);
+                await _ctx.Messenger.SendAsync(MessageClass.Event, "Application.OnPlayfieldUnloading", pfUnloadingJson);
+                await EmitEmpEventAsync("Playfield", "Unloading", pfUnloadingJson);
             });
         }
     }

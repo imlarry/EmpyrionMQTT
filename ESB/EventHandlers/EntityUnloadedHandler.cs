@@ -18,7 +18,9 @@ namespace ESB
                         new JProperty("Id", entity.Id),
                         new JProperty("Name", entity.Name)
                         );
-                await _ctx.Messenger.SendAsync(MessageClass.Event, "Playfield.OnEntityUnloaded", json.ToString(Newtonsoft.Json.Formatting.None));
+                string unloadedJson = json.ToString(Newtonsoft.Json.Formatting.None);
+                await _ctx.Messenger.SendAsync(MessageClass.Event, "Playfield.OnEntityUnloaded", unloadedJson);
+                await EmitEmpEventAsync("Playfield", "EntityUnloaded", unloadedJson);
             });
         }
     }

@@ -27,5 +27,12 @@ namespace ESB
                     ex.ToString());
             }
         }
+
+        protected Task EmitEmpEventAsync(string scope, string eventName, string payload)
+        {
+            string type   = _ctx.BusManager.ParticipantType;
+            string connId = _ctx.Messenger.ClientId();
+            return _ctx.Messenger.SendAsync($"EMP/{type}/{connId}/{scope}/Evt/{eventName}", payload);
+        }
     }
 }

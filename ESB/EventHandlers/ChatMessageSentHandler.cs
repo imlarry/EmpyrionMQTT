@@ -29,7 +29,9 @@ namespace ESB
                         new JProperty("Channel", chatMsgData.Channel.ToString()),
                 new JProperty("Text", chatMsgData.Text)
                         );
-                await _ctx.Messenger.SendAsync(MessageClass.Event, "Application.ChatMessageSent", json.ToString(Newtonsoft.Json.Formatting.None));
+                string chatJson = json.ToString(Newtonsoft.Json.Formatting.None);
+                await _ctx.Messenger.SendAsync(MessageClass.Event, "Application.ChatMessageSent", chatJson);
+                await EmitEmpEventAsync("App", "ChatMessageSent", chatJson);
 
                 void DialogActionHandler(int buttonIdx, string linkId, string inputContent, int playerId, int customValue)
                 {
