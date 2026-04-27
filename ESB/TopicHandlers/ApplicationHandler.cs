@@ -11,7 +11,7 @@ using UnityEngine;
 
 namespace ESB.TopicHandlers
 {
-    public class ApplicationHandler
+    public partial class ApplicationHandler
     {
         private readonly ContextData _ctx;
 
@@ -19,21 +19,28 @@ namespace ESB.TopicHandlers
 
         public void Register()
         {
-            _ctx.Messenger.RegisterHandler("App/Req/get/GameTicks",          GameTicks);
-            _ctx.Messenger.RegisterHandler("App/Req/get/Mode",               Mode);
-            _ctx.Messenger.RegisterHandler("App/Req/get/State",              State);
-            _ctx.Messenger.RegisterHandler("App/Req/get/LocalPlayer",        LocalPlayer);
-            _ctx.Messenger.RegisterHandler("App/Req/get/ModApiProperties",   ModApiProperties);
-            _ctx.Messenger.RegisterHandler("App/Req/get/AllPlayfields",      GetAllPlayfields);
-            _ctx.Messenger.RegisterHandler("App/Req/get/PfServerInfos",      GetPfServerInfos);
-            _ctx.Messenger.RegisterHandler("App/Req/get/PlayerEntityIds",    GetPlayerEntityIds);
-            _ctx.Messenger.RegisterHandler("App/Req/get/BlockAndItemMapping", GetBlockAndItemMapping);
-            _ctx.Messenger.RegisterHandler("App/Req/get/GetPathFor",        GetPathFor);
-            _ctx.Messenger.RegisterHandler("App/Req/get/GetPlayerDataFor",  GetPlayerDataFor);
-            _ctx.Messenger.RegisterHandler("App/Req/get/GetStructure",      GetStructure);
-            _ctx.Messenger.RegisterHandler("App/Req/get/GetStructures",     GetStructures);
-            _ctx.Messenger.RegisterHandler("App/Req/set/SendChatMessage",   SendChatMessage);
-            _ctx.Messenger.RegisterHandler("App/Req/set/ShowDialogBox",     ShowDialogBox);
+            _ctx.Messenger.RegisterHandler("App/GameTicks",           GameTicks);
+            _ctx.Messenger.RegisterHandler("App/Mode",                Mode);
+            _ctx.Messenger.RegisterHandler("App/State",               State);
+            _ctx.Messenger.RegisterHandler("App/LocalPlayer",         LocalPlayer);
+            _ctx.Messenger.RegisterHandler("App/ModApiProperties",    ModApiProperties);
+            _ctx.Messenger.RegisterHandler("App/AllPlayfields",       GetAllPlayfields);
+            _ctx.Messenger.RegisterHandler("App/PfServerInfos",       GetPfServerInfos);
+            _ctx.Messenger.RegisterHandler("App/PlayerEntityIds",     GetPlayerEntityIds);
+            _ctx.Messenger.RegisterHandler("App/BlockAndItemMapping", GetBlockAndItemMapping);
+            _ctx.Messenger.RegisterHandler("App/GetPathFor",          GetPathFor);
+            _ctx.Messenger.RegisterHandler("App/GetPlayerDataFor",    GetPlayerDataFor);
+            _ctx.Messenger.RegisterHandler("App/GetStructure",        GetStructure);
+            _ctx.Messenger.RegisterHandler("App/GetStructures",       GetStructures);
+            _ctx.Messenger.RegisterHandler("App/SendChatMessage",     SendChatMessage);
+            _ctx.Messenger.RegisterHandler("App/ShowDialogBox",       ShowDialogBox);
+            _ctx.Messenger.RegisterHandler("App/Describe",            AppDescribe);
+        }
+
+        public async Task AppDescribe(MessageContext ctx)
+        {
+            await HandlerHelper.ReplyAsync(_ctx.Messenger, ctx,
+                HandlerHelper.ScopeManifestJson("App", _opDefs));
         }
 
         public async Task GameTicks(MessageContext ctx)
@@ -133,6 +140,11 @@ namespace ESB.TopicHandlers
 
         public async Task GetPathFor(MessageContext ctx)
         {
+            if (ctx.ParsedTopic.MetaOperation != null)
+            {
+                await HandlerHelper.ReplyMetaAsync(_ctx.Messenger, ctx, "GetPathFor", _opDefs["GetPathFor"]);
+                return;
+            }
             try
             {
                 var args = JObject.Parse(ctx.Payload);
@@ -296,7 +308,7 @@ namespace ESB.TopicHandlers
                         new JProperty("LinkId",         linkId        ?? ""),
                         new JProperty("InputContent",   inputContent  ?? ""),
                         new JProperty("CustomValue",    customVal));
-                    string evtTopic = $"ESB/{_ctx.BusManager.ParticipantType}/{_ctx.Messenger.ClientId()}/App/Evt/DialogResponse";
+                    string evtTopic = $"EMP/{_ctx.BusManager.ParticipantType}/{_ctx.Messenger.ClientId()}/Evt/App/DialogResponse";
                     _ = _ctx.Messenger.SendAsync(evtTopic, response.ToString(Formatting.None));
                 }
 

@@ -162,9 +162,9 @@ namespace ESB.TopicHandlers
 
         public void Register()
         {
-            _ctx.Messenger.RegisterHandler("Player/Req/get",              Properties);
-            _ctx.Messenger.RegisterHandler("Player/Req/set/Teleport",    Teleport);
-            _ctx.Messenger.RegisterHandler("Player/Req/set/DamageEntity", DamageEntity);
+            _ctx.Messenger.RegisterHandler("Player/GetProperties", Properties);
+            _ctx.Messenger.RegisterHandler("Player/Teleport",     Teleport);
+            _ctx.Messenger.RegisterHandler("Player/DamageEntity", DamageEntity);
         }
 
         // Player/Req/get

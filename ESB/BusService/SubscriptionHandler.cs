@@ -18,10 +18,8 @@ namespace ESB
             new PlayerHandler(_ctx).Register();
             new StructureHandler(_ctx).Register();
 
-            // Standard scope: ESB/{type}/{connId}/{scope}/Req/{op}
-            await _ctx.Messenger.SubscribeBrokerAsync($"ESB/+/{_ctx.Messenger.ClientId()}/+/Req/#");
-            // Device sub-scope: ESB/{type}/{connId}/Structure/Device/{name}/Req/{op}
-            await _ctx.Messenger.SubscribeBrokerAsync($"ESB/+/{_ctx.Messenger.ClientId()}/Structure/Device/+/Req/#");
+            // EMP/{type}/{connId}/Req/{scope}/{op}
+            await _ctx.Messenger.SubscribeBrokerAsync($"EMP/+/{_ctx.Messenger.ClientId()}/Req/+/#");
         }
     }
 }

@@ -48,40 +48,28 @@ namespace ESB.Messaging
             return string.Join(", ", _handlers.Keys);
         }
 
-        // ParseTopic ... parses an ESB/ schema topic into a ParsedTopic.
-        // Standard (6 segments):      ESB/{type}/{connId}/{scope}/{dir}/{op}
-        // Device sub-scope (8 segs):  ESB/{type}/{connId}/Structure/Device/{deviceName}/{dir}/{op}
+        // ParseTopic ... parses an EMP/ schema topic into a ParsedTopic.
+        // Fixed 6-segment form: EMP/{participantType}/{connectionId}/{dir}/{scope}/{operation}
         internal ParsedTopic ParseTopic(string topic)
         {
-            var p = topic.Split('/');
-            // device sub-scope: parts[3]=="Structure" && parts[4]=="Device"
-            if (p.Length >= 8 && p[3] == "Structure" && p[4] == "Device")
+            var p  = topic.Split('/');
+            var op = p[5];
+            string metaOp = null;
+            var dot = op.IndexOf('.');
+            if (dot >= 0)
             {
-                var devDir = p[6];
-                var devOp  = string.Join("/", p, 7, p.Length - 7);
-                return new ParsedTopic
-                {
-                    ParticipantType = p[1],
-                    ConnectionId    = p[2],
-                    Scope           = p[3],
-                    DeviceName      = p[5],
-                    Dir             = devDir,
-                    Operation       = devOp,
-                    DispatchKey     = $"Structure/Device/{p[5]}/{devDir}/{devOp}"
-                };
+                metaOp = op.Substring(dot + 1);
+                op     = op.Substring(0, dot);
             }
-            // standard form: ESB/{type}/{connId}/{scope}/{dir}/{op...}
-            var stdDir = p[4];
-            var stdOp  = string.Join("/", p, 5, p.Length - 5);
             return new ParsedTopic
             {
                 ParticipantType = p[1],
                 ConnectionId    = p[2],
-                Scope           = p[3],
-                DeviceName      = null,
-                Dir             = stdDir,
-                Operation       = stdOp,
-                DispatchKey     = $"{p[3]}/{stdDir}/{stdOp}"
+                Dir             = p[3],
+                Scope           = p[4],
+                Operation       = op,
+                MetaOperation   = metaOp,
+                DispatchKey     = $"{p[4]}/{op}"
             };
         }
 
@@ -289,11 +277,8 @@ namespace ESB.Messaging
 #endif
             var pt = ParseTopic(topic);
 
-            // Exact match first; for device sub-scope fall back to the wildcard key
-            // "Structure/Device/*/{dir}/{op}" so handlers don't need to know device names at registration time.
             Func<MessageContext, Task> handler;
-            if (!_handlers.TryGetValue(pt.DispatchKey, out handler) && pt.DeviceName != null)
-                _handlers.TryGetValue($"Structure/Device/*/{pt.Dir}/{pt.Operation}", out handler);
+            _handlers.TryGetValue(pt.DispatchKey, out handler);
 
             if (handler != null)
             {
