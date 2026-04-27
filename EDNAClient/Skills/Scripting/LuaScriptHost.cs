@@ -294,6 +294,6 @@ public sealed class LuaScriptHost : IDisposable
             EdnaLogger.Detail($"[LuaScriptHost] PublishInfo skipped (no messenger): {subjectId}");
             return;
         }
-        _ = _messenger.SendAsync(ESB.Messaging.MessageClass.Information, subjectId, payload);
+        _ = _messenger.SendAsync($"ESB/Agent/{_messenger.ClientId()}/App/Log/{subjectId}", payload);
     }
 }

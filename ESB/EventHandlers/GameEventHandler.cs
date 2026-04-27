@@ -1,6 +1,6 @@
 using Eleon.Modding;
 using ESB.Interfaces;
-using ESB.Messaging;
+
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using System.IO;
@@ -17,8 +17,7 @@ namespace ESB
             await Execute(async () =>
             {
                 JObject json = new JObject(
-                new JProperty("GameTicks", _ctx.ModApi.Application.GameTicks),
-                new JProperty("Mode", _ctx.ModApi.Application.Mode.ToString()));
+                new JProperty("GameTicks", _ctx.ModApi.Application.GameTicks));
 
                 object[] args = new object[] { arg1, arg2, arg3, arg4, arg5 };
 
@@ -56,8 +55,7 @@ namespace ESB
                 }
 
                 string jsonString = json?.ToString(Newtonsoft.Json.Formatting.None);
-                await _ctx.Messenger.SendAsync(MessageClass.Event, "GameEvent." + type.ToString(), jsonString);
-                await EmitEmpEventAsync("App", type.ToString(), jsonString);
+                await EmitEventAsync("App", type.ToString(), jsonString);
             });
         }
     }

@@ -1,6 +1,6 @@
 using Eleon.Modding;
 using ESB.Interfaces;
-using ESB.Messaging;
+
 using Newtonsoft.Json.Linq;
 
 namespace ESB
@@ -19,8 +19,7 @@ namespace ESB
                         new JProperty("Name", entity.Name)
                         );
                 string unloadedJson = json.ToString(Newtonsoft.Json.Formatting.None);
-                await _ctx.Messenger.SendAsync(MessageClass.Event, "Playfield.OnEntityUnloaded", unloadedJson);
-                await EmitEmpEventAsync("Playfield", "EntityUnloaded", unloadedJson);
+                await EmitEventAsync("Playfield", "EntityUnloaded", unloadedJson);
             });
         }
     }

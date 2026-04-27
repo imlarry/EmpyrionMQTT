@@ -59,10 +59,7 @@ namespace EDNAClient.Skills.ThreatRadar
         private async Task RequestScanAsync()
         {
             var seq = Interlocked.Increment(ref _seqId);
-            await _messenger.SendAsync(
-                MessageClass.Request,
-                $"{EsbApp}/Q/Feeds.Scan/*/{seq}",
-                "{\"Duration\":300,\"RefreshRate\":2}");
+            await _messenger.SendAsync($"{EsbApp}/Q/Feeds.Scan/*/{seq}", "{\"Duration\":300,\"RefreshRate\":2}");
         }
 
         // ── Scan snapshot handler ──────────────────────────────────────────

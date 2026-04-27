@@ -36,14 +36,14 @@ namespace EDNAClient.Skills.Scripting.Api
         public void publish(string topic, string payload)
         {
             EdnaLogger.Detail($"[{_engine.Name}] mqtt.publish {topic}");
-            _ = _messenger.SendAsync(MessageClass.Event, topic, payload);
+            _ = _messenger.SendAsync(topic, payload);
         }
 
         /// <summary>Publish a request message. Topic should be a fully-formed 5-segment topic.</summary>
         public void request(string topic, string payload)
         {
             EdnaLogger.Detail($"[{_engine.Name}] mqtt.request {topic}");
-            _ = _messenger.SendAsync(MessageClass.Request, topic, payload);
+            _ = _messenger.SendAsync(topic, payload);
         }
 
         /// <summary>
@@ -61,7 +61,7 @@ namespace EDNAClient.Skills.Scripting.Api
             var task = _messenger.SubscribeEventAsync(topicFilter, (topic, payload) =>
             {
 #if DEBUG
-                _ = _messenger.SendAsync(MessageClass.Information, "LuaMqttApi.Dispatch",
+                _ = _messenger.SendAsync($"ESB/Agent/{_messenger.ClientId()}/App/Log/LuaMqttApi.Dispatch",
                     $"{{\"Script\":\"{_engine.Name}\",\"Topic\":\"{topic}\"}}");
 #endif
                 Application.Current.Dispatcher.Invoke(() =>
@@ -72,12 +72,12 @@ namespace EDNAClient.Skills.Scripting.Api
                     }
                     catch (ScriptRuntimeException ex)
                     {
-                        _ = _messenger.SendAsync(MessageClass.Information, "LuaMqttApi.CallbackError",
+                        _ = _messenger.SendAsync($"ESB/Agent/{_messenger.ClientId()}/App/Log/LuaMqttApi.CallbackError",
                             $"{{\"Script\":\"{_engine.Name}\",\"Topic\":\"{topic}\",\"Error\":{JsonConvert.SerializeObject(ex.DecoratedMessage)}}}");
                     }
                     catch (Exception ex)
                     {
-                        _ = _messenger.SendAsync(MessageClass.Information, "LuaMqttApi.CallbackError",
+                        _ = _messenger.SendAsync($"ESB/Agent/{_messenger.ClientId()}/App/Log/LuaMqttApi.CallbackError",
                             $"{{\"Script\":\"{_engine.Name}\",\"Topic\":\"{topic}\",\"Error\":{JsonConvert.SerializeObject(ex.GetType().Name + ": " + ex.Message)}}}");
                     }
                 });
@@ -87,7 +87,7 @@ namespace EDNAClient.Skills.Scripting.Api
             task.ContinueWith(t =>
             {
                 var msg = t.Exception?.Flatten().InnerException?.Message ?? "unknown error";
-                _ = _messenger.SendAsync(MessageClass.Information, "LuaMqttApi.SubscribeFailed",
+                _ = _messenger.SendAsync($"ESB/Agent/{_messenger.ClientId()}/App/Log/LuaMqttApi.SubscribeFailed",
                     $"{{\"Script\":\"{_engine.Name}\",\"TopicFilter\":\"{topicFilter}\",\"Error\":{Newtonsoft.Json.JsonConvert.SerializeObject(msg)}}}");
             }, System.Threading.Tasks.TaskContinuationOptions.OnlyOnFaulted);
         }

@@ -1,5 +1,5 @@
 using ESB.Interfaces;
-using ESB.Messaging;
+
 using Newtonsoft.Json.Linq;
 
 namespace ESB
@@ -22,15 +22,9 @@ namespace ESB
                     new JProperty("GameMode", _ctx.GameManager.GameMode));
                 string enteredJson = json.ToString(Newtonsoft.Json.Formatting.None);
                 if (hasEntered)
-                {
-                    await _ctx.Messenger.SendAsync(MessageClass.Event, "Application.GameEnter", enteredJson);
-                    await EmitEmpEventAsync("App", "GameEnter", enteredJson);
-                }
+                    await EmitEventAsync("App", "GameEnter", enteredJson);
                 else
-                {
-                    await _ctx.Messenger.SendAsync(MessageClass.Event, "Application.GameExit", enteredJson);
-                    await EmitEmpEventAsync("App", "GameExit", enteredJson);
-                }
+                    await EmitEventAsync("App", "GameExit", enteredJson);
             });
         }
     }

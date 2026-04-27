@@ -1,6 +1,5 @@
 using System;
 using System.Threading.Tasks;
-using ESB.Messaging;
 
 namespace ESB
 {
@@ -21,18 +20,19 @@ namespace ESB
             }
             catch (Exception ex)
             {
+                string type   = _ctx.BusManager.ParticipantType;
+                string connId = _ctx.Messenger.ClientId();
                 await _ctx.Messenger.SendAsync(
-                    MessageClass.Exception,
-                    GetType().Name,
+                    $"ESB/{type}/{connId}/App/Err/{GetType().Name}",
                     ex.ToString());
             }
         }
 
-        protected Task EmitEmpEventAsync(string scope, string eventName, string payload)
+        protected Task EmitEventAsync(string scope, string eventName, string payload)
         {
             string type   = _ctx.BusManager.ParticipantType;
             string connId = _ctx.Messenger.ClientId();
-            return _ctx.Messenger.SendAsync($"EMP/{type}/{connId}/{scope}/Evt/{eventName}", payload);
+            return _ctx.Messenger.SendAsync($"ESB/{type}/{connId}/{scope}/Evt/{eventName}", payload);
         }
     }
 }

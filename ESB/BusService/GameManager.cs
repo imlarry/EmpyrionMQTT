@@ -3,7 +3,7 @@ using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using Eleon.Modding;
-using ESB.Messaging;
+
 using System.Collections.Generic;
 
 namespace ESB
@@ -30,7 +30,7 @@ namespace ESB
             _ctx.GameManager = this;
             var json = new JObject(
                 new JProperty("Status", "Created"));
-            await _ctx.Messenger.SendAsync(MessageClass.Information, "ESB.GameManager", json.ToString(Newtonsoft.Json.Formatting.None));
+            await _ctx.Messenger.SendAsync($"ESB/{_ctx.BusManager.ParticipantType}/{_ctx.Messenger.ClientId()}/App/Log/GameManager", json.ToString(Newtonsoft.Json.Formatting.None));
             // set to a "no game active" state
         }
         public async Task StateChanged(bool hasEntered)

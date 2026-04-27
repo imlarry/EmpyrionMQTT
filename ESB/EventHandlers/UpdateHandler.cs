@@ -1,5 +1,5 @@
 using ESB.Interfaces;
-using ESB.Messaging;
+
 
 namespace ESB
 {
@@ -16,7 +16,7 @@ namespace ESB
         {
             if (_ctx.MainThreadRunner.HasActionsToProcess())
             {
-                _ = _ctx.Messenger.SendAsync(MessageClass.Information, "Update", "Processing actions on main thread");
+                _ = _ctx.Messenger.SendAsync($"ESB/{_ctx.BusManager.ParticipantType}/{_ctx.Messenger.ClientId()}/App/Log/Update", "Processing actions on main thread");
                 while (_ctx.MainThreadRunner.HasActionsToProcess())
                 {
                     _ctx.MainThreadRunner.ProcessActions();

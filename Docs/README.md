@@ -1,64 +1,108 @@
-# ESB - Empyrion Service Bus
+# EmpyrionMQTT
 
-#### ESB is a messaging bus that implements the publish/subscribe pattern for use with Empyrion - Galactic Survival, by Eleon Game Studios.
-<br>
+A mod and companion application for **Empyrion - Galactic Survival** (Eleon Game Studios) that bridges the game's mod APIs to an MQTT message bus, enabling external services to read game state and issue commands in real time.
 
 > Copyright &copy; 2023 L.Goodhind
->
-> This project is licensed under the MIT License. See the LICENSE file in the repository root for the full license text.
+> Licensed under the MIT License. See the LICENSE file in the repository root.
 
+---
 
-### <p style="text-align: center;font-style: italic">* * * WORK IN PROGRESS * * *</p>
+## What It Does
 
-This is a *framework* for mod development using a publish/subscribe model to allow the execution of code outside the context of the game. While the code here is all C#, service clientscan be developed and deployed in any language and across any OS that supports MQTT.
+When deployed in the game's Mods folder, **ESB** (the game-side mod) connects to a local Mosquitto broker, registers event handlers, and publishes game events as structured MQTT messages. It also subscribes to request topics and dispatches inbound commands to the appropriate game API calls, returning responses via MQTT 5.0 correlation.
 
-The current rev is not all that out-of-the-box useful as a player or game admin mod. My pace is **plodding** and I am in the crawl before you walk phase. If you see things worth doing that you know how to do please feel free to jump in with a pull request or fork as you see fit.
+**EDNA** (Empyrion Data Network Assistant) is a companion WPF tray application that subscribes to the bus, displays a HUD overlay, and hosts a Lua scripting engine for automation.
 
-For a good open source broker it's really hard to beat [Eclipse Mosquitto](https://mosquitto.org/). Any examples 
-here assume you're using it but any MQTT compliant broker should work.
+External clients can be written in any language that supports MQTT. The game mod itself runs inside Unity/Mono on .NET 4.8; client-side code is unrestricted.
 
-***
-## Getting Started:
+---
 
-1. You'll need a local MQTT broker, assuming it's [Mosquitto](https://mosquitto.org/) and it's directory has been included on your path, start by verifying that the message transport is working. Open two command windows and in one enter the command `mosquitto_sub -v -t "#"` which is a request for all topics published to this broker to come to this window along with their message payloads.
+## Architecture
 
-1. In the second window enter the command `mosquitto_pub -t "Hello" -m "HelloWorld"` and if everything is working the message "HelloWorld" with the topic "Hello" should appear in the first window. If it doesn't, you cannot go to space yet- figure out what's wrong and fix it.
+| Component | Target | Role |
+|---|---|---|
+| `ESB` | .NET 4.8 / game mod | Publishes events, handles inbound requests, runs inside Empyrion |
+| `ESB.Messaging` | .NET 4.8 | Shared MQTT transport layer (Messenger, ParsedTopic, IMessenger) |
+| `EDNA` | .NET 8 / WPF | Companion tray app; HUD overlay; Lua scripting host |
+| `ESBTests` | .NET 4.8 | Integration and unit tests |
 
-1. Once that's working, create an /ESB directory under the Content/Mods folder in the game and/or dedicated server directory. 
+---
 
-1. Build the application and copy ESB.dll, along with all the other dlls in the bin directory, to the /ESB directory.
+## Getting Started
 
-1. If you open the game and enter an existing save you should see a whole lot of messages in the subscription window and their arrival will coincide with stuff you're doing in the game. These events can be sent to multiple subscribing client services and the game only needed to publish them once ... this one-to-many distribution is the core of the publish/subscribe pattern.
+1. Install [Mosquitto](https://mosquitto.org/) and verify it is working:
 
-## What does it do?
+   ```
+   mosquitto_sub -v -t "#"
+   mosquitto_pub -t "Hello" -m "HelloWorld"
+   ```
 
-When deployed in either the Empyrion - Galactic Survival/Content/Mods folder or the Empyrion - Dedicated Server/Content/Mods folder, along with a properly configured ESB_Info.yaml file, the mod connects with a message broker, establishes event handler callbacks, and then subscribes to messages on topics that potentially interest it as defined in the info file. 
+   The message should appear in the subscriber window. If not, fix the broker before proceeding.
 
-These topics and JSON structured data associated with them create a text driven API you can externally request information from or, to the extent allowed by the underlying mod APIs and other service process, use to modify data and behavior in an active instance of the game. 
+2. Build the solution. Copy `ESB.dll`, `ESB.Messaging.dll`, and any required dependency DLLs to:
 
-By combining data from different sources in this abstract view, the publish/subscribe pattern enables loosely coupled communication between components or services. This allows different systems to communicate with each other and share data without needing to know about each other's implementation details. Because the communication is asynchronous, it can handle fairly high message volumes without impacting the performance of game service processes, especially if the broker is on a machine dedicated to the broker task.
+   ```
+   {EmpyrionRoot}\Content\Mods\ESB\
+   ```
 
-The current implementation avoids security concerns by intentionally assuming a localhost broker; everything runs on one computer. This limits functionality to a "client/service" model where a local instance of a client (or potentially a dedicated server) exchanges messages with one or more service programs that are running on the same machine. While MQTT supports network interconnection with robust security, the complexities of setup and configuration for such a topology is currently out of scope.
+3. Place a configured `ESB_Info.yaml` in the same directory. Minimum required fields:
 
-       MP game client process interaction outside localhost/lan connections to 
-       either shared external, dedi/client, or client/client requires careful 
-       consideration to avoid unintended security and performance impacts.
+   ```yaml
+   MQTThost:
+     WithTcpServer: localhost
+     Port: 1883
+   ```
 
+4. Start the game and load a save. The mod will connect to the broker and begin publishing events. Subscribe with `mosquitto_sub -v -t "EMP/#"` to observe traffic.
 
-## What is MQTT?
+---
 
-MQTT was originally "MQ series Telemetry Transport" or "Message Queuing Telemetry Transport", and is a protocol originally use in the gas industry for monitoring pipelines. It is a lightweight protocol with limited store/forward capabilites for communication with potentially intermittantly connected devices.
+## Topic Schema
 
-Today it is widely used for distributed system logging and orchestration as well as edge computing interfaces with Internet of Things sorts of devices; if you've always wanted a light to blink in the real world when something happens in the game, this is actually pretty straight forward to implement.
+All messages use the `EMP/` prefix with the following base structure:
 
-## Current Topic Format
+```
+EMP/{participantType}/{connectionId}/{dir}/{scope}/{operation}
+```
 
-Topics follow a five-segment slash path: `{appId}/{msgClass}/{subject}/{clientId}/{seq}`. Message classes are `Q` (request), `R` (response), `E` (event), `I` (information), `X` (exception). The ESB uses `Application.Mode` (`Client`, `DedicatedServer`, `PlayfieldServer`) as the `appId`.
+| Segment | Values |
+|---|---|
+| `participantType` | `Client`, `Pfs`, `Ds`, `Agent` |
+| `connectionId` | 4-char Base-36 ID assigned per connection |
+| `dir` | `Req`, `Res`, `Evt`, `Err`, `Log` |
+| `scope` | `App`, `Playfield`, `Player`, `Structure` |
+| `operation` | `get/{prop}`, `set/{prop}`, `call/{method}`, `{eventName}`, `{cid}` |
 
-See [TopicFormat.md](TopicFormat.md) for the full addressing spec including multicast conventions and external client correlation patterns.
+Devices within a structure add a sub-scope segment:
 
-## Topic Handlers
+```
+EMP/{participantType}/{connectionId}/{dir}/Structure/Device/{deviceName}/{operation}
+```
 
-The basic messaging library supports compile-time linked libraries (DLLs) or shared public classes in the core project as topic handlers. This requires building new topic handlers to add routines needed by a service to modify the basic framework. Refer to the files in /ESB/TopicHandlers for examples of requesting game API calls by entering `mosquitto_pub -t "<topicString>" -m "<JSON payload>"` from the command line. 
+A single wildcard subscription covers all scopes and device depths:
 
-While it would be possible to add topic handlers at runtime, this would expose the user to potential security issues from untrusted code. For the time being this mechanism has been removed.
+```
+EMP/+/{connectionId}/Req/#
+```
+
+See [TopicSchema.md](TopicSchema.md) for the full schema specification including examples, error handling, event patterns, and design notes.
+
+---
+
+## Broker Security
+
+See [MosquittoSecurityGuide.md](MosquittoSecurityGuide.md) for ACL configuration, TLS setup, connection hardening, and the player invitation workflow for LAN and internet-hosted deployments.
+
+---
+
+## Documentation Index
+
+| Document | Description |
+|---|---|
+| [TopicSchema.md](TopicSchema.md) | Full MQTT topic schema specification |
+| [MosquittoSecurityGuide.md](MosquittoSecurityGuide.md) | Broker security configuration |
+| [Analysis/ApiTableOfContents.md](Analysis/ApiTableOfContents.md) | Empyrion mod API surface (DLL reflection) |
+| [Analysis/V1ApiObjectModel.md](Analysis/V1ApiObjectModel.md) | V1 ModBase API object model |
+| [Plans/topic-restructure-plan.md](Plans/topic-restructure-plan.md) | Completed: EMP/ schema, dir-before-scope layout |
+| [Plans/handler-alignment-plan.md](Plans/handler-alignment-plan.md) | Pending: ApplicationHandler and PlayerHandler style alignment |
+| [Plans/StartupEventCapture.md](Plans/StartupEventCapture.md) | Pending: startup event queue to prevent dropped events |

@@ -18,7 +18,7 @@ namespace ESB
         public string ParticipantType  { get; private set; }
         public string ESBModPath       { get; private set; }
 
-        // Maps Eleon ApplicationMode.ToString() values to EMP/ participant type tokens.
+        // Maps Eleon ApplicationMode.ToString() values to ESB/ participant type tokens.
         private static readonly Dictionary<string, string> ParticipantTypeMap = new Dictionary<string, string>
         {
             { "Client",          "Client" },
@@ -73,14 +73,14 @@ namespace ESB
         {
             string connId = _ctx.Messenger.ClientId();
             var json = new JObject(new JProperty("type", ParticipantType));
-            await _ctx.Messenger.PublishRetainedAsync($"EMP/Registry/{connId}", json.ToString(Formatting.None));
+            await _ctx.Messenger.PublishRetainedAsync($"ESB/Registry/{connId}", json.ToString(Formatting.None));
         }
 
         private async Task ClearRegistryEntryAsync()
         {
             string connId = _ctx.Messenger.ClientId();
             // empty retained payload instructs the broker to discard the retained message
-            await _ctx.Messenger.PublishRetainedAsync($"EMP/Registry/{connId}", "");
+            await _ctx.Messenger.PublishRetainedAsync($"ESB/Registry/{connId}", "");
         }
     }
 }

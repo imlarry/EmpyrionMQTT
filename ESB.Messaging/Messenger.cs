@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Net.NetworkInformation;
 using System.Security.Cryptography;
@@ -20,55 +20,38 @@ namespace ESB.Messaging
         private string _applicationId;
         private string _machineId;
         private string _clientId;
-        private int _pubSeqId = 0;
         private MqttFactory _mqttFactory;
         private IMqttClient _mqttClient;
-        private readonly Dictionary<string, Func<string, string, Task>> _methods = new Dictionary<string, Func<string, string, Task>>();
-        private readonly Dictionary<string, Func<EmpMessageContext, Task>> _empMethods = new Dictionary<string, Func<EmpMessageContext, Task>>();
+        private readonly Dictionary<string, Func<MessageContext, Task>> _handlers = new Dictionary<string, Func<MessageContext, Task>>();
 
         // ApplicationId ... returns the ApplicationId associated with the connection
         public string ApplicationId()
         {
             return _applicationId;
         }
-        
+
         // MachineId ... returns the MachineId associated with the connection
         public string MachineId()
         {
             return _machineId;
         }
 
-        // ClientId ... returns the ClintId associated with the connection
+        // ClientId ... returns the ClientId associated with the connection
         public string ClientId()
         {
             return _clientId;
         }
 
-        // AvailableTopics ... returns topic methods that have been registered as a CSV string
+        // AvailableTopics ... returns registered dispatch keys as a CSV string
         public string AvailableTopics()
         {
-            return string.Join(", ", _methods.Keys);
+            return string.Join(", ", _handlers.Keys);
         }
 
-        // ParseTopic .. used to parse a topic string and return a ParsedTopic object
+        // ParseTopic ... parses an ESB/ schema topic into a ParsedTopic.
+        // Standard (6 segments):      ESB/{type}/{connId}/{scope}/{dir}/{op}
+        // Device sub-scope (8 segs):  ESB/{type}/{connId}/Structure/Device/{deviceName}/{dir}/{op}
         internal ParsedTopic ParseTopic(string topic)
-        {
-            var parts = topic.Split('/');
-            var parsedTopic = new ParsedTopic
-            {
-                SourceId = parts[0],
-                MessageClass = parts[1],
-                SubjectId = parts[2],
-                ClientId = parts[3],
-                PubSeqId = parts[4]
-            };
-            return parsedTopic;
-        }
-
-        // ParseEmpTopic ... parses an EMP/ schema topic into an EmpParsedTopic.
-        // Standard (6 segments):      EMP/{type}/{connId}/{scope}/{dir}/{op}
-        // Device sub-scope (8 segs):  EMP/{type}/{connId}/Structure/Device/{deviceName}/{dir}/{op}
-        internal EmpParsedTopic ParseEmpTopic(string topic)
         {
             var p = topic.Split('/');
             // device sub-scope: parts[3]=="Structure" && parts[4]=="Device"
@@ -76,7 +59,7 @@ namespace ESB.Messaging
             {
                 var devDir = p[6];
                 var devOp  = string.Join("/", p, 7, p.Length - 7);
-                return new EmpParsedTopic
+                return new ParsedTopic
                 {
                     ParticipantType = p[1],
                     ConnectionId    = p[2],
@@ -87,11 +70,10 @@ namespace ESB.Messaging
                     DispatchKey     = $"Structure/Device/{p[5]}/{devDir}/{devOp}"
                 };
             }
-            // standard form: EMP/{type}/{connId}/{scope}/{dir}/{op...}
-            // operation may be multi-segment: "get/GameTicks", "call/Teleport"
+            // standard form: ESB/{type}/{connId}/{scope}/{dir}/{op...}
             var stdDir = p[4];
             var stdOp  = string.Join("/", p, 5, p.Length - 5);
-            return new EmpParsedTopic
+            return new ParsedTopic
             {
                 ParticipantType = p[1],
                 ConnectionId    = p[2],
@@ -101,21 +83,6 @@ namespace ESB.Messaging
                 Operation       = stdOp,
                 DispatchKey     = $"{p[3]}/{stdDir}/{stdOp}"
             };
-        }
-
-        // MsgClass ... function used to convert MessageClass enum into topic encoding
-        public char MsgClass(MessageClass messageClass)
-        {
-            switch (messageClass)
-            {
-                case MessageClass.Request: return 'Q';
-                case MessageClass.Response: return 'R';
-                case MessageClass.Event: return 'E';
-                case MessageClass.Information: return 'I';
-                case MessageClass.Exception: return 'X';
-                default:
-                    throw new ArgumentException(message: "Invalid enum value", paramName: nameof(messageClass));
-            }
         }
 
         // MqttClientOptions ... function used to create an MQTT client options object
@@ -194,7 +161,7 @@ namespace ESB.Messaging
             _mqttClient = _mqttFactory.CreateMqttClient();
             _mqttClient.ApplicationMessageReceivedAsync += ProcessMessageAsync;
 
-            string willTopic = $"EMP/Registry/{_clientId}";
+            string willTopic = $"ESB/Registry/{_clientId}";
             MqttClientOptions mqttClientOptions;
             if (string.IsNullOrEmpty(username) && string.IsNullOrEmpty(password) && string.IsNullOrEmpty(caFilePath))
             {
@@ -212,70 +179,46 @@ namespace ESB.Messaging
             await _mqttClient.ConnectAsync(mqttClientOptions, CancellationToken.None);
 
             var now = DateTime.Now.ToString("s");
-            JObject json = new JObject(
-                    new JProperty("WithTcpServer", withTcpServer),
-                    new JProperty("Application", _applicationId),
-                    new JProperty("MachineId", _machineId),
-                    new JProperty("ClientId", _clientId),
-                    new JProperty("ConnectedAt", now)
-                    );
-            await _ctx.Messenger.SendAsync(MessageClass.Information, "Messenger.ConnectAsync", json.ToString(Newtonsoft.Json.Formatting.None));
+            var json = new JObject(
+                new JProperty("WithTcpServer", withTcpServer),
+                new JProperty("Application",   _applicationId),
+                new JProperty("MachineId",     _machineId),
+                new JProperty("ClientId",      _clientId),
+                new JProperty("ConnectedAt",   now));
+            await LogAsync("ConnectAsync", json.ToString(Newtonsoft.Json.Formatting.None));
         }
 
         // DisconnectAsync ... disconnect from broker
         public async Task DisconnectAsync()
         {
-            var now = DateTime.Now.ToString("s");
-            JObject json = new JObject(
-                    new JProperty("ClientId", _ctx.Messenger.ClientId()),
-                    new JProperty("DisconnectedAt", now)
-                    );
-            await SendAsync(MessageClass.Information, "Messenger.DisconnectAsync", json.ToString(Newtonsoft.Json.Formatting.None));
+            var json = new JObject(
+                new JProperty("ClientId",       _clientId),
+                new JProperty("DisconnectedAt", DateTime.Now.ToString("s")));
+            await LogAsync("DisconnectAsync", json.ToString(Newtonsoft.Json.Formatting.None));
             await _mqttClient.DisconnectAsync();
         }
 
-        // RegisterHandler ... register a local dispatch handler by subject ID (no broker round-trip)
-        public void RegisterHandler(string subjectId, Func<string, string, Task> handler)
+        // RegisterHandler ... register a handler by dispatch key
+        public void RegisterHandler(string dispatchKey, Func<MessageContext, Task> handler)
         {
             if (handler != null)
-                _methods[subjectId] = handler;
+                _handlers[dispatchKey] = handler;
         }
 
-        // RegisterEmpHandler ... register an emp/ schema handler by dispatch key (e.g. "player/req/get")
-        public void RegisterEmpHandler(string dispatchKey, Func<EmpMessageContext, Task> handler)
-        {
-            if (handler != null)
-                _empMethods[dispatchKey] = handler;
-        }
-
-        // SubscribeRequestsAsync ... single broker subscription covering all registered handlers
-        // Matches: {appId}/Q/{anyHandler}/{myClientId}/{seqNum}  (targeted)
-        //      and {appId}/Q/{anyHandler}/*/{seqNum}             (multicast)
-        public async Task SubscribeRequestsAsync()
-        {
-            var mqttSubscribeOptions = _mqttFactory.CreateSubscribeOptionsBuilder()
-                .WithTopicFilter(f => f.WithTopic($"{_applicationId}/Q/+/{_clientId}/#"))
-                .WithTopicFilter(f => f.WithTopic($"{_applicationId}/Q/+/*/#"))
-                .Build();
-            await _mqttClient.SubscribeAsync(mqttSubscribeOptions, CancellationToken.None);
-            var json = new JObject(
-                new JProperty("TargetedFilter",  $"{_applicationId}/Q/+/{_clientId}/#"),
-                new JProperty("MulticastFilter", $"{_applicationId}/Q/+/*/#"),
-                new JProperty("RegisteredHandlers", AvailableTopics()));
-            await SendAsync(MessageClass.Information, "Messenger.Subscribed", json.ToString(Newtonsoft.Json.Formatting.None));
-        }
-
-        // SubscribeBrokerAsync ... subscribe to an arbitrary broker topic filter with no dispatch wiring.
-        // Use this for schema-specific filters constructed by the caller (e.g. SubscriptionHandler).
+        // SubscribeBrokerAsync ... subscribe to an arbitrary broker topic filter
         public async Task SubscribeBrokerAsync(string topicFilter)
         {
             var mqttSubscribeOptions = _mqttFactory.CreateSubscribeOptionsBuilder()
                 .WithTopicFilter(f => f.WithTopic(topicFilter))
                 .Build();
             await _mqttClient.SubscribeAsync(mqttSubscribeOptions, CancellationToken.None);
+            var json = new JObject(
+                new JProperty("TopicFilter",        topicFilter),
+                new JProperty("RegisteredHandlers", AvailableTopics()));
+            await LogAsync("Subscribed", json.ToString(Newtonsoft.Json.Formatting.None));
         }
 
-        // ReplyAsync ... publish a response to an emp/ request using MQTT5 ResponseTopic + CorrelationData
+        // ReplyAsync ... publish a response using MQTT5 ResponseTopic + CorrelationData
         public async Task ReplyAsync(string responseTopic, byte[] correlationData, string payload)
         {
             var message = new MqttApplicationMessageBuilder()
@@ -297,147 +240,77 @@ namespace ESB.Messaging
             await _mqttClient.PublishAsync(message, CancellationToken.None);
         }
 
-        // SubscribeEventAsync ... subscribe directly to a broker topic filter (for event consumers
-        // such as EDNA). Registers the callback by SubjectId for local dispatch, then subscribes
-        // to the broker. Use this for E/I class topics, not for Q (request) handlers.
-        public async Task SubscribeEventAsync(string topicFilter, Func<string, string, Task> callback)
+        // SubscribeEventAsync ... subscribe to an ESB/ event topic filter; stub pending EDNA rework
+        public Task SubscribeEventAsync(string topicFilter, Func<string, string, Task> callback)
         {
-            var pt = ParseTopic(topicFilter);
-            if (callback != null)
-                _methods[pt.SubjectId] = callback;
-            var options = _mqttFactory.CreateSubscribeOptionsBuilder()
-                .WithTopicFilter(f => f.WithTopic(topicFilter))
-                .Build();
-            await _mqttClient.SubscribeAsync(options, CancellationToken.None);
+            throw new NotImplementedException("SubscribeEventAsync: pending EDNA rework for ESB/ schema");
         }
 
-        // Unsubscribe ... unsubscribe from a topic
+        // UnsubscribeAsync ... unsubscribe from a topic
         public async Task UnsubscribeAsync(string topic)
         {
             await _mqttClient.UnsubscribeAsync(topic);
-            JObject json = new JObject(new JProperty("Topic", topic));
-            await SendAsync(MessageClass.Information, "Messenger.Unsubscribe", json.ToString(Newtonsoft.Json.Formatting.None));
+            var json = new JObject(new JProperty("Topic", topic));
+            await LogAsync("Unsubscribe", json.ToString(Newtonsoft.Json.Formatting.None));
         }
 
-        // SendAsync ... publish a message to the bus (three flavors)
-        public async Task SendAsync(MessageClass messageClass, string topicOrSubjectId, string payload)    // form topic from the parts or alter the message class
+        // SendAsync ... publish a message to a fully-formed topic
+        public async Task SendAsync(string topic, string payload)
         {
-            string topic;
-            if (topicOrSubjectId.Contains("/"))
-            {
-                var topicParts = topicOrSubjectId.Split('/');
-                topicParts[1] = MsgClass(messageClass).ToString();
-                topic = string.Join("/", topicParts);
-            }
-            else
-            {
-                topic = $"{_applicationId}/{MsgClass(messageClass)}/{topicOrSubjectId}/{_clientId}/{Interlocked.Increment(ref _pubSeqId)}";
-            }
-
-            var applicationMessage = new MqttApplicationMessageBuilder()
-                    .WithTopic(topic)
-                    .WithPayload(payload)
-                    .Build();
-            await _mqttClient.PublishAsync(applicationMessage, CancellationToken.None);
+            var message = new MqttApplicationMessageBuilder()
+                .WithTopic(topic)
+                .WithPayload(payload)
+                .Build();
+            await _mqttClient.PublishAsync(message, CancellationToken.None);
         }
 
-        public async Task SendAsync(string topic, string payload)                                   // send a message and assume the topic is fully formed
+        // LogAsync ... emit an ESB/Messenger/{connId}/App/Log/{operation} message
+        private Task LogAsync(string operation, string payload)
         {
-            var applicationMessage = new MqttApplicationMessageBuilder()
-                    .WithTopic(topic)
-                    .WithPayload(payload)
-                    .Build();
-            await _mqttClient.PublishAsync(applicationMessage, CancellationToken.None);
-
-            var pt = ParseTopic(topic);
-            if (pt.SourceId == "Self")
-            {
-                await Task.Run(() => ProcessMessageAsync(topic, payload));
-            }
+            return SendAsync($"ESB/Messenger/{_clientId}/App/Log/{operation}", payload);
         }
 
-        private async Task ProcessMessageAsync(string topic, string payload)
-        {
-            JObject json;
-
-#if DEBUG 
-            // echo everything we get (debug output) 
-            json = new JObject( new JProperty("Topic", topic), new JProperty("Payload", payload) ); 
-            await SendAsync(MessageClass.Information, "Messenger.ProcessMessageAsync", json.ToString(Newtonsoft.Json.Formatting.None)); 
-#endif
-            var pt = ParseTopic(topic);
-
-            if (_methods.TryGetValue(pt.SubjectId, out var method))
-            {
-                await method(topic, payload);
-            }
-            else
-            {
-                json = new JObject(
-                    new JProperty("Topic", topic),
-                    new JProperty("Exception", "No handler " + pt.SubjectId + " defined"));
-                await SendAsync(MessageClass.Information, "Messenger.ProcessMessageAsync", json.ToString(Newtonsoft.Json.Formatting.None));
-            }
-        }
-
-        // ProcessMessageAsync ... invoked in response to the broker delivering a publication on a subscribed topic
+        // ProcessMessageAsync ... invoked by MQTTnet on receipt of a subscribed message
         private async Task ProcessMessageAsync(MqttApplicationMessageReceivedEventArgs e)
         {
             string topic = e.ApplicationMessage.Topic;
             string payload = null;
-            JObject json;
 
-            // if there is a payload then encode it as a string
             if (e.ApplicationMessage.PayloadSegment.Count != 0)
             {
-                var payloadSegment = e.ApplicationMessage.PayloadSegment;
-                var payloadArray = new byte[payloadSegment.Count];
-                Array.Copy(payloadSegment.Array, payloadSegment.Offset, payloadArray, 0, payloadSegment.Count);
-                payload = Encoding.Default.GetString(payloadArray);
+                var seg = e.ApplicationMessage.PayloadSegment;
+                var buf = new byte[seg.Count];
+                Array.Copy(seg.Array, seg.Offset, buf, 0, seg.Count);
+                payload = Encoding.Default.GetString(buf);
             }
-#if DEBUG 
-            // echo everything we get (debug output) 
-            json = new JObject( new JProperty("Topic", topic), new JProperty("Payload", payload) ); 
-            await SendAsync(MessageClass.Information, "Messenger.ProcessingMessage", json.ToString(Newtonsoft.Json.Formatting.None)); 
+#if DEBUG
+            var dbg = new JObject(new JProperty("Topic", topic), new JProperty("Payload", payload));
+            await LogAsync("ProcessingMessage", dbg.ToString(Newtonsoft.Json.Formatting.None));
 #endif
-            if (topic.StartsWith("EMP/"))
+            var pt = ParseTopic(topic);
+
+            // Exact match first; for device sub-scope fall back to the wildcard key
+            // "Structure/Device/*/{dir}/{op}" so handlers don't need to know device names at registration time.
+            Func<MessageContext, Task> handler;
+            if (!_handlers.TryGetValue(pt.DispatchKey, out handler) && pt.DeviceName != null)
+                _handlers.TryGetValue($"Structure/Device/*/{pt.Dir}/{pt.Operation}", out handler);
+
+            if (handler != null)
             {
-                var ept = ParseEmpTopic(topic);
-                string responseTopic = e.ApplicationMessage.ResponseTopic;
-                byte[] correlationData = e.ApplicationMessage.CorrelationData;
-                if (_empMethods.TryGetValue(ept.DispatchKey, out var empMethod))
+                await handler(new MessageContext
                 {
-                    await empMethod(new EmpMessageContext
-                    {
-                        ParsedTopic     = ept,
-                        Payload         = payload,
-                        ResponseTopic   = responseTopic,
-                        CorrelationData = correlationData
-                    });
-                }
-                else
-                {
-                    json = new JObject(
-                        new JProperty("Topic", topic),
-                        new JProperty("Exception", "No emp handler " + ept.DispatchKey + " defined"));
-                    await SendAsync(MessageClass.Information, "Messenger.ProcessMessageAsync", json.ToString(Newtonsoft.Json.Formatting.None));
-                }
+                    ParsedTopic     = pt,
+                    Payload         = payload,
+                    ResponseTopic   = e.ApplicationMessage.ResponseTopic,
+                    CorrelationData = e.ApplicationMessage.CorrelationData
+                });
             }
             else
             {
-                var pt = ParseTopic(topic);
-
-                if (_methods.TryGetValue(pt.SubjectId, out var method))
-                {
-                    await method(topic, payload);
-                }
-                else
-                {
-                    json = new JObject(
-                        new JProperty("Topic", topic),
-                        new JProperty("Exception", "No handler " + pt.SubjectId + " defined"));
-                    await SendAsync(MessageClass.Information, "Messenger.ProcessMessageAsync", json.ToString(Newtonsoft.Json.Formatting.None));
-                }
+                var json = new JObject(
+                    new JProperty("Topic",     topic),
+                    new JProperty("Exception", "No handler for " + pt.DispatchKey));
+                await LogAsync("ProcessMessageAsync", json.ToString(Newtonsoft.Json.Formatting.None));
             }
         }
     }
