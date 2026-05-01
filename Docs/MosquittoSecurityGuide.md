@@ -74,7 +74,7 @@ openssl x509 -req -days 3650 -in server.csr -CA ca.crt -CAkey ca.key -CAcreatese
 
 ## 2. ACL File
 
-The `EMP/` topic schema creates a clear access pattern. Without an ACL, any authenticated participant can publish to any topic — including another player's `Res` topic or the `Ds` command topics.
+The `ESB/` topic schema creates a clear access pattern. Without an ACL, any authenticated participant can publish to any topic — including another player's `Res` topic or the `Ds` command topics.
 
 ### Request/Response Access Model
 
@@ -82,7 +82,7 @@ The schema has an inherent tension: requesters publish to the *responder's* `req
 
 - **`ds` / `pfs`** — server-side processes; need broad write access
 - **`client`** — player sessions; should only publish requests and their own registry entry
-- **`agent`** — autonomous processes; scoped to their declared purpose
+- **custom** (e.g. `edna`) — external participants; each uses its own type string; scoped to their declared purpose
 
 ### Recommended ACL Strategy
 
@@ -93,7 +93,7 @@ Map each participant type to a **username prefix** in your `passwd.dat`:
 | `ds-main` | DedicatedServer process |
 | `pfs-akua`, `pfs-omicron` | PlayfieldServer per playfield |
 | `client-<playerId>` | Each connecting player |
-| `agent-edna`, `agent-*` | Named agents |
+| `edna-01`, `{name}-{n}` | Named external participants (Mosquitto username; pick any convention) |
 
 Then in your `acl_file`:
 
@@ -102,52 +102,55 @@ Then in your `acl_file`:
 # DedicatedServer — full bus access
 # ---------------------------------------------------------------
 user ds-main
-topic readwrite EMP/#
-topic readwrite EMP/Registry/#
+topic readwrite ESB/#
+topic readwrite ESB/Registry/#
 
 # ---------------------------------------------------------------
 # PlayfieldServer — full access to own connection subtree;
 # can read requests directed to any Pfs; can write responses anywhere
 # ---------------------------------------------------------------
 user pfs-akua
-topic readwrite EMP/Pfs/conn-pfs-akua/#
-topic read      EMP/Registry/#
-topic write     EMP/Registry/conn-pfs-akua
+topic readwrite ESB/Pfs/conn-pfs-akua/#
+topic read      ESB/Registry/#
+topic write     ESB/Registry/conn-pfs-akua
 # Responses go to requester's Res topic -- Pfs must be able to write there
-topic write     EMP/Client/+/#
-topic write     EMP/Agent/+/#
-topic write     EMP/Ds/+/#
+# Add a write grant for each external participant type that may send requests to Pfs
+topic write     ESB/Client/+/#
+topic write     ESB/edna/+/#
+topic write     ESB/Ds/+/#
 
 # ---------------------------------------------------------------
 # Clients -- can send requests to Pfs/Ds; own their Res/Err/Log/Evt topics
 # Use %u to scope each client to their own connectionId subtree
 # ---------------------------------------------------------------
 # Pattern ACLs apply to all users -- scope clients to their own connection namespace
-pattern readwrite EMP/Client/%u/#
+pattern readwrite ESB/Client/%u/#
 # Clients need to write their registry entry and read all
-pattern write EMP/Registry/%u
+pattern write ESB/Registry/%u
 
 # Clients can send requests to server-side participants
-# Schema: EMP/{type}/{connId}/Req/{scope}/{op}
-topic write EMP/Pfs/+/Req/#
-topic write EMP/Ds/+/Req/#
+# Schema: ESB/{type}/{connId}/Req/{scope}/{op}
+topic write ESB/Pfs/+/Req/#
+topic write ESB/Ds/+/Req/#
 # Clients can read the registry to discover participants
-topic read  EMP/Registry/#
+topic read  ESB/Registry/#
 # Clients should NOT be able to write to other clients' topics
 # (no rule = no access)
 
 # ---------------------------------------------------------------
-# Agents -- scoped to their own subtree; can read/write broadly for automation
+# External participants -- scoped to their own subtree; can read/write broadly for automation
+# Mosquitto username (edna-01) is a credential identity; the topic type (edna) is the
+# participantType string passed to ConnectAsync -- the two need not match.
 # ---------------------------------------------------------------
-user agent-edna
-topic readwrite EMP/Agent/conn-edna-01/#
-topic read      EMP/Pfs/+/#
-topic read      EMP/Ds/+/#
-topic read      EMP/Client/+/#
-topic write     EMP/Pfs/+/Req/#
-topic write     EMP/Ds/+/Req/#
-topic write     EMP/Registry/conn-edna-01
-topic read      EMP/Registry/#
+user edna-01
+topic readwrite ESB/edna/conn-edna-01/#
+topic read      ESB/Pfs/+/#
+topic read      ESB/Ds/+/#
+topic read      ESB/Client/+/#
+topic write     ESB/Pfs/+/Req/#
+topic write     ESB/Ds/+/Req/#
+topic write     ESB/Registry/conn-edna-01
+topic read      ESB/Registry/#
 ```
 
 Add to `mosquitto.conf`:
@@ -222,7 +225,7 @@ max_keepalive 120
 
 ## 4. Retained Message Security
 
-The schema uses retained messages for the `EMP/Registry/#` subtree. `check_retain_source` is true by default and should be left that way — it ensures that if a participant's credentials are revoked, their retained registry entry will not be re-delivered to new subscribers.
+The schema uses retained messages for the `ESB/Registry/#` subtree. `check_retain_source` is true by default and should be left that way — it ensures that if a participant's credentials are revoked, their retained registry entry will not be re-delivered to new subscribers.
 
 ```conf
 # Confirm this is set (it is the default, but worth making explicit)
@@ -527,11 +530,11 @@ $aclEntry = @"
 
 # Player $PlayerId -- provisioned $(Get-Date -Format 'yyyy-MM-ddTHH:mm:ss')
 user $username
-topic readwrite EMP/Client/$connId/#
-topic write     EMP/Registry/$connId
-topic read      EMP/Registry/#
-topic write     EMP/Pfs/+/Req/#
-topic write     EMP/Ds/+/Req/#
+topic readwrite ESB/Client/$connId/#
+topic write     ESB/Registry/$connId
+topic read      ESB/Registry/#
+topic write     ESB/Pfs/+/Req/#
+topic write     ESB/Ds/+/Req/#
 "@
 Add-Content -Path $aclFile -Value $aclEntry
 
@@ -565,11 +568,11 @@ Use `mosquitto_sub` and `mosquitto_pub` to confirm TLS and ACL are working:
 ```powershell
 # Should connect and receive messages
 mosquitto_sub -h localhost -p 8883 --cafile C:\empyrion-mqtt\certs\ca.crt `
-  -u ds-main -P <password> -t "EMP/#" -v
+  -u ds-main -P <password> -t "ESB/#" -v
 
 # Should be rejected (wrong user for this topic -- ACL test)
 mosquitto_pub -h localhost -p 8883 --cafile C:\empyrion-mqtt\certs\ca.crt `
-  -u client-7 -P <password> -t "EMP/Client/conn-client-99/Evt/App/test" -m "test"
+  -u client-7 -P <password> -t "ESB/Client/conn-client-99/Evt/App/test" -m "test"
 ```
 
 ---

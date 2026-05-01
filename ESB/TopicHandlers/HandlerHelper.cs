@@ -1,8 +1,9 @@
+using ESB.Helpers;
 using ESB.Messaging;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using System;
 using System.Collections.Generic;
-using System.Text;
 using System.Threading.Tasks;
 
 namespace ESB.TopicHandlers
@@ -10,19 +11,20 @@ namespace ESB.TopicHandlers
     internal static class HandlerHelper
     {
         internal static Task ReplyAsync(IMessenger messenger, MessageContext ctx, string payload)
-            => messenger.ReplyAsync(ctx.ResponseTopic, ctx.CorrelationData, payload);
-
-        internal static async Task ReplyErrorAsync(IMessenger messenger, MessageContext ctx, string errorJson)
         {
-            await messenger.ReplyAsync(ctx.ResponseTopic, ctx.CorrelationData, errorJson);
-
             var pt = ctx.ParsedTopic;
             string op = pt.MetaOperation != null ? $"{pt.Operation}.{pt.MetaOperation}" : pt.Operation;
-            string errTopic = $"EMP/{pt.ParticipantType}/{pt.ConnectionId}/Err/{pt.Scope}/{op}";
-            await messenger.SendAsync(errTopic, errorJson);
+            string replyTopic = $"ESB/{pt.ParticipantType}/{pt.ConnectionId}/Res/{pt.Scope}/{op}";
+            return messenger.ReplyAsync(replyTopic, ctx.CorrelationData, payload);
         }
 
-        internal static byte[] ToBytes(string s) => Encoding.UTF8.GetBytes(s);
+        internal static Task ReplyErrorAsync(IMessenger messenger, MessageContext ctx, string errorJson)
+        {
+            var pt = ctx.ParsedTopic;
+            string op = pt.MetaOperation != null ? $"{pt.Operation}.{pt.MetaOperation}" : pt.Operation;
+            string errTopic = $"ESB/{pt.ParticipantType}/{pt.ConnectionId}/Err/{pt.Scope}/{op}";
+            return messenger.SendAsync(errTopic, errorJson);
+        }
 
         // -------------------------------------------------------------------------
         // Operation metadata types
@@ -80,6 +82,43 @@ namespace ESB.TopicHandlers
             return new JObject(
                 new JProperty("Scope",      scope),
                 new JProperty("Operations", arr)).ToString(Formatting.None);
+        }
+
+        // -------------------------------------------------------------------------
+        // Property-bag projection helpers (used by GetProperties handlers)
+        // -------------------------------------------------------------------------
+
+        internal static bool TryParsePropertyNames(
+            JArray requested,
+            IEnumerable<string> validNames,
+            out HashSet<string> names,
+            out List<string> invalid)
+        {
+            names = new HashSet<string>();
+            invalid = null;
+            var validSet = new HashSet<string>(validNames);
+            foreach (var token in requested)
+            {
+                var name = token.Value<string>();
+                if (validSet.Contains(name)) names.Add(name);
+                else (invalid ?? (invalid = new List<string>())).Add(name);
+            }
+            return invalid == null;
+        }
+
+        internal static JObject BuildPropertyObject<T>(
+            T source,
+            Dictionary<string, Func<T, JToken>> getters,
+            HashSet<string> filter)
+        {
+            var obj = new JObject();
+            foreach (var kv in getters)
+            {
+                if (filter != null && !filter.Contains(kv.Key)) continue;
+                try   { obj[kv.Key] = kv.Value(source); }
+                catch { obj[kv.Key] = JValue.CreateNull(); }
+            }
+            return obj;
         }
 
         // -------------------------------------------------------------------------

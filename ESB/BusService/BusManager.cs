@@ -3,6 +3,7 @@ using System.IO;
 using System.Threading.Tasks;
 using System.Reflection;
 using ESB.Configuration;
+using ESB.EventHandlers;
 using ESB.Helpers;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
@@ -34,7 +35,7 @@ namespace ESB
 
             ApplicationName = _ctx.ModApi.Application.Mode.ToString();
             ParticipantTypeMap.TryGetValue(ApplicationName, out var pt);
-            ParticipantType = pt ?? "Agent";
+            ParticipantType = pt;
 
             Assembly currentAssembly = Assembly.GetExecutingAssembly();
             ESBModPath = Path.GetDirectoryName(currentAssembly.Location);
@@ -52,7 +53,8 @@ namespace ESB
                     , _ctx.ESBConfig.MQTThost.Port
                     , _ctx.ESBConfig.MQTThost.Username
                     , _ctx.ESBConfig.MQTThost.Password
-                    , _ctx.ESBConfig.MQTThost.CAFilePath);
+                    , _ctx.ESBConfig.MQTThost.CAFilePath
+                    , ParticipantType);
 
             await PublishRegistryEntryAsync();
 
@@ -65,7 +67,7 @@ namespace ESB
         public async Task Shutdown()
         {
             _eMgr.DisableEventHandlers();
-            await ClearRegistryEntryAsync();
+            // await ClearRegistryEntryAsync(); // this clears an entry, a will can clear it if the client disconnects unexpectedly. Retained messages with empty payload are discarded by the broker.
             await _ctx.Messenger.DisconnectAsync();
         }
 

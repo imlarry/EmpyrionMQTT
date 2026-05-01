@@ -53,21 +53,21 @@ External clients can be written in any language that supports MQTT. The game mod
      Port: 1883
    ```
 
-4. Start the game and load a save. The mod will connect to the broker and begin publishing events. Subscribe with `mosquitto_sub -v -t "EMP/#"` to observe traffic.
+4. Start the game and load a save. The mod will connect to the broker and begin publishing events. Subscribe with `mosquitto_sub -v -t "ESB/#"` to observe traffic.
 
 ---
 
 ## Topic Schema
 
-All messages use the `EMP/` prefix with the following base structure:
+All messages use the `ESB/` prefix with the following base structure:
 
 ```
-EMP/{participantType}/{connectionId}/{dir}/{scope}/{operation}
+ESB/{participantType}/{connectionId}/{dir}/{scope}/{operation}
 ```
 
 | Segment | Values |
 |---|---|
-| `participantType` | `Client`, `Pfs`, `Ds`, `Agent` |
+| `participantType` | `Client`, `Pfs`, `Ds`, `{user-defined}` |
 | `connectionId` | 4-char Base-36 ID assigned per connection |
 | `dir` | `Req`, `Res`, `Evt`, `Err`, `Log` |
 | `scope` | `App`, `Playfield`, `Player`, `Structure` |
@@ -76,13 +76,13 @@ EMP/{participantType}/{connectionId}/{dir}/{scope}/{operation}
 Devices within a structure add a sub-scope segment:
 
 ```
-EMP/{participantType}/{connectionId}/{dir}/Structure/Device/{deviceName}/{operation}
+ESB/{participantType}/{connectionId}/{dir}/Structure/Device/{deviceName}/{operation}
 ```
 
 A single wildcard subscription covers all scopes and device depths:
 
 ```
-EMP/+/{connectionId}/Req/#
+ESB/+/{connectionId}/Req/#
 ```
 
 See [TopicSchema.md](TopicSchema.md) for the full schema specification including examples, error handling, event patterns, and design notes.
@@ -103,6 +103,6 @@ See [MosquittoSecurityGuide.md](MosquittoSecurityGuide.md) for ACL configuration
 | [MosquittoSecurityGuide.md](MosquittoSecurityGuide.md) | Broker security configuration |
 | [Analysis/ApiTableOfContents.md](Analysis/ApiTableOfContents.md) | Empyrion mod API surface (DLL reflection) |
 | [Analysis/V1ApiObjectModel.md](Analysis/V1ApiObjectModel.md) | V1 ModBase API object model |
-| [Plans/topic-restructure-plan.md](Plans/topic-restructure-plan.md) | Completed: EMP/ schema, dir-before-scope layout |
+| [Plans/topic-restructure-plan.md](Plans/topic-restructure-plan.md) | Completed: ESB/ schema, dir-before-scope layout |
 | [Plans/handler-alignment-plan.md](Plans/handler-alignment-plan.md) | Pending: ApplicationHandler and PlayerHandler style alignment |
 | [Plans/StartupEventCapture.md](Plans/StartupEventCapture.md) | Pending: startup event queue to prevent dropped events |

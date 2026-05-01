@@ -5,14 +5,9 @@ using System.Threading.Tasks;
 namespace ESBTests.TopicHandlerTests;
 
 /// <summary>
-/// Integration tests for StructureHandler and its Device sub-scope handlers.
+/// Integration tests for StructureHandler.
 /// Requires the game running with the ESB mod loaded and the saved game described
 /// in KnownState active (VNS Akua base, EntityId 5320).
-///
-/// Device tests (Lcd, Light, Container, Teleporter) require the named devices from
-/// KnownState to be present on the base. Device position is discovered via
-/// Structure/Req/get/GetDevicePositions before each test.
-///
 /// Run with: dotnet test --filter "Category=Integration"
 /// </summary>
 [Trait("Category", "Integration")]
@@ -21,7 +16,7 @@ public class Test_Structure_Integration
     private const int EID = KnownState.BaseEntityId;
 
     // =========================================================================
-    // Structure/Req/get/Info
+    // Structure/Info
     // =========================================================================
 
     [Fact]
@@ -29,7 +24,7 @@ public class Test_Structure_Integration
     {
         await using var mqtt = await SBTestClient.ConnectAsync();
         var connId  = await mqtt.FindConnectionAsync("Client");
-        var payload = await mqtt.RequestAsync(connId, "Client", "Structure", "get/Info",
+        var payload = await mqtt.RequestAsync(connId, "Client", "Structure", "Info",
             $"{{\"EntityId\":{EID}}}");
 
         Assert.Equal(EID, payload["EntityId"]!.Value<int>());
@@ -42,14 +37,14 @@ public class Test_Structure_Integration
     {
         await using var mqtt = await SBTestClient.ConnectAsync();
         var connId  = await mqtt.FindConnectionAsync("Client");
-        var payload = await mqtt.RequestAsync(connId, "Client", "Structure", "get/Info",
+        var payload = await mqtt.RequestAsync(connId, "Client", "Structure", "Info",
             "{\"EntityId\":999999}");
 
         Assert.NotNull(payload["Error"]);
     }
 
     // =========================================================================
-    // Structure/Req/get/Tanks
+    // Structure/Tanks
     // =========================================================================
 
     [Fact]
@@ -57,7 +52,7 @@ public class Test_Structure_Integration
     {
         await using var mqtt = await SBTestClient.ConnectAsync();
         var connId  = await mqtt.FindConnectionAsync("Client");
-        var payload = await mqtt.RequestAsync(connId, "Client", "Structure", "get/Tanks",
+        var payload = await mqtt.RequestAsync(connId, "Client", "Structure", "Tanks",
             $"{{\"EntityId\":{EID}}}");
 
         Assert.NotNull(payload["FuelTank"]);
@@ -66,7 +61,7 @@ public class Test_Structure_Integration
     }
 
     // =========================================================================
-    // Structure/Req/get/GetAllCustomDeviceNames
+    // Structure/GetAllCustomDeviceNames
     // =========================================================================
 
     [Fact]
@@ -74,7 +69,7 @@ public class Test_Structure_Integration
     {
         await using var mqtt = await SBTestClient.ConnectAsync();
         var connId  = await mqtt.FindConnectionAsync("Client");
-        var payload = await mqtt.RequestAsync(connId, "Client", "Structure", "get/GetAllCustomDeviceNames",
+        var payload = await mqtt.RequestAsync(connId, "Client", "Structure", "GetAllCustomDeviceNames",
             $"{{\"EntityId\":{EID}}}");
 
         var names = payload["DeviceNames"]!.ToObject<string[]>();
@@ -84,7 +79,7 @@ public class Test_Structure_Integration
     }
 
     // =========================================================================
-    // Structure/Req/get/GetDevicePositions
+    // Structure/GetDevicePositions
     // =========================================================================
 
     [Fact]
@@ -92,7 +87,7 @@ public class Test_Structure_Integration
     {
         await using var mqtt = await SBTestClient.ConnectAsync();
         var connId  = await mqtt.FindConnectionAsync("Client");
-        var payload = await mqtt.RequestAsync(connId, "Client", "Structure", "get/GetDevicePositions",
+        var payload = await mqtt.RequestAsync(connId, "Client", "Structure", "GetDevicePositions",
             $"{{\"EntityId\":{EID},\"DeviceName\":\"{KnownState.DeviceName1}\"}}");
 
         Assert.NotNull(payload["Positions"]);
@@ -104,7 +99,7 @@ public class Test_Structure_Integration
     {
         await using var mqtt = await SBTestClient.ConnectAsync();
         var connId  = await mqtt.FindConnectionAsync("Client");
-        var payload = await mqtt.RequestAsync(connId, "Client", "Structure", "get/GetDevicePositions",
+        var payload = await mqtt.RequestAsync(connId, "Client", "Structure", "GetDevicePositions",
             $"{{\"EntityId\":{EID},\"DeviceName\":\"{KnownState.DeviceName2}\"}}");
 
         Assert.NotNull(payload["Positions"]);
@@ -112,7 +107,7 @@ public class Test_Structure_Integration
     }
 
     // =========================================================================
-    // Structure/Req/set/AddTankContent -- add 0 fuel (safe no-op)
+    // Structure/AddTankContent -- add 0 fuel (safe no-op)
     // =========================================================================
 
     [Fact]
@@ -120,7 +115,7 @@ public class Test_Structure_Integration
     {
         await using var mqtt = await SBTestClient.ConnectAsync();
         var connId  = await mqtt.FindConnectionAsync("Client");
-        var payload = await mqtt.RequestAsync(connId, "Client", "Structure", "set/AddTankContent",
+        var payload = await mqtt.RequestAsync(connId, "Client", "Structure", "AddTankContent",
             $"{{\"EntityId\":{EID},\"TankType\":\"Fuel\",\"Amount\":0.0}}");
 
         Assert.Equal("Fuel", payload["TankType"]!.Value<string>());
@@ -133,14 +128,14 @@ public class Test_Structure_Integration
     {
         await using var mqtt = await SBTestClient.ConnectAsync();
         var connId  = await mqtt.FindConnectionAsync("Client");
-        var payload = await mqtt.RequestAsync(connId, "Client", "Structure", "set/AddTankContent",
+        var payload = await mqtt.RequestAsync(connId, "Client", "Structure", "AddTankContent",
             $"{{\"EntityId\":{EID},\"TankType\":\"Plasma\",\"Amount\":0.0}}");
 
         Assert.NotNull(payload["Error"]);
     }
 
     // =========================================================================
-    // Structure/Req/get/GetDockedVessels
+    // Structure/GetDockedVessels
     // =========================================================================
 
     [Fact]
@@ -148,14 +143,14 @@ public class Test_Structure_Integration
     {
         await using var mqtt = await SBTestClient.ConnectAsync();
         var connId  = await mqtt.FindConnectionAsync("Client");
-        var payload = await mqtt.RequestAsync(connId, "Client", "Structure", "get/GetDockedVessels",
+        var payload = await mqtt.RequestAsync(connId, "Client", "Structure", "GetDockedVessels",
             $"{{\"EntityId\":{EID}}}");
 
         Assert.NotNull(payload["DockedVessels"]);
     }
 
     // =========================================================================
-    // Structure/Req/get/GetPassengers
+    // Structure/GetPassengers
     // =========================================================================
 
     [Fact]
@@ -163,14 +158,14 @@ public class Test_Structure_Integration
     {
         await using var mqtt = await SBTestClient.ConnectAsync();
         var connId  = await mqtt.FindConnectionAsync("Client");
-        var payload = await mqtt.RequestAsync(connId, "Client", "Structure", "get/GetPassengers",
+        var payload = await mqtt.RequestAsync(connId, "Client", "Structure", "GetPassengers",
             $"{{\"EntityId\":{EID}}}");
 
         Assert.NotNull(payload["Passengers"]);
     }
 
     // =========================================================================
-    // Structure/Req/get/GetBlockSignals
+    // Structure/GetBlockSignals
     // Filter is optional; no filter returns all signals on the structure.
     // =========================================================================
 
@@ -179,7 +174,7 @@ public class Test_Structure_Integration
     {
         await using var mqtt = await SBTestClient.ConnectAsync();
         var connId  = await mqtt.FindConnectionAsync("Client");
-        var payload = await mqtt.RequestAsync(connId, "Client", "Structure", "get/GetBlockSignals",
+        var payload = await mqtt.RequestAsync(connId, "Client", "Structure", "GetBlockSignals",
             $"{{\"EntityId\":{EID}}}");
 
         Assert.NotNull(payload["Signals"]);
@@ -190,7 +185,7 @@ public class Test_Structure_Integration
     {
         await using var mqtt = await SBTestClient.ConnectAsync();
         var connId  = await mqtt.FindConnectionAsync("Client");
-        var payload = await mqtt.RequestAsync(connId, "Client", "Structure", "get/GetBlockSignals",
+        var payload = await mqtt.RequestAsync(connId, "Client", "Structure", "GetBlockSignals",
             $"{{\"EntityId\":{EID},\"Filter\":\"{KnownState.SignalName}\"}}");
 
         Assert.NotNull(payload["Signals"]);
@@ -201,7 +196,7 @@ public class Test_Structure_Integration
     }
 
     // =========================================================================
-    // Structure/Req/get/GetControlPanelSignals
+    // Structure/GetControlPanelSignals
     // =========================================================================
 
     [Fact]
@@ -209,14 +204,14 @@ public class Test_Structure_Integration
     {
         await using var mqtt = await SBTestClient.ConnectAsync();
         var connId  = await mqtt.FindConnectionAsync("Client");
-        var payload = await mqtt.RequestAsync(connId, "Client", "Structure", "get/GetControlPanelSignals",
+        var payload = await mqtt.RequestAsync(connId, "Client", "Structure", "GetControlPanelSignals",
             $"{{\"EntityId\":{EID}}}");
 
         Assert.NotNull(payload["Signals"]);
     }
 
     // =========================================================================
-    // Structure/Req/get/GetSignalState
+    // Structure/GetSignalState
     // =========================================================================
 
     [Fact]
@@ -224,7 +219,7 @@ public class Test_Structure_Integration
     {
         await using var mqtt = await SBTestClient.ConnectAsync();
         var connId  = await mqtt.FindConnectionAsync("Client");
-        var payload = await mqtt.RequestAsync(connId, "Client", "Structure", "get/GetSignalState",
+        var payload = await mqtt.RequestAsync(connId, "Client", "Structure", "GetSignalState",
             $"{{\"EntityId\":{EID},\"SignalName\":\"{KnownState.SignalName}\"}}");
 
         Assert.Equal(KnownState.SignalName, payload["SignalName"]!.Value<string>());
@@ -232,7 +227,7 @@ public class Test_Structure_Integration
     }
 
     // =========================================================================
-    // Structure/Req/get/GetSignalReceivers
+    // Structure/GetSignalReceivers
     // =========================================================================
 
     [Fact]
@@ -240,14 +235,14 @@ public class Test_Structure_Integration
     {
         await using var mqtt = await SBTestClient.ConnectAsync();
         var connId  = await mqtt.FindConnectionAsync("Client");
-        var payload = await mqtt.RequestAsync(connId, "Client", "Structure", "get/GetSignalReceivers",
+        var payload = await mqtt.RequestAsync(connId, "Client", "Structure", "GetSignalReceivers",
             $"{{\"EntityId\":{EID},\"SignalName\":\"{KnownState.SignalName}\"}}");
 
         Assert.NotNull(payload["Receivers"]);
     }
 
     // =========================================================================
-    // Structure/Req/get/GetSendSignalName
+    // Structure/GetSendSignalName
     // =========================================================================
 
     [Fact]
@@ -255,14 +250,14 @@ public class Test_Structure_Integration
     {
         await using var mqtt = await SBTestClient.ConnectAsync();
         var connId  = await mqtt.FindConnectionAsync("Client");
-        var payload = await mqtt.RequestAsync(connId, "Client", "Structure", "get/GetSendSignalName",
+        var payload = await mqtt.RequestAsync(connId, "Client", "Structure", "GetSendSignalName",
             $"{{\"EntityId\":{EID},\"Pos\":{KnownState.LeverSwitchBlock}}}");
 
         Assert.Equal(KnownState.SignalName, payload["SignalName"]!.Value<string>());
     }
 
     // =========================================================================
-    // Structure/Req/get/StructToGlobalPos
+    // Structure/StructToGlobalPos
     // =========================================================================
 
     [Fact]
@@ -270,7 +265,7 @@ public class Test_Structure_Integration
     {
         await using var mqtt = await SBTestClient.ConnectAsync();
         var connId  = await mqtt.FindConnectionAsync("Client");
-        var payload = await mqtt.RequestAsync(connId, "Client", "Structure", "get/StructToGlobalPos",
+        var payload = await mqtt.RequestAsync(connId, "Client", "Structure", "StructToGlobalPos",
             $"{{\"EntityId\":{EID},\"StructPos\":{{\"X\":0,\"Y\":0,\"Z\":0}}}}");
 
         var globalPos = payload["GlobalPos"]!;
@@ -285,7 +280,7 @@ public class Test_Structure_Integration
     }
 
     // =========================================================================
-    // Structure/Req/get/GlobalToStructPos
+    // Structure/GlobalToStructPos
     // =========================================================================
 
     [Fact]
@@ -293,7 +288,7 @@ public class Test_Structure_Integration
     {
         await using var mqtt = await SBTestClient.ConnectAsync();
         var connId  = await mqtt.FindConnectionAsync("Client");
-        var payload = await mqtt.RequestAsync(connId, "Client", "Structure", "get/GlobalToStructPos",
+        var payload = await mqtt.RequestAsync(connId, "Client", "Structure", "GlobalToStructPos",
             $"{{\"EntityId\":{EID},\"Pos\":{KnownState.BaseGlobalPos}}}");
 
         var structPos = payload["StructPos"]!;
@@ -304,7 +299,7 @@ public class Test_Structure_Integration
     }
 
     // =========================================================================
-    // Structure/Req/set/SetFaction
+    // Structure/SetFaction
     // FactionGroup is a string enum; FactionEntityId is the owning entity's ID.
     // Using FactionGroup=None and FactionEntityId=0 as a safe probe.
     // =========================================================================
@@ -314,7 +309,7 @@ public class Test_Structure_Integration
     {
         await using var mqtt = await SBTestClient.ConnectAsync();
         var connId  = await mqtt.FindConnectionAsync("Client");
-        var payload = await mqtt.RequestAsync(connId, "Client", "Structure", "set/SetFaction",
+        var payload = await mqtt.RequestAsync(connId, "Client", "Structure", "SetFaction",
             $"{{\"EntityId\":{EID},\"FactionGroup\":\"None\",\"FactionEntityId\":0}}");
 
         Assert.True(payload["EntityId"] != null || payload["Error"] != null,
@@ -326,255 +321,9 @@ public class Test_Structure_Integration
     {
         await using var mqtt = await SBTestClient.ConnectAsync();
         var connId  = await mqtt.FindConnectionAsync("Client");
-        var payload = await mqtt.RequestAsync(connId, "Client", "Structure", "set/SetFaction",
+        var payload = await mqtt.RequestAsync(connId, "Client", "Structure", "SetFaction",
             $"{{\"EntityId\":{EID},\"FactionGroup\":\"NotAGroup\",\"FactionEntityId\":0}}");
 
         Assert.NotNull(payload["Error"]);
-    }
-
-    // =========================================================================
-    // Device sub-scope -- LCD
-    // Topic: Structure/Device/{name}/Req/get/Lcd
-    // Payload: { EntityId, Pos }  -- Pos is discovered via GetDevicePositions
-    // =========================================================================
-
-    private async Task<(SBTestClient? mqtt, string? connId, JToken? pos)> GetDevicePos(
-        string deviceName)
-    {
-        var mqtt   = await SBTestClient.ConnectAsync();
-        var connId = await mqtt.FindConnectionAsync("Client");
-        var result = await mqtt.RequestAsync(connId, "Client", "Structure", "get/GetDevicePositions",
-            $"{{\"EntityId\":{EID},\"DeviceName\":\"{deviceName}\"}}");
-        var positions = result["Positions"] as JArray;
-        if (positions == null || positions.Count == 0)
-        {
-            await mqtt.DisposeAsync();
-            return (null, null, null);
-        }
-        return (mqtt, connId, positions[0]);
-    }
-
-
-    [Fact]
-    public async Task Lcd_Get_ReturnsTextAndColors()
-    {
-        var (mqttN, connIdN, posN) = await GetDevicePos(KnownState.LcdName);
-        Skip.If(mqttN == null, $"Device '{KnownState.LcdName}' not found on entity {EID}");
-        var mqtt = mqttN!; var connId = connIdN!; var pos = posN!;
-        await using var _ = mqtt;
-
-        var payload = await mqtt.RequestAsync(connId, "Client",
-            $"Structure/Device/{KnownState.LcdName}", "get/Lcd",
-            $"{{\"EntityId\":{EID},\"Pos\":{pos}}}");
-
-        Assert.Equal(EID,              payload["EntityId"]!.Value<int>());
-        Assert.Equal(KnownState.LcdName, payload["DeviceName"]!.Value<string>());
-        Assert.NotNull(payload["Text"]);
-        Assert.NotNull(payload["FontSize"]);
-        Assert.NotNull(payload["TextColor"]);
-        Assert.NotNull(payload["BackgroundColor"]);
-    }
-
-    [Fact]
-    public async Task Lcd_SetText_RoundTrips()
-    {
-        var (mqttN, connIdN, posN) = await GetDevicePos(KnownState.LcdName);
-        Skip.If(mqttN == null, $"Device '{KnownState.LcdName}' not found on entity {EID}");
-        var mqtt = mqttN!; var connId = connIdN!; var pos = posN!;
-        await using var _ = mqtt;
-
-        // Read current text
-        var before = await mqtt.RequestAsync(connId, "Client",
-            $"Structure/Device/{KnownState.LcdName}", "get/Lcd",
-            $"{{\"EntityId\":{EID},\"Pos\":{pos}}}");
-        string originalText = before["Text"]!.Value<string>() ?? string.Empty;
-
-        // Set same text (no-op)
-        var set = await mqtt.RequestAsync(connId, "Client",
-            $"Structure/Device/{KnownState.LcdName}", "set/Text",
-            $"{{\"EntityId\":{EID},\"Pos\":{pos},\"Value\":{Newtonsoft.Json.JsonConvert.SerializeObject(originalText)}}}");
-
-        Assert.Equal(originalText, set["Value"]!.Value<string>());
-    }
-
-    [Fact]
-    public async Task Lcd_SetFontSize_RoundTrips()
-    {
-        var (mqttN, connIdN, posN) = await GetDevicePos(KnownState.LcdName);
-        Skip.If(mqttN == null, $"Device '{KnownState.LcdName}' not found on entity {EID}");
-        var mqtt = mqttN!; var connId = connIdN!; var pos = posN!;
-        await using var _ = mqtt;
-
-        var before = await mqtt.RequestAsync(connId, "Client",
-            $"Structure/Device/{KnownState.LcdName}", "get/Lcd",
-            $"{{\"EntityId\":{EID},\"Pos\":{pos}}}");
-        int fontSize = before["FontSize"]!.Value<int>();
-
-        var set = await mqtt.RequestAsync(connId, "Client",
-            $"Structure/Device/{KnownState.LcdName}", "set/FontSize",
-            $"{{\"EntityId\":{EID},\"Pos\":{pos},\"Value\":{fontSize}}}");
-
-        Assert.Equal(fontSize, set["Value"]!.Value<int>());
-    }
-
-    // =========================================================================
-    // Device sub-scope -- Light
-    // =========================================================================
-
-    [Fact]
-    public async Task Light_Get_ReturnsAllProperties()
-    {
-        var (mqttN, connIdN, posN) = await GetDevicePos(KnownState.LightName);
-        Skip.If(mqttN == null, $"Device '{KnownState.LightName}' not found on entity {EID}");
-        var mqtt = mqttN!; var connId = connIdN!; var pos = posN!;
-        await using var _ = mqtt;
-
-        var payload = await mqtt.RequestAsync(connId, "Client",
-            $"Structure/Device/{KnownState.LightName}", "get/Light",
-            $"{{\"EntityId\":{EID},\"Pos\":{pos}}}");
-
-        Assert.NotNull(payload["Color"]);
-        Assert.NotNull(payload["Intensity"]);
-        Assert.NotNull(payload["Range"]);
-        Assert.NotNull(payload["LightType"]);
-        Assert.NotNull(payload["SpotAngle"]);
-        Assert.NotNull(payload["BlinkInterval"]);
-    }
-
-    [Fact]
-    public async Task Light_SetIntensity_RoundTrips()
-    {
-        var (mqttN, connIdN, posN) = await GetDevicePos(KnownState.LightName);
-        Skip.If(mqttN == null, $"Device '{KnownState.LightName}' not found on entity {EID}");
-        var mqtt = mqttN!; var connId = connIdN!; var pos = posN!;
-        await using var _ = mqtt;
-
-        var before = await mqtt.RequestAsync(connId, "Client",
-            $"Structure/Device/{KnownState.LightName}", "get/Light",
-            $"{{\"EntityId\":{EID},\"Pos\":{pos}}}");
-        float intensity = before["Intensity"]!.Value<float>();
-
-        var set = await mqtt.RequestAsync(connId, "Client",
-            $"Structure/Device/{KnownState.LightName}", "set/Intensity",
-            $"{{\"EntityId\":{EID},\"Pos\":{pos},\"Value\":{intensity}}}");
-
-        Assert.Equal(intensity, set["Value"]!.Value<float>(), 3);
-    }
-
-    // =========================================================================
-    // Device sub-scope -- Container (Fridge)
-    // =========================================================================
-
-    [Fact]
-    public async Task Container_Get_ReturnsContentArray()
-    {
-        var (mqttN, connIdN, posN) = await GetDevicePos(KnownState.DeviceName2);
-        Skip.If(mqttN == null, $"Device '{KnownState.DeviceName2}' not found on entity {EID}");
-        var mqtt = mqttN!; var connId = connIdN!; var pos = posN!;
-        await using var _ = mqtt;
-
-        var payload = await mqtt.RequestAsync(connId, "Client",
-            $"Structure/Device/{KnownState.DeviceName2}", "get/Container",
-            $"{{\"EntityId\":{EID},\"Pos\":{pos}}}");
-
-        Assert.NotNull(payload["Content"]);
-        Assert.NotNull(payload["VolumeCapacity"]);
-        Assert.NotNull(payload["DecayFactor"]);
-    }
-
-    [Fact]
-    public async Task Container_Contains_ReturnsBool()
-    {
-        var (mqttN, connIdN, posN) = await GetDevicePos(KnownState.DeviceName2);
-        Skip.If(mqttN == null, $"Device '{KnownState.DeviceName2}' not found on entity {EID}");
-        var mqtt = mqttN!; var connId = connIdN!; var pos = posN!;
-        await using var _ = mqtt;
-
-        // Discover a real item type from the container
-        var get = await mqtt.RequestAsync(connId, "Client",
-            $"Structure/Device/{KnownState.DeviceName2}", "get/Container",
-            $"{{\"EntityId\":{EID},\"Pos\":{pos}}}");
-        var content = get["Content"] as JArray;
-        Skip.If(content == null || content.Count == 0, "Container is empty -- skip Contains test");
-
-        int itemType = content![0]["Id"]!.Value<int>();
-        var payload = await mqtt.RequestAsync(connId, "Client",
-            $"Structure/Device/{KnownState.DeviceName2}", "get/Contains",
-            $"{{\"EntityId\":{EID},\"Pos\":{pos},\"Type\":{itemType}}}");
-
-        Assert.NotNull(payload["Contains"]);
-        Assert.True(payload["Contains"]!.Value<bool>());
-    }
-
-    [Fact]
-    public async Task Container_GetTotalItems_ReturnsCount()
-    {
-        var (mqttN, connIdN, posN) = await GetDevicePos(KnownState.DeviceName2);
-        Skip.If(mqttN == null, $"Device '{KnownState.DeviceName2}' not found on entity {EID}");
-        var mqtt = mqttN!; var connId = connIdN!; var pos = posN!;
-        await using var _ = mqtt;
-
-        var get = await mqtt.RequestAsync(connId, "Client",
-            $"Structure/Device/{KnownState.DeviceName2}", "get/Container",
-            $"{{\"EntityId\":{EID},\"Pos\":{pos}}}");
-        var content = get["Content"] as JArray;
-        Skip.If(content == null || content.Count == 0, "Container is empty -- skip GetTotalItems test");
-
-        int itemType = content![0]["Id"]!.Value<int>();
-        var payload = await mqtt.RequestAsync(connId, "Client",
-            $"Structure/Device/{KnownState.DeviceName2}", "get/GetTotalItems",
-            $"{{\"EntityId\":{EID},\"Pos\":{pos},\"Type\":{itemType}}}");
-
-        Assert.True(payload["Count"]!.Value<int>() > 0);
-    }
-
-    // =========================================================================
-    // Device sub-scope -- Teleporter
-    // =========================================================================
-
-    [Fact]
-    public async Task Teleporter_Get_ReturnsTargetData()
-    {
-        var (mqttN, connIdN, posN) = await GetDevicePos(KnownState.TeleporterName);
-        Skip.If(mqttN == null, $"Device '{KnownState.TeleporterName}' not found on entity {EID}");
-        var mqtt = mqttN!; var connId = connIdN!; var pos = posN!;
-        await using var _ = mqtt;
-
-        var payload = await mqtt.RequestAsync(connId, "Client",
-            $"Structure/Device/{KnownState.TeleporterName}", "get/Teleporter",
-            $"{{\"EntityId\":{EID},\"Pos\":{pos}}}");
-
-        Assert.NotNull(payload["TargetEntityNameOrGroup"]);
-        Assert.NotNull(payload["TargetPlayfield"]);
-        Assert.NotNull(payload["TargetSolarSystemName"]);
-        Assert.NotNull(payload["Origin"]);
-    }
-
-    [Fact]
-    public async Task Teleporter_Set_RoundTrips()
-    {
-        var (mqttN, connIdN, posN) = await GetDevicePos(KnownState.TeleporterName);
-        Skip.If(mqttN == null, $"Device '{KnownState.TeleporterName}' not found on entity {EID}");
-        var mqtt = mqttN!; var connId = connIdN!; var pos = posN!;
-        await using var _ = mqtt;
-
-        var before = await mqtt.RequestAsync(connId, "Client",
-            $"Structure/Device/{KnownState.TeleporterName}", "get/Teleporter",
-            $"{{\"EntityId\":{EID},\"Pos\":{pos}}}");
-
-        string target   = before["TargetEntityNameOrGroup"]!.Value<string>() ?? string.Empty;
-        string playfield = before["TargetPlayfield"]!.Value<string>() ?? string.Empty;
-        byte   origin   = before["Origin"]!.Value<byte>();
-
-        var set = await mqtt.RequestAsync(connId, "Client",
-            $"Structure/Device/{KnownState.TeleporterName}", "set/Teleporter",
-            $"{{\"EntityId\":{EID},\"Pos\":{pos}," +
-            $"\"TargetEntityNameOrGroup\":{Newtonsoft.Json.JsonConvert.SerializeObject(target)}," +
-            $"\"TargetPlayfield\":{Newtonsoft.Json.JsonConvert.SerializeObject(playfield)}," +
-            $"\"Origin\":{origin}}}");
-
-        Assert.Equal(target,    set["TargetEntityNameOrGroup"]!.Value<string>());
-        Assert.Equal(playfield, set["TargetPlayfield"]!.Value<string>());
-        Assert.Equal(origin,    set["Origin"]!.Value<byte>());
     }
 }

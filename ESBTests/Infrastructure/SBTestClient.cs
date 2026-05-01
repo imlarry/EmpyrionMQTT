@@ -21,21 +21,17 @@ namespace ESBTests.Infrastructure;
 /// Usage:
 ///   await using var mqtt = await SBTestClient.ConnectAsync();
 ///   string connId = await mqtt.FindConnectionAsync("Client");
-///   var payload = await mqtt.RequestAsync(connId, "Client", "App", "get/GameTicks", "{}");
+///   var payload = await mqtt.RequestAsync(connId, "Client", "App", "GameTicks", "{}");
 ///   Assert.NotNull(payload["GameTicks"]);
 /// </summary>
 public sealed class SBTestClient : IAsyncDisposable
 {
     private readonly IMqttClient _client;
     private readonly MqttFactory _factory;
-    private const string TestParticipantType = "Agent";
-    private readonly string _testConnId;
-
     private SBTestClient(IMqttClient client, MqttFactory factory)
     {
-        _client     = client;
-        _factory    = factory;
-        _testConnId = Guid.NewGuid().ToString("N").Substring(0, 4);
+        _client  = client;
+        _factory = factory;
     }
 
     public static async Task<SBTestClient> ConnectAsync()
@@ -107,9 +103,10 @@ public sealed class SBTestClient : IAsyncDisposable
     }
 
     /// <summary>
-    /// Sends an ESB/ request and awaits the response via MQTT5 ResponseTopic + CorrelationData.
-    /// Publishes to: ESB/{targetType}/{targetConnId}/{scope}/Req/{operation}
-    /// Response arrives on: ESB/Agent/{testConnId}/{scope}/Res/{cid}
+    /// Sends an ESB/ request and awaits the response.
+    /// Publishes to: ESB/{targetType}/{targetConnId}/Req/{scope}/{operation}
+    /// Response arrives on: ESB/{targetType}/{targetConnId}/Res/{scope}/{operation}
+    /// Errors arrive on:    ESB/{targetType}/{targetConnId}/Err/{scope}/{operation}
     /// </summary>
     public async Task<JObject> RequestAsync(
         string targetConnId,
@@ -119,15 +116,15 @@ public sealed class SBTestClient : IAsyncDisposable
         string requestJson,
         int timeoutMs = 5000)
     {
-        string cid             = Guid.NewGuid().ToString("N").Substring(0, 4);
-        string responseTopic   = $"ESB/{TestParticipantType}/{_testConnId}/{scope}/Res/{cid}";
-        byte[] correlationData = Encoding.UTF8.GetBytes(cid);
+        string responseTopic = $"ESB/{targetType}/{targetConnId}/Res/{scope}/{operation}";
+        string errorTopic    = $"ESB/{targetType}/{targetConnId}/Err/{scope}/{operation}";
 
         var tcs = new TaskCompletionSource<JObject>();
 
         Func<MqttApplicationMessageReceivedEventArgs, Task> onMessage = e =>
         {
-            if (e.ApplicationMessage.Topic != responseTopic) return Task.CompletedTask;
+            var topic = e.ApplicationMessage.Topic;
+            if (topic != responseTopic && topic != errorTopic) return Task.CompletedTask;
             var seg  = e.ApplicationMessage.PayloadSegment;
             var json = Encoding.UTF8.GetString(seg.Array!, seg.Offset, seg.Count);
             try
@@ -145,20 +142,19 @@ public sealed class SBTestClient : IAsyncDisposable
         {
             var subOptions = _factory.CreateSubscribeOptionsBuilder()
                 .WithTopicFilter(f => f.WithTopic(responseTopic))
+                .WithTopicFilter(f => f.WithTopic(errorTopic))
                 .Build();
             await _client.SubscribeAsync(subOptions, CancellationToken.None);
 
             var message = new MqttApplicationMessageBuilder()
-                .WithTopic($"ESB/{targetType}/{targetConnId}/{scope}/Req/{operation}")
+                .WithTopic($"ESB/{targetType}/{targetConnId}/Req/{scope}/{operation}")
                 .WithPayload(requestJson)
-                .WithResponseTopic(responseTopic)
-                .WithCorrelationData(correlationData)
                 .Build();
             await _client.PublishAsync(message, CancellationToken.None);
 
             using var cts = new CancellationTokenSource(timeoutMs);
             cts.Token.Register(() => tcs.TrySetException(
-                new TimeoutException($"ESB/{scope}/Req/{operation}: no response within {timeoutMs}ms")));
+                new TimeoutException($"ESB/Req/{scope}/{operation}: no response within {timeoutMs}ms")));
 
             return await tcs.Task;
         }

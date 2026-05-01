@@ -1,14 +1,11 @@
 using Eleon.Modding;
+using ESB.Helpers;
 using ESB.Interfaces;
-
-using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
-using System.IO;
-using UnityEngine;
 
-namespace ESB
+namespace ESB.EventHandlers
 {
-    public class GameEventHandler : HandlerBase, IGameEventHandler
+    public partial class GameEventHandler : HandlerBase, IGameEventHandler
     {
         public GameEventHandler(ContextData context) : base(context) { }
 
@@ -16,20 +13,51 @@ namespace ESB
         {
             await Execute(async () =>
             {
+                if (_suppressedEvents.Contains(type)) return;
+
                 JObject json = new JObject(
                 new JProperty("GameTicks", _ctx.ModApi.Application.GameTicks));
 
                 object[] args = new object[] { arg1, arg2, arg3, arg4, arg5 };
 
+                EventDef def;
+                _eventDefs.TryGetValue(type, out def);
+
                 for (int i = 0; i < args.Length; i++)
                 {
-                    if (args[i] != null)
+                    if (args[i] == null) continue;
+
+                    string fieldName;
+                    JToken fieldVal;
+
+                    if (def != null && i < def.Args.Length)
                     {
-                        json.Add(new JProperty($"Arg{i + 1}", args[i].ToString()));
-#if DEBUG
-                        //json.Add(new JProperty($"Arg{i + 1}Type", args[i].GetType().Name));
-#endif
+                        ArgDef ad = def.Args[i];
+                        fieldName = ad.Name;
+                        if (ad.Transform != null)
+                        {
+                            fieldVal = ad.Transform(args[i], _ctx);
+                        }
+                        else if (ad.IsNumeric)
+                        {
+                            long n;
+                            if (long.TryParse(args[i].ToString(), out n))
+                                fieldVal = new JValue(n);
+                            else
+                                fieldVal = new JValue(args[i].ToString());
+                        }
+                        else
+                        {
+                            fieldVal = new JValue(args[i].ToString());
+                        }
                     }
+                    else
+                    {
+                        fieldName = $"Arg{i + 1}";
+                        fieldVal  = new JValue(args[i].ToString());
+                    }
+
+                    json.Add(new JProperty(fieldName, fieldVal));
                 }
 
                 if (type == GameEventType.InventoryOpened)
@@ -46,12 +74,6 @@ namespace ESB
                         var contentsJson = MessageHelpers.ItemStacksJson(content, _ctx.GameManager.BlockAndItemMapping);
                         json.Add(new JProperty("ItemStack", contentsJson));
                     }
-                }
-                if (type == GameEventType.InventoryOpenedPoi || type == GameEventType.InventoryClosedPoi)
-                {
-                    // TODO: confirm that these are always associated with the InventoryOpened event
-                    // use OpenedContainer to append Container info to json
-                    // set OpenedContainer to null
                 }
 
                 string jsonString = json?.ToString(Newtonsoft.Json.Formatting.None);

@@ -11,36 +11,15 @@ namespace ESB.TopicHandlers
         {
             ["GameTicks"] = new HandlerHelper.OpDef(
                 summary: "Returns the current game tick count.",
-                output: new[] { new HandlerHelper.FieldDef("GameTicks", "long") }),
+                output: new[] { new HandlerHelper.FieldDef("GameTicks", "ulong") }),
 
             ["Mode"] = new HandlerHelper.OpDef(
-                summary: "Returns the current application mode as a string."),
+                summary: "Returns the current application mode as a string.",
+                output: new[] { new HandlerHelper.FieldDef("Mode", "string (ApplicationMode enum)", note: "SinglePlayer | Client | DedicatedServer | PlayfieldServer") }),
 
             ["State"] = new HandlerHelper.OpDef(
-                summary: "Returns the current application state as a string."),
-
-            ["LocalPlayer"] = new HandlerHelper.OpDef(
-                summary: "Returns position, vitals, and identity data for the local player. Returns null if no active local player.",
-                output: new[]
-                {
-                    new HandlerHelper.FieldDef("Id",          "int"),
-                    new HandlerHelper.FieldDef("Name",        "string"),
-                    new HandlerHelper.FieldDef("Position",    "Vec3 {X,Y,Z}"),
-                    new HandlerHelper.FieldDef("Rotation",    "Vec3 {X,Y,Z}"),
-                    new HandlerHelper.FieldDef("Forward",     "Vec3 {X,Y,Z}"),
-                    new HandlerHelper.FieldDef("Health",      "float"),
-                    new HandlerHelper.FieldDef("HealthMax",   "float"),
-                    new HandlerHelper.FieldDef("Food",        "float"),
-                    new HandlerHelper.FieldDef("FoodMax",     "float"),
-                    new HandlerHelper.FieldDef("Stamina",     "float"),
-                    new HandlerHelper.FieldDef("StaminaMax",  "float"),
-                    new HandlerHelper.FieldDef("Oxygen",      "float"),
-                    new HandlerHelper.FieldDef("OxygenMax",   "float"),
-                    new HandlerHelper.FieldDef("Credits",     "double"),
-                    new HandlerHelper.FieldDef("SteamId",     "string"),
-                    new HandlerHelper.FieldDef("FactionRole", "string"),
-                    new HandlerHelper.FieldDef("IsPilot",     "bool"),
-                }),
+                summary: "Returns the current application state as a string.",
+                output: new[] { new HandlerHelper.FieldDef("State", "string (GameState enum)", note: "NotRunning | Loading | Running") }),
 
             ["ModApiProperties"] = new HandlerHelper.OpDef(
                 summary: "Reports which ModApi subsystems are available in the current game mode.",
@@ -55,7 +34,7 @@ namespace ESB.TopicHandlers
                     new HandlerHelper.FieldDef("Application",     "string", note: "\"set\" or \"null\""),
                 }),
 
-            ["AllPlayfields"] = new HandlerHelper.OpDef(
+            ["GetAllPlayfields"] = new HandlerHelper.OpDef(
                 summary: "Returns the list of all playfields known to the server.",
                 output: new[]
                 {
@@ -65,14 +44,14 @@ namespace ESB.TopicHandlers
                     new HandlerHelper.FieldDef("IsInstance",    "bool"),
                 }),
 
-            ["PfServerInfos"] = new HandlerHelper.OpDef(
+            ["GetPfServerInfos"] = new HandlerHelper.OpDef(
                 summary: "Returns playfield server connection details."),
 
-            ["PlayerEntityIds"] = new HandlerHelper.OpDef(
+            ["GetPlayerEntityIds"] = new HandlerHelper.OpDef(
                 summary: "Returns an array of entity IDs for all currently connected players.",
                 output: new[] { new HandlerHelper.FieldDef("[]", "int array") }),
 
-            ["BlockAndItemMapping"] = new HandlerHelper.OpDef(
+            ["GetBlockAndItemMapping"] = new HandlerHelper.OpDef(
                 summary: "Returns a mapping of block and item numeric IDs to their display names."),
 
             ["GetPathFor"] = new HandlerHelper.OpDef(
@@ -93,6 +72,14 @@ namespace ESB.TopicHandlers
                 input: new[]
                 {
                     new HandlerHelper.FieldDef("PlayerEntityId", "int", required: true),
+                },
+                output: new[]
+                {
+                    new HandlerHelper.FieldDef("EntityId",      "int"),
+                    new HandlerHelper.FieldDef("PlayerName",    "string"),
+                    new HandlerHelper.FieldDef("SteamId",       "string"),
+                    new HandlerHelper.FieldDef("PlayfieldName", "string"),
+                    new HandlerHelper.FieldDef("IsOnline",      "bool"),
                 }),
 
             ["GetStructure"] = new HandlerHelper.OpDef(
@@ -100,6 +87,22 @@ namespace ESB.TopicHandlers
                 input: new[]
                 {
                     new HandlerHelper.FieldDef("EntityId", "int", required: true),
+                },
+                output: new[]
+                {
+                    new HandlerHelper.FieldDef("Id",             "int"),
+                    new HandlerHelper.FieldDef("Name",           "string"),
+                    new HandlerHelper.FieldDef("FactionId",      "int"),
+                    new HandlerHelper.FieldDef("FactionGroup",   "byte"),
+                    new HandlerHelper.FieldDef("ClassNr",        "int"),
+                    new HandlerHelper.FieldDef("CoreType",       "sbyte"),
+                    new HandlerHelper.FieldDef("Type",           "byte"),
+                    new HandlerHelper.FieldDef("PlayfieldName",  "string"),
+                    new HandlerHelper.FieldDef("Pos",            "Vec3 {X,Y,Z}"),
+                    new HandlerHelper.FieldDef("Rot",            "Vec3 {X,Y,Z}"),
+                    new HandlerHelper.FieldDef("LastVisitedUtc", "long"),
+                    new HandlerHelper.FieldDef("Powered",        "bool"),
+                    new HandlerHelper.FieldDef("DockedShips",    "int[] or null"),
                 }),
 
             ["GetStructures"] = new HandlerHelper.OpDef(
@@ -110,6 +113,23 @@ namespace ESB.TopicHandlers
                     new HandlerHelper.FieldDef("FactionId",     "byte",   note: "Filter by faction; requires FactionGroup"),
                     new HandlerHelper.FieldDef("FactionGroup",  "byte",   note: "Filter by faction group; requires FactionId"),
                     new HandlerHelper.FieldDef("EntityType",    "string", note: "Optional EntityType enum filter"),
+                },
+                output: new[]
+                {
+                    new HandlerHelper.FieldDef("[]",             "array"),
+                    new HandlerHelper.FieldDef("Id",             "int"),
+                    new HandlerHelper.FieldDef("Name",           "string"),
+                    new HandlerHelper.FieldDef("FactionId",      "int"),
+                    new HandlerHelper.FieldDef("FactionGroup",   "byte"),
+                    new HandlerHelper.FieldDef("ClassNr",        "int"),
+                    new HandlerHelper.FieldDef("CoreType",       "sbyte"),
+                    new HandlerHelper.FieldDef("Type",           "byte"),
+                    new HandlerHelper.FieldDef("PlayfieldName",  "string"),
+                    new HandlerHelper.FieldDef("Pos",            "Vec3 {X,Y,Z}"),
+                    new HandlerHelper.FieldDef("Rot",            "Vec3 {X,Y,Z}"),
+                    new HandlerHelper.FieldDef("LastVisitedUtc", "long"),
+                    new HandlerHelper.FieldDef("Powered",        "bool"),
+                    new HandlerHelper.FieldDef("DockedShips",    "int[] or null"),
                 }),
 
             ["SendChatMessage"] = new HandlerHelper.OpDef(
@@ -117,7 +137,7 @@ namespace ESB.TopicHandlers
                 input: new[]
                 {
                     new HandlerHelper.FieldDef("Text",               "string", required: true),
-                    new HandlerHelper.FieldDef("Channel",            "string", note: "Global | Faction | SinglePlayer; default Global"),
+                    new HandlerHelper.FieldDef("Channel",            "string", note: "Global | Faction | Alliance | SinglePlayer | Server; default Global"),
                     new HandlerHelper.FieldDef("SenderType",         "string", note: "ServerInfo | Player | ...; default ServerInfo"),
                     new HandlerHelper.FieldDef("SenderEntityId",     "int"),
                     new HandlerHelper.FieldDef("SenderNameOverride", "string"),
@@ -129,7 +149,7 @@ namespace ESB.TopicHandlers
                 output: new[] { new HandlerHelper.FieldDef("ok", "bool") }),
 
             ["ShowDialogBox"] = new HandlerHelper.OpDef(
-                summary: "Displays a dialog box to a player. The player response is published as EMP/.../Evt/App/DialogResponse.",
+                summary: "Displays a dialog box to a player. The player response is published as ESB/.../Evt/App/DialogResponse.",
                 input: new[]
                 {
                     new HandlerHelper.FieldDef("PlayerEntityId",    "int",      note: "Defaults to local player"),
@@ -144,7 +164,15 @@ namespace ESB.TopicHandlers
                     new HandlerHelper.FieldDef("InitialContent",    "string"),
                     new HandlerHelper.FieldDef("CustomValue",       "int"),
                 },
-                output: new[] { new HandlerHelper.FieldDef("ok", "bool") }),
+                output: new[]
+                {
+                    new HandlerHelper.FieldDef("ok",             "bool"),
+                    new HandlerHelper.FieldDef("PlayerEntityId", "int",    note: "DialogResponse event"),
+                    new HandlerHelper.FieldDef("ButtonIdx",      "int",    note: "DialogResponse event"),
+                    new HandlerHelper.FieldDef("LinkId",         "string", note: "DialogResponse event"),
+                    new HandlerHelper.FieldDef("InputContent",   "string", note: "DialogResponse event"),
+                    new HandlerHelper.FieldDef("CustomValue",    "int",    note: "DialogResponse event"),
+                }),
 
             ["Describe"] = new HandlerHelper.OpDef(
                 summary: "Returns the catalog of all App scope operations with names and summaries."),

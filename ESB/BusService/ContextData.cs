@@ -1,6 +1,5 @@
 using Eleon.Modding;
 using ESB.GameApi;
-using ESB.BusService;
 using ESB.Configuration;
 using ESB.Messaging;
 

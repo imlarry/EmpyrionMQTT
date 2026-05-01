@@ -1,10 +1,10 @@
 namespace ESB.Messaging
 {
-    // ParsedTopic represents a parsed EMP/ schema topic.
-    // Fixed 6-segment form: EMP/{participantType}/{connectionId}/{dir}/{scope}/{operation}
+    // ParsedTopic represents a parsed ESB/ schema topic.
+    // Fixed 6-segment form: ESB/{participantType}/{connectionId}/{dir}/{scope}/{operation}
     public class ParsedTopic
     {
-        public string ParticipantType { get; set; }  // Client | Pfs | Ds | Agent | Messenger
+        public string ParticipantType { get; set; }  // Client | Pfs | Ds | user-defined (e.g. edna)
         public string ConnectionId    { get; set; }  // 4-char base-36 (lowercase)
         public string Dir             { get; set; }  // Req | Res | Evt | Err | Log
         public string Scope           { get; set; }  // App | Player | Structure | Device | ...

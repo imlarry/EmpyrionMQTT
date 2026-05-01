@@ -1,9 +1,8 @@
 using Eleon;
-using Eleon.Modding;
 using ESB.Interfaces;
 using Newtonsoft.Json.Linq;
 
-namespace ESB
+namespace ESB.EventHandlers
 {
     public class ChatMessageSentHandler : HandlerBase, IChatMessageSentHandler
     {

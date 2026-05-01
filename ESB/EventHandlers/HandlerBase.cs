@@ -1,7 +1,7 @@
 using System;
 using System.Threading.Tasks;
 
-namespace ESB
+namespace ESB.EventHandlers
 {
     public abstract class HandlerBase
     {

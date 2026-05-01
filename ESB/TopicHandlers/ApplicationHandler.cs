@@ -1,4 +1,5 @@
 using Eleon.Modding;
+using ESB.Helpers;
 using ESB.Messaging;
 
 using Newtonsoft.Json;
@@ -22,9 +23,8 @@ namespace ESB.TopicHandlers
             _ctx.Messenger.RegisterHandler("App/GameTicks",           GameTicks);
             _ctx.Messenger.RegisterHandler("App/Mode",                Mode);
             _ctx.Messenger.RegisterHandler("App/State",               State);
-            _ctx.Messenger.RegisterHandler("App/LocalPlayer",         LocalPlayer);
             _ctx.Messenger.RegisterHandler("App/ModApiProperties",    ModApiProperties);
-            _ctx.Messenger.RegisterHandler("App/AllPlayfields",       GetAllPlayfields);
+            _ctx.Messenger.RegisterHandler("App/GetAllPlayfields",    GetAllPlayfields);
             _ctx.Messenger.RegisterHandler("App/PfServerInfos",       GetPfServerInfos);
             _ctx.Messenger.RegisterHandler("App/PlayerEntityIds",     GetPlayerEntityIds);
             _ctx.Messenger.RegisterHandler("App/BlockAndItemMapping", GetBlockAndItemMapping);
@@ -45,24 +45,44 @@ namespace ESB.TopicHandlers
 
         public async Task GameTicks(MessageContext ctx)
         {
+            if (ctx.ParsedTopic.MetaOperation != null)
+            {
+                await HandlerHelper.ReplyMetaAsync(_ctx.Messenger, ctx, "GameTicks", _opDefs["GameTicks"]);
+                return;
+            }
             var json = new JObject(new JProperty("GameTicks", _ctx.ModApi.Application.GameTicks));
             await HandlerHelper.ReplyAsync(_ctx.Messenger, ctx, json.ToString(Formatting.None));
         }
 
         public async Task Mode(MessageContext ctx)
         {
+            if (ctx.ParsedTopic.MetaOperation != null)
+            {
+                await HandlerHelper.ReplyMetaAsync(_ctx.Messenger, ctx, "Mode", _opDefs["Mode"]);
+                return;
+            }
             var json = new JObject(new JProperty("Mode", _ctx.ModApi.Application.Mode.ToString()));
             await HandlerHelper.ReplyAsync(_ctx.Messenger, ctx, json.ToString(Formatting.None));
         }
 
         public async Task State(MessageContext ctx)
         {
+            if (ctx.ParsedTopic.MetaOperation != null)
+            {
+                await HandlerHelper.ReplyMetaAsync(_ctx.Messenger, ctx, "State", _opDefs["State"]);
+                return;
+            }
             var json = new JObject(new JProperty("State", _ctx.ModApi.Application.State.ToString()));
             await HandlerHelper.ReplyAsync(_ctx.Messenger, ctx, json.ToString(Formatting.None));
         }
 
         public async Task ModApiProperties(MessageContext ctx)
         {
+            if (ctx.ParsedTopic.MetaOperation != null)
+            {
+                await HandlerHelper.ReplyMetaAsync(_ctx.Messenger, ctx, "ModApiProperties", _opDefs["ModApiProperties"]);
+                return;
+            }
             var json = new JObject(
                 new JProperty("ClientPlayfield", _ctx.ModApi.ClientPlayfield == null ? "null" : "set"),
                 new JProperty("Network",         _ctx.ModApi.Network          == null ? "null" : "set"),
@@ -76,6 +96,11 @@ namespace ESB.TopicHandlers
 
         public async Task GetAllPlayfields(MessageContext ctx)
         {
+            if (ctx.ParsedTopic.MetaOperation != null)
+            {
+                await HandlerHelper.ReplyMetaAsync(_ctx.Messenger, ctx, "GetAllPlayfields", _opDefs["GetAllPlayfields"]);
+                return;
+            }
             try
             {
                 var list = new List<Dictionary<string, object>>();
@@ -83,7 +108,7 @@ namespace ESB.TopicHandlers
                     list.Add(new Dictionary<string, object>
                     {
                         { "PlayfieldName", pf.PlayfieldName },
-                        { "PlayfieldType", pf.PlayfieldType },
+                        { "PlayfieldType", pf.PlayfieldType.ToString() },
                         { "IsInstance",    pf.IsInstance }
                     });
                 await HandlerHelper.ReplyAsync(_ctx.Messenger, ctx, JsonConvert.SerializeObject(list));
@@ -96,6 +121,11 @@ namespace ESB.TopicHandlers
 
         public async Task GetPfServerInfos(MessageContext ctx)
         {
+            if (ctx.ParsedTopic.MetaOperation != null)
+            {
+                await HandlerHelper.ReplyMetaAsync(_ctx.Messenger, ctx, "GetPfServerInfos", _opDefs["GetPfServerInfos"]);
+                return;
+            }
             try
             {
                 var infos = _ctx.ModApi.Application.GetPfServerInfos();
@@ -114,6 +144,11 @@ namespace ESB.TopicHandlers
 
         public async Task GetPlayerEntityIds(MessageContext ctx)
         {
+            if (ctx.ParsedTopic.MetaOperation != null)
+            {
+                await HandlerHelper.ReplyMetaAsync(_ctx.Messenger, ctx, "GetPlayerEntityIds", _opDefs["GetPlayerEntityIds"]);
+                return;
+            }
             try
             {
                 var ids = _ctx.ModApi.Application.GetPlayerEntityIds();
@@ -127,6 +162,11 @@ namespace ESB.TopicHandlers
 
         public async Task GetBlockAndItemMapping(MessageContext ctx)
         {
+            if (ctx.ParsedTopic.MetaOperation != null)
+            {
+                await HandlerHelper.ReplyMetaAsync(_ctx.Messenger, ctx, "GetBlockAndItemMapping", _opDefs["GetBlockAndItemMapping"]);
+                return;
+            }
             try
             {
                 var mapping = _ctx.ModApi.Application.GetBlockAndItemMapping();
@@ -163,6 +203,11 @@ namespace ESB.TopicHandlers
 
         public async Task GetPlayerDataFor(MessageContext ctx)
         {
+            if (ctx.ParsedTopic.MetaOperation != null)
+            {
+                await HandlerHelper.ReplyMetaAsync(_ctx.Messenger, ctx, "GetPlayerDataFor", _opDefs["GetPlayerDataFor"]);
+                return;
+            }
             try
             {
                 var args = JObject.Parse(ctx.Payload);
@@ -183,6 +228,11 @@ namespace ESB.TopicHandlers
 
         public async Task GetStructure(MessageContext ctx)
         {
+            if (ctx.ParsedTopic.MetaOperation != null)
+            {
+                await HandlerHelper.ReplyMetaAsync(_ctx.Messenger, ctx, "GetStructure", _opDefs["GetStructure"]);
+                return;
+            }
             try
             {
                 var args = JObject.Parse(ctx.Payload);
@@ -205,6 +255,11 @@ namespace ESB.TopicHandlers
 
         public async Task GetStructures(MessageContext ctx)
         {
+            if (ctx.ParsedTopic.MetaOperation != null)
+            {
+                await HandlerHelper.ReplyMetaAsync(_ctx.Messenger, ctx, "GetStructures", _opDefs["GetStructures"]);
+                return;
+            }
             try
             {
                 var args = JObject.Parse(ctx.Payload);
@@ -248,6 +303,11 @@ namespace ESB.TopicHandlers
 
         public async Task SendChatMessage(MessageContext ctx)
         {
+            if (ctx.ParsedTopic.MetaOperation != null)
+            {
+                await HandlerHelper.ReplyMetaAsync(_ctx.Messenger, ctx, "SendChatMessage", _opDefs["SendChatMessage"]);
+                return;
+            }
             try
             {
                 var args = JObject.Parse(ctx.Payload);
@@ -279,6 +339,11 @@ namespace ESB.TopicHandlers
 
         public async Task ShowDialogBox(MessageContext ctx)
         {
+            if (ctx.ParsedTopic.MetaOperation != null)
+            {
+                await HandlerHelper.ReplyMetaAsync(_ctx.Messenger, ctx, "ShowDialogBox", _opDefs["ShowDialogBox"]);
+                return;
+            }
             try
             {
                 var args = JObject.Parse(ctx.Payload);
@@ -308,7 +373,7 @@ namespace ESB.TopicHandlers
                         new JProperty("LinkId",         linkId        ?? ""),
                         new JProperty("InputContent",   inputContent  ?? ""),
                         new JProperty("CustomValue",    customVal));
-                    string evtTopic = $"EMP/{_ctx.BusManager.ParticipantType}/{_ctx.Messenger.ClientId()}/Evt/App/DialogResponse";
+                    string evtTopic = $"ESB/{_ctx.BusManager.ParticipantType}/{_ctx.Messenger.ClientId()}/Evt/App/DialogResponse";
                     _ = _ctx.Messenger.SendAsync(evtTopic, response.ToString(Formatting.None));
                 }
 
@@ -323,50 +388,6 @@ namespace ESB.TopicHandlers
                     await HandlerHelper.ReplyAsync(_ctx.Messenger, ctx, new JObject(new JProperty("ok", true)).ToString(Formatting.None));
                 else
                     await HandlerHelper.ReplyErrorAsync(_ctx.Messenger, ctx, MessageHelpers.ErrorJson("Failed to display dialog - invalid player entity ID"));
-            }
-            catch (Exception ex)
-            {
-                await HandlerHelper.ReplyErrorAsync(_ctx.Messenger, ctx, MessageHelpers.ExceptionJson(ex));
-            }
-        }
-
-        public async Task LocalPlayer(MessageContext ctx)
-        {
-            try
-            {
-                var lp = _ctx.ModApi.Application.LocalPlayer;
-                if (lp == null)
-                {
-                    await HandlerHelper.ReplyAsync(_ctx.Messenger, ctx, new JObject(new JProperty("LocalPlayer", (object)null)).ToString(Formatting.None));
-                    return;
-                }
-
-                JObject json = null;
-                await _ctx.MainThreadRunner.RunOnMainThread(async () =>
-                {
-                    json = new JObject();
-                    JToken S(Func<object> getter) { try { var v = getter(); return v == null ? JValue.CreateNull() : JToken.FromObject(v); } catch { return JValue.CreateNull(); } }
-                    json.Add("Id",               S(() => lp.Id));
-                    json.Add("Name",             S(() => lp.Name));
-                    json.Add("Position",         S(() => new JObject(new JProperty("X", lp.Position.x), new JProperty("Y", lp.Position.y), new JProperty("Z", lp.Position.z))));
-                    json.Add("Rotation",         S(() => MessageHelpers.Vec(lp.Rotation)));
-                    json.Add("Forward",          S(() => new JObject(new JProperty("X", lp.Forward.x), new JProperty("Y", lp.Forward.y), new JProperty("Z", lp.Forward.z))));
-                    json.Add("Health",           S(() => lp.Health));
-                    json.Add("HealthMax",        S(() => lp.HealthMax));
-                    json.Add("Food",             S(() => lp.Food));
-                    json.Add("FoodMax",          S(() => lp.FoodMax));
-                    json.Add("Stamina",          S(() => lp.Stamina));
-                    json.Add("StaminaMax",       S(() => lp.StaminaMax));
-                    json.Add("Oxygen",           S(() => lp.Oxygen));
-                    json.Add("OxygenMax",        S(() => lp.OxygenMax));
-                    json.Add("Credits",          S(() => lp.Credits));
-                    json.Add("SteamId",          S(() => lp.SteamId));
-                    json.Add("FactionRole",      S(() => lp.FactionRole.ToString()));
-                    json.Add("IsPilot",          S(() => lp.IsPilot));
-                    await Task.CompletedTask;
-                });
-
-                await HandlerHelper.ReplyAsync(_ctx.Messenger, ctx, json.ToString(Formatting.None));
             }
             catch (Exception ex)
             {

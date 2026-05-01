@@ -6,7 +6,7 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace ESB
+namespace ESB.Helpers
 {
     internal static class MessageHelpers
     {

@@ -1,7 +1,7 @@
 using ESB.Interfaces;
 
 
-namespace ESB
+namespace ESB.EventHandlers
 {
     public class UpdateHandler : IUpdateHandler
     {
@@ -16,7 +16,7 @@ namespace ESB
         {
             if (_ctx.MainThreadRunner.HasActionsToProcess())
             {
-                _ = _ctx.Messenger.SendAsync($"ESB/{_ctx.BusManager.ParticipantType}/{_ctx.Messenger.ClientId()}/App/Log/Update", "Processing actions on main thread");
+                _ = _ctx.Messenger.SendAsync($"ESB/{_ctx.BusManager.ParticipantType}/{_ctx.Messenger.ClientId()}/Log/App/Update", "Processing actions on main thread");
                 while (_ctx.MainThreadRunner.HasActionsToProcess())
                 {
                     _ctx.MainThreadRunner.ProcessActions();

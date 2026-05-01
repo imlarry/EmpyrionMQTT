@@ -1,9 +1,10 @@
 using Eleon.Modding;
+using ESB.Helpers;
 using ESB.Interfaces;
 
 using Newtonsoft.Json.Linq;
 
-namespace ESB
+namespace ESB.EventHandlers
 {
     public class EntityLoadedHandler : HandlerBase, IEntityLoadedHandler
     {

@@ -61,7 +61,7 @@ namespace EDNAClient.Skills.Scripting.Api
             var task = _messenger.SubscribeEventAsync(topicFilter, (topic, payload) =>
             {
 #if DEBUG
-                _ = _messenger.SendAsync($"ESB/Agent/{_messenger.ClientId()}/App/Log/LuaMqttApi.Dispatch",
+                _ = _messenger.SendAsync($"ESB/{_messenger.ParticipantType()}/{_messenger.ClientId()}/Log/App/LuaMqttApi.Dispatch",
                     $"{{\"Script\":\"{_engine.Name}\",\"Topic\":\"{topic}\"}}");
 #endif
                 Application.Current.Dispatcher.Invoke(() =>
@@ -72,12 +72,12 @@ namespace EDNAClient.Skills.Scripting.Api
                     }
                     catch (ScriptRuntimeException ex)
                     {
-                        _ = _messenger.SendAsync($"ESB/Agent/{_messenger.ClientId()}/App/Log/LuaMqttApi.CallbackError",
+                        _ = _messenger.SendAsync($"ESB/{_messenger.ParticipantType()}/{_messenger.ClientId()}/Log/App/LuaMqttApi.CallbackError",
                             $"{{\"Script\":\"{_engine.Name}\",\"Topic\":\"{topic}\",\"Error\":{JsonConvert.SerializeObject(ex.DecoratedMessage)}}}");
                     }
                     catch (Exception ex)
                     {
-                        _ = _messenger.SendAsync($"ESB/Agent/{_messenger.ClientId()}/App/Log/LuaMqttApi.CallbackError",
+                        _ = _messenger.SendAsync($"ESB/{_messenger.ParticipantType()}/{_messenger.ClientId()}/Log/App/LuaMqttApi.CallbackError",
                             $"{{\"Script\":\"{_engine.Name}\",\"Topic\":\"{topic}\",\"Error\":{JsonConvert.SerializeObject(ex.GetType().Name + ": " + ex.Message)}}}");
                     }
                 });
@@ -87,7 +87,7 @@ namespace EDNAClient.Skills.Scripting.Api
             task.ContinueWith(t =>
             {
                 var msg = t.Exception?.Flatten().InnerException?.Message ?? "unknown error";
-                _ = _messenger.SendAsync($"ESB/Agent/{_messenger.ClientId()}/App/Log/LuaMqttApi.SubscribeFailed",
+                _ = _messenger.SendAsync($"ESB/{_messenger.ParticipantType()}/{_messenger.ClientId()}/Log/App/LuaMqttApi.SubscribeFailed",
                     $"{{\"Script\":\"{_engine.Name}\",\"TopicFilter\":\"{topicFilter}\",\"Error\":{Newtonsoft.Json.JsonConvert.SerializeObject(msg)}}}");
             }, System.Threading.Tasks.TaskContinuationOptions.OnlyOnFaulted);
         }

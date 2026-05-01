@@ -14,7 +14,7 @@ namespace ESBTests.TopicHandlerTests;
 public class Test_Player_Integration
 {
     // =========================================================================
-    // Player/Req/get -- property getter
+    // Player/GetProperties
     // =========================================================================
 
     [Fact]
@@ -22,7 +22,7 @@ public class Test_Player_Integration
     {
         await using var mqtt = await SBTestClient.ConnectAsync();
         var connId  = await mqtt.FindConnectionAsync("Client");
-        var payload = await mqtt.RequestAsync(connId, "Client", "Player", "get", "{}");
+        var payload = await mqtt.RequestAsync(connId, "Client", "Player", "GetProperties", "{}");
 
         if (payload["Error"] == null)
         {
@@ -45,7 +45,7 @@ public class Test_Player_Integration
     {
         await using var mqtt = await SBTestClient.ConnectAsync();
         var connId  = await mqtt.FindConnectionAsync("Client");
-        var payload = await mqtt.RequestAsync(connId, "Client", "Player", "get",
+        var payload = await mqtt.RequestAsync(connId, "Client", "Player", "GetProperties",
             "{\"Properties\":[\"SteamId\",\"Health\"]}");
 
         if (payload["Error"] == null)
@@ -66,7 +66,7 @@ public class Test_Player_Integration
     {
         await using var mqtt = await SBTestClient.ConnectAsync();
         var connId  = await mqtt.FindConnectionAsync("Client");
-        var payload = await mqtt.RequestAsync(connId, "Client", "Player", "get",
+        var payload = await mqtt.RequestAsync(connId, "Client", "Player", "GetProperties",
             "{\"Properties\":[\"Bag\"]}");
 
         if (payload["Error"] == null)
@@ -91,7 +91,7 @@ public class Test_Player_Integration
     {
         await using var mqtt = await SBTestClient.ConnectAsync();
         var connId  = await mqtt.FindConnectionAsync("Client");
-        var payload = await mqtt.RequestAsync(connId, "Client", "Player", "get",
+        var payload = await mqtt.RequestAsync(connId, "Client", "Player", "GetProperties",
             "{\"Properties\":[\"Toolbar\"]}");
 
         if (payload["Error"] == null)
@@ -116,7 +116,7 @@ public class Test_Player_Integration
     {
         await using var mqtt = await SBTestClient.ConnectAsync();
         var connId  = await mqtt.FindConnectionAsync("Client");
-        var payload = await mqtt.RequestAsync(connId, "Client", "Player", "get",
+        var payload = await mqtt.RequestAsync(connId, "Client", "Player", "GetProperties",
             "{\"Properties\":[\"NotAProperty\"]}");
 
         Assert.NotNull(payload["Error"]);
@@ -131,7 +131,7 @@ public class Test_Player_Integration
     {
         await using var mqtt = await SBTestClient.ConnectAsync();
         var connId  = await mqtt.FindConnectionAsync("Client");
-        var payload = await mqtt.RequestAsync(connId, "Client", "Player", "get",
+        var payload = await mqtt.RequestAsync(connId, "Client", "Player", "GetProperties",
             "{\"Properties\":[\"Position\"]}");
 
         if (payload["Error"] == null)
@@ -153,7 +153,7 @@ public class Test_Player_Integration
     {
         await using var mqtt = await SBTestClient.ConnectAsync();
         var connId  = await mqtt.FindConnectionAsync("Client");
-        var payload = await mqtt.RequestAsync(connId, "Client", "Player", "get",
+        var payload = await mqtt.RequestAsync(connId, "Client", "Player", "GetProperties",
             "{\"Properties\":[\"FactionData\"]}");
 
         if (payload["Error"] == null)
@@ -170,7 +170,7 @@ public class Test_Player_Integration
     }
 
     // =========================================================================
-    // Player/Req/set/Teleport
+    // Player/Teleport
     // =========================================================================
 
     [Fact]
@@ -178,7 +178,7 @@ public class Test_Player_Integration
     {
         await using var mqtt = await SBTestClient.ConnectAsync();
         var connId  = await mqtt.FindConnectionAsync("Client");
-        var payload = await mqtt.RequestAsync(connId, "Client", "Player", "set/Teleport",
+        var payload = await mqtt.RequestAsync(connId, "Client", "Player", "Teleport",
             $"{{\"Pos\":{KnownState.PlayerSpawnPos}}}");
 
         if (payload["Error"] == null)
@@ -192,7 +192,7 @@ public class Test_Player_Integration
     {
         await using var mqtt = await SBTestClient.ConnectAsync();
         var connId  = await mqtt.FindConnectionAsync("Client");
-        var payload = await mqtt.RequestAsync(connId, "Client", "Player", "set/Teleport", "{}");
+        var payload = await mqtt.RequestAsync(connId, "Client", "Player", "Teleport", "{}");
 
         Assert.NotNull(payload["Error"]);
         Assert.Contains("Pos argument is required", payload["Error"]!.Value<string>() ?? "");
@@ -203,7 +203,7 @@ public class Test_Player_Integration
     {
         await using var mqtt = await SBTestClient.ConnectAsync();
         var connId  = await mqtt.FindConnectionAsync("Client");
-        var payload = await mqtt.RequestAsync(connId, "Client", "Player", "set/Teleport",
+        var payload = await mqtt.RequestAsync(connId, "Client", "Player", "Teleport",
             $"{{\"Pos\":{KnownState.PlayerSpawnPos},\"Playfield\":\"{KnownState.Playfield}\"}}");
 
         Assert.NotNull(payload["Error"]);
@@ -211,7 +211,7 @@ public class Test_Player_Integration
     }
 
     // =========================================================================
-    // Player/Req/set/DamageEntity
+    // Player/DamageEntity
     // =========================================================================
 
     [Fact]
@@ -219,7 +219,7 @@ public class Test_Player_Integration
     {
         await using var mqtt = await SBTestClient.ConnectAsync();
         var connId  = await mqtt.FindConnectionAsync("Client");
-        var payload = await mqtt.RequestAsync(connId, "Client", "Player", "set/DamageEntity",
+        var payload = await mqtt.RequestAsync(connId, "Client", "Player", "DamageEntity",
             "{\"DamageAmount\":0,\"DamageType\":0}");
 
         // R: {ok:true}   X: {Error:...}  -- either is acceptable (dedicated server has no LocalPlayer)

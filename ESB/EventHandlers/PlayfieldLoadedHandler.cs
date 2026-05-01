@@ -3,7 +3,7 @@ using ESB.Interfaces;
 
 using Newtonsoft.Json.Linq;
 
-namespace ESB
+namespace ESB.EventHandlers
 {
     public class PlayfieldLoadedHandler : HandlerBase, IPlayfieldLoadedHandler
     {

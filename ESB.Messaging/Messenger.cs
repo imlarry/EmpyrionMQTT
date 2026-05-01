@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
-using System.Net.NetworkInformation;
-using System.Security.Cryptography;
+using System.IO;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Threading;
@@ -20,6 +19,7 @@ namespace ESB.Messaging
         private string _applicationId;
         private string _machineId;
         private string _clientId;
+        private string _participantType;
         private MqttFactory _mqttFactory;
         private IMqttClient _mqttClient;
         private readonly Dictionary<string, Func<MessageContext, Task>> _handlers = new Dictionary<string, Func<MessageContext, Task>>();
@@ -42,14 +42,20 @@ namespace ESB.Messaging
             return _clientId;
         }
 
+        // ParticipantType ... returns the participant type token used in ESB/ topics
+        public string ParticipantType()
+        {
+            return _participantType;
+        }
+
         // AvailableTopics ... returns registered dispatch keys as a CSV string
         public string AvailableTopics()
         {
             return string.Join(", ", _handlers.Keys);
         }
 
-        // ParseTopic ... parses an EMP/ schema topic into a ParsedTopic.
-        // Fixed 6-segment form: EMP/{participantType}/{connectionId}/{dir}/{scope}/{operation}
+        // ParseTopic ... parses an ESB/ schema topic into a ParsedTopic.
+        // Fixed 6-segment form: ESB/{participantType}/{connectionId}/{dir}/{scope}/{operation}
         internal ParsedTopic ParseTopic(string topic)
         {
             var p  = topic.Split('/');
@@ -112,56 +118,44 @@ namespace ESB.Messaging
             return optionsBuilder.Build();
         }
 
-        // GetMacAddress ... function used to get the MAC address of the first active network interface
-        public static string GetMacAddress()
-        {
-            foreach (NetworkInterface nic in NetworkInterface.GetAllNetworkInterfaces())
-            {
-                if (nic.OperationalStatus == OperationalStatus.Up)
-                {
-                    return nic.GetPhysicalAddress().ToString();
-                }
-            }
-            return String.Empty;
-        }
-
-        // GenerateMachineId ... function used to generate a machine id from MAC address and a secret key
-        public static string GenerateMachineId(string secretKey)
-        {
-            string macAddress = GetMacAddress();
-            string rawId = macAddress + (secretKey ?? "");
-
-            using (SHA256 sha256Hash = SHA256.Create())
-            {
-                byte[] bytes = sha256Hash.ComputeHash(Encoding.UTF8.GetBytes(rawId));
-                return IdEncoder.ToBase36(bytes, 6);
-            }
-        }
-
         // ConnectAsync ... build client and connect to broker
-        public async Task ConnectAsync(BaseContextData ctx, string applicationId, string withTcpServer = "localhost", int port = 1883, string username = null, string password = null, string caFilePath = null)
+        public async Task ConnectAsync(BaseContextData ctx, string applicationId, string withTcpServer = "localhost", int port = 1883, string username = null, string password = null, string caFilePath = null, string participantType = "")
         {
+            string tokenDir  = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "EmpyrionESB");
+            Directory.CreateDirectory(tokenDir);
+            string tokenPath = Path.Combine(tokenDir, "bus.token");
+            string token;
+            if (!File.Exists(tokenPath))
+            {
+                token = Guid.NewGuid().ToString();
+                File.WriteAllText(tokenPath, token);
+            }
+            else
+            {
+                token = File.ReadAllText(tokenPath).Trim();
+            }
+            
             _ctx = ctx;
-            _applicationId = applicationId;
-            _machineId = GenerateMachineId(password);
-            _clientId = IdEncoder.ToBase36(Guid.NewGuid().ToByteArray(), 4);
+            _applicationId   = applicationId;
+            _participantType = participantType;
+            _machineId = IdentifierHelper.GenerateIdentifier(token, 6);
+            _clientId  = IdentifierHelper.GenerateIdentifier(participantType + token, 4);
             _mqttFactory = new MqttFactory();
             _mqttClient = _mqttFactory.CreateMqttClient();
             _mqttClient.ApplicationMessageReceivedAsync += ProcessMessageAsync;
 
-            string willTopic = $"ESB/Registry/{_clientId}";
             MqttClientOptions mqttClientOptions;
             if (string.IsNullOrEmpty(username) && string.IsNullOrEmpty(password) && string.IsNullOrEmpty(caFilePath))
             {
-                mqttClientOptions = CreateMqttClientOptions(withTcpServer, port, willTopic: willTopic);
+                mqttClientOptions = CreateMqttClientOptions(withTcpServer, port);
             }
             else if (string.IsNullOrEmpty(caFilePath))
             {
-                mqttClientOptions = CreateMqttClientOptions(withTcpServer, port, username, password, willTopic: willTopic);
+                mqttClientOptions = CreateMqttClientOptions(withTcpServer, port, username, password);
             }
             else
             {
-                mqttClientOptions = CreateMqttClientOptions(withTcpServer, port, username, password, caFilePath, willTopic);
+                mqttClientOptions = CreateMqttClientOptions(withTcpServer, port, username, password, caFilePath);
             }
 
             await _mqttClient.ConnectAsync(mqttClientOptions, CancellationToken.None);
@@ -228,6 +222,18 @@ namespace ESB.Messaging
             await _mqttClient.PublishAsync(message, CancellationToken.None);
         }
 
+        // PublishRetainedAsync ... publish a retained message with MQTT5 MessageExpiryInterval
+        public async Task PublishRetainedAsync(string topic, string payload, uint expirySeconds)
+        {
+            var message = new MqttApplicationMessageBuilder()
+                .WithTopic(topic)
+                .WithPayload(payload)
+                .WithRetainFlag(true)
+                .WithMessageExpiryInterval(expirySeconds)
+                .Build();
+            await _mqttClient.PublishAsync(message, CancellationToken.None);
+        }
+
         // SubscribeEventAsync ... subscribe to an ESB/ event topic filter; stub pending EDNA rework
         public Task SubscribeEventAsync(string topicFilter, Func<string, string, Task> callback)
         {
@@ -252,10 +258,10 @@ namespace ESB.Messaging
             await _mqttClient.PublishAsync(message, CancellationToken.None);
         }
 
-        // LogAsync ... emit an ESB/Messenger/{connId}/App/Log/{operation} message
+        // LogAsync ... emit an ESB/{participantType}/{connId}/Log/App/{operation} message
         private Task LogAsync(string operation, string payload)
         {
-            return SendAsync($"ESB/Messenger/{_clientId}/App/Log/{operation}", payload);
+            return SendAsync($"ESB/{_participantType}/{_clientId}/Log/App/{operation}", payload);
         }
 
         // ProcessMessageAsync ... invoked by MQTTnet on receipt of a subscribed message
@@ -272,7 +278,7 @@ namespace ESB.Messaging
                 payload = Encoding.Default.GetString(buf);
             }
 #if DEBUG
-            var dbg = new JObject(new JProperty("Topic", topic), new JProperty("Payload", payload));
+            var dbg = new JObject(new JProperty("Topic", topic), new JProperty("Payload", "[not included in this log]"));
             await LogAsync("ProcessingMessage", dbg.ToString(Newtonsoft.Json.Formatting.None));
 #endif
             var pt = ParseTopic(topic);

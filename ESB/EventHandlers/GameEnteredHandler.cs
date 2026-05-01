@@ -2,7 +2,7 @@ using ESB.Interfaces;
 
 using Newtonsoft.Json.Linq;
 
-namespace ESB
+namespace ESB.EventHandlers
 {
     public class GameEnteredHandler : HandlerBase, IGameEnteredHandler
     {
@@ -17,7 +17,6 @@ namespace ESB
                     new JProperty("GameTicks", _ctx.ModApi.Application.GameTicks),
                     new JProperty("GameName", _ctx.GameManager.GameName),
                     new JProperty("GameIdentifier", _ctx.GameManager.GameIdentifier),
-                    new JProperty("GameDataPath", _ctx.GameManager.GameDataPath),
                     new JProperty("SaveGamePath", _ctx.GameManager.SaveGamePath),
                     new JProperty("GameMode", _ctx.GameManager.GameMode));
                 string enteredJson = json.ToString(Newtonsoft.Json.Formatting.None);

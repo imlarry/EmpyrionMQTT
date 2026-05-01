@@ -2,7 +2,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Threading.Tasks;
 
-namespace ESB.BusService
+namespace ESB
 {
     public class MainThreadRunner
     {
