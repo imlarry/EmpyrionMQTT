@@ -44,7 +44,7 @@ namespace ESB.EventHandlers
             return new JValue(id);
         }
 
-        static readonly HashSet<GameEventType> _suppressedEvents =
+        static HashSet<GameEventType> _suppressedEvents =
             new HashSet<GameEventType>
         {
             GameEventType.HoldingItem,
@@ -73,10 +73,10 @@ namespace ESB.EventHandlers
                 new ArgDef("WindowName")),
 
             [GameEventType.GameStarted] = new EventDef(
-                new ArgDef("Arg1"),
+                new ArgDef("GameType"),   // SP|COOP|MP
                 new ArgDef("Arg2"),
                 new ArgDef("Scenario"),
-                new ArgDef("GameType")),
+                new ArgDef("GameName")),  // API names this arg GameType; value is server/game name
 
             [GameEventType.ArmorEquipped] = new EventDef(
                 new ArgDef("ItemName", transform: ItemNameOrId),
@@ -100,6 +100,29 @@ namespace ESB.EventHandlers
                 new ArgDef("Arg3"),
                 new ArgDef("Pos"),
                 new ArgDef("ContainerType")),
+
+            [GameEventType.PlayfieldEntered] = new EventDef(
+                new ArgDef("PlayfieldName")),
+
+            [GameEventType.PlayfieldTypeEntered] = new EventDef(
+                new ArgDef("PlayfieldType")),
+
+            [GameEventType.BiomeChanged] = new EventDef(
+                new ArgDef("Arg1"),
+                new ArgDef("NewBiome")),
+
+            [GameEventType.PlayfieldLeft] = new EventDef(
+                new ArgDef("PlayfieldName")),
+
+            [GameEventType.PlayfieldTypeLeft] = new EventDef(
+                new ArgDef("PlayfieldType")),
+
+            [GameEventType.StructureSpawned] = new EventDef(
+                new ArgDef("EntityType"),
+                new ArgDef("Pos")),
+
+            [GameEventType.ViewSelected] = new EventDef(
+                new ArgDef("ViewName")),
         };
     }
 }

@@ -21,6 +21,7 @@ namespace ESB.Messaging
         Task PublishRetainedAsync(string topic, string payload, uint expirySeconds);
         Task SubscribeEventAsync(string topicFilter, Func<string, string, Task> callback);
         Task UnsubscribeAsync(string topic);
-        Task SendAsync(string topic, string payload);
+        Task SendAsync(string scope, MessageType msgType, string name, string payload);
+        Task PublishAsync(string topic, string payload);  // raw publish for non-ESB schemas
     }
 }

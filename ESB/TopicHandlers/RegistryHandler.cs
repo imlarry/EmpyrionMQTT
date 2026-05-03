@@ -11,7 +11,7 @@ namespace ESB.TopicHandlers
 
         public void Register()
         {
-            _ctx.Messenger.RegisterHandler("Evt/BlockAndIdtemMapping", BlockAndIdtemMapping);
+            _ctx.Messenger.RegisterHandler("Registry/BlockAndIdtemMapping", BlockAndIdtemMapping);
         }
 
         // BlockAndIdtemMapping ... applies a game-scoped retained ID->Name mapping from any Client.
@@ -23,7 +23,7 @@ namespace ESB.TopicHandlers
             if (gm == null || gm.GameIdentifier == null)
             {
                 if (gm != null)
-                    gm.StorePendingRetained(topicGameId, "Evt", "BlockAndIdtemMapping", mc.Payload);
+                    gm.StorePendingRetained(topicGameId, "Registry", "BlockAndIdtemMapping", mc.Payload);
                 return Task.CompletedTask;
             }
             if (topicGameId == gm.GameIdentifier)

@@ -55,7 +55,7 @@ namespace ESB.Messaging
         }
 
         // ParseTopic ... parses an ESB/ schema topic into a ParsedTopic.
-        // Fixed 6-segment form: ESB/{participantType}/{connectionId}/{dir}/{scope}/{operation}
+        // Fixed 6-segment form: ESB/{participantType}/{connectionId}/{scope}/{msgType}/{operation}
         internal ParsedTopic ParseTopic(string topic)
         {
             var p  = topic.Split('/');
@@ -71,11 +71,11 @@ namespace ESB.Messaging
             {
                 ParticipantType = p[1],
                 ConnectionId    = p[2],
-                Dir             = p[3],
-                Scope           = p[4],
+                Scope           = p[3],
+                MsgType         = p[4],
                 Operation       = op,
                 MetaOperation   = metaOp,
-                DispatchKey     = $"{p[4]}/{op}"
+                DispatchKey     = $"{p[3]}/{op}"
             };
         }
 
@@ -248,8 +248,18 @@ namespace ESB.Messaging
             await LogAsync("Unsubscribe", json.ToString(Newtonsoft.Json.Formatting.None));
         }
 
-        // SendAsync ... publish a message to a fully-formed topic
-        public async Task SendAsync(string topic, string payload)
+        // SendAsync ... publish to ESB/{participantType}/{connectionId}/{scope}/{msgType}/{name}
+        public async Task SendAsync(string scope, MessageType msgType, string name, string payload)
+        {
+            var message = new MqttApplicationMessageBuilder()
+                .WithTopic($"ESB/{_participantType}/{_clientId}/{scope}/{msgType}/{name}")
+                .WithPayload(payload)
+                .Build();
+            await _mqttClient.PublishAsync(message, CancellationToken.None);
+        }
+
+        // PublishAsync ... raw publish to a fully-formed topic (for non-ESB schemas)
+        public async Task PublishAsync(string topic, string payload)
         {
             var message = new MqttApplicationMessageBuilder()
                 .WithTopic(topic)
@@ -258,10 +268,10 @@ namespace ESB.Messaging
             await _mqttClient.PublishAsync(message, CancellationToken.None);
         }
 
-        // LogAsync ... emit an ESB/{participantType}/{connId}/Log/App/{operation} message
+        // LogAsync ... emit an ESB/{participantType}/{connectionId}/App/Log/{operation} message
         private Task LogAsync(string operation, string payload)
         {
-            return SendAsync($"ESB/{_participantType}/{_clientId}/Log/App/{operation}", payload);
+            return SendAsync("App", MessageType.Log, operation, payload);
         }
 
         // ProcessMessageAsync ... invoked by MQTTnet on receipt of a subscribed message

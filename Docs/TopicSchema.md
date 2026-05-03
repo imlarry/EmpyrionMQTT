@@ -108,7 +108,7 @@ Every entity in the game has a type value. The following table lists all known t
 ### 5.1 Base Structure
 
 ```
-ESB/{participantType}/{connectionId}/{dir}/{scope}/{operation}
+ESB/{participantType}/{connectionId}/{scope}/{msgType}/{operation}
 ```
 
 | Segment | Values | Notes |
@@ -116,14 +116,15 @@ ESB/{participantType}/{connectionId}/{dir}/{scope}/{operation}
 | `ESB` | *(fixed)* | Namespace prefix for all Empyrion Service Bus mod messages |
 | `participantType` | `Client` \| `Pfs` \| `Ds` \| `{user-defined}` | Identifies the participant type; game-side types are fixed; external participants define their own string |
 | `connectionId` | e.g. `q2e7` | Unique 4-char Base-36 ID assigned per connection; lowercase alphanumeric; isolates per-process messaging |
-| `dir` | `Req` \| `Res` \| `Evt` \| `Err` \| `Log` | Direction: request, response, event, error, or log |
-| `scope` | `App` \| `Playfield` \| `Player` \| `Structure` \| `Device` | The logical level of the operation; routes to the matching `{scope}Handler` |
+| `scope` | `App` \| `Playfield` \| `Player` \| `Structure` \| `Device` \| `Registry` | The logical level of the operation; routes to the matching `{scope}Handler` |
+| `msgType` | `Req` \| `Res` \| `Evt` \| `Err` \| `Log` | Message type: request, response, event, error, or log |
 | `operation` | `PascalCase` or `PascalCase.MetaOp` | For `Req`, a PascalCase method name with an optional dot-suffix meta-operation (e.g. `GetPathFor.Describe`); for `Res` and `Err`, mirrors the `Req` operation unchanged; for `Evt`, the event name; for `Log`, the operation name |
 
-Placing `{dir}` before `{scope}` means a single wildcard subscription covers all scopes:
+Placing `{scope}` first groups all traffic for a logical domain together, making it natural to subscribe by scope across all message types:
 
 ```
-ESB/+/{connectionId}/Req/#    # all inbound requests regardless of scope
+ESB/+/{connectionId}/App/#    # all App-scope messages (Req, Evt, Log, Err) from one participant
+ESB/+/{connectionId}/+/Req/#  # all inbound requests regardless of scope
 ```
 
 Entity IDs (player, structure) are always carried in the payload, not the topic. This keeps the topic structure uniform across all scopes and participants.
@@ -133,7 +134,7 @@ Entity IDs (player, structure) are always carried in the payload, not the topic.
 Structure-mounted devices (LCD panels, lights, containers, teleporters) use `Device` as a first-class scope. The topic stays at the standard 6-segment depth; the structure entity ID and device name are carried in the payload:
 
 ```
--> pub  ESB/Pfs/g2w2/Req/Device/SetText
+-> pub  ESB/Pfs/g2w2/Device/Req/SetText
         MQTT properties:  Correlation Data = "x1y2"
         payload:          { "EntityId": 42, "DeviceName": "StatusLcd", "Value": "Hull integrity nominal" }
 ```
@@ -160,7 +161,7 @@ The request/response model implements the **Correlation Identifier** pattern (Ho
 ```
 on send:
   generate cid
-  set MQTT Response Topic   = "ESB/{myType}/{myConnectionId}/Res/{scope}/{operation}"
+  set MQTT Response Topic   = "ESB/{myType}/{myConnectionId}/{scope}/Res/{operation}"
   set MQTT Correlation Data = cid
   store map[cid] = { context, timer }
   publish request
@@ -173,21 +174,21 @@ on receive:
   delete map[cid]
 
 on timeout:
-  publish ESB/{myType}/{myConnectionId}/Err/{scope}/{operation}
+  publish ESB/{myType}/{myConnectionId}/{scope}/Err/{operation}
     payload: { "code": "Timeout", "description": "No response received" }
   delete map[cid]
 ```
 
-The response and error topics mirror the request topic exactly -- only `{dir}` changes (`Req` -> `Res` or `Err`). In-flight requests are distinguished by `Correlation Data` alone; the pending map is keyed by `cid`.
+The response and error topics mirror the request topic exactly -- only `{msgType}` changes (`Req` -> `Res` or `Err`). In-flight requests are distinguished by `Correlation Data` alone; the pending map is keyed by `cid`.
 
 ### 6.3 Wildcard Subscription for Responses
 
 ```
 # Subscribe once; route all responses via correlationData property
-ESB/{myType}/{myConnectionId}/Res/#
+ESB/{myType}/{myConnectionId}/+/Res/#
 
 # Or subscribe to responses for a specific operation
-ESB/{myType}/{myConnectionId}/Res/App/GameTicks
+ESB/{myType}/{myConnectionId}/App/Res/GameTicks
 ```
 
 ---
@@ -197,12 +198,12 @@ ESB/{myType}/{myConnectionId}/Res/App/GameTicks
 ### 7.1 Read Application Game Ticks
 
 ```
--> pub  ESB/Ds/r56z/Req/App/GameTicks
-        MQTT properties:  Response Topic   = "ESB/Ds/r56z/Res/App/GameTicks"
+-> pub  ESB/Ds/r56z/App/Req/GameTicks
+        MQTT properties:  Response Topic   = "ESB/Ds/r56z/App/Res/GameTicks"
                           Correlation Data = "a1b2"
         payload:          {}
 
-<- sub  ESB/Ds/r56z/Res/App/GameTicks
+<- sub  ESB/Ds/r56z/App/Res/GameTicks
         MQTT properties:  Correlation Data = "a1b2"
         payload:          { "Value": 4823901 }
 ```
@@ -210,12 +211,12 @@ ESB/{myType}/{myConnectionId}/Res/App/GameTicks
 ### 7.2 Set Player Credits
 
 ```
--> pub  ESB/Pfs/g2w2/Req/Player/Credits
-        MQTT properties:  Response Topic   = "ESB/Pfs/g2w2/Res/Player/Credits"
+-> pub  ESB/Pfs/g2w2/Player/Req/Credits
+        MQTT properties:  Response Topic   = "ESB/Pfs/g2w2/Player/Res/Credits"
                           Correlation Data = "c3d4"
         payload:          { "EntityId": 7, "Value": 5000 }
 
-<- sub  ESB/Pfs/g2w2/Res/Player/Credits
+<- sub  ESB/Pfs/g2w2/Player/Res/Credits
         MQTT properties:  Correlation Data = "c3d4"
         payload:          { "ok": true }
 ```
@@ -223,12 +224,12 @@ ESB/{myType}/{myConnectionId}/Res/App/GameTicks
 ### 7.3 Teleport a Player
 
 ```
--> pub  ESB/Pfs/g2w2/Req/Player/Teleport
-        MQTT properties:  Response Topic   = "ESB/Pfs/g2w2/Res/Player/Teleport"
+-> pub  ESB/Pfs/g2w2/Player/Req/Teleport
+        MQTT properties:  Response Topic   = "ESB/Pfs/g2w2/Player/Res/Teleport"
                           Correlation Data = "e5f6"
         payload:          { "EntityId": 7, "Playfield": "Omicron", "Pos": [100,80,200], "Rot": [0,0,0] }
 
-<- sub  ESB/Pfs/g2w2/Res/Player/Teleport
+<- sub  ESB/Pfs/g2w2/Player/Res/Teleport
         MQTT properties:  Correlation Data = "e5f6"
         payload:          { "ok": true }
 ```
@@ -236,12 +237,12 @@ ESB/{myType}/{myConnectionId}/Res/App/GameTicks
 ### 7.4 Read LCD Text
 
 ```
--> pub  ESB/Pfs/g2w2/Req/Device/GetLcd
-        MQTT properties:  Response Topic   = "ESB/Pfs/g2w2/Res/Device/GetLcd"
+-> pub  ESB/Pfs/g2w2/Device/Req/GetLcd
+        MQTT properties:  Response Topic   = "ESB/Pfs/g2w2/Device/Res/GetLcd"
                           Correlation Data = "g7h8"
         payload:          { "EntityId": 42, "DeviceName": "StatusLcd" }
 
-<- sub  ESB/Pfs/g2w2/Res/Device/GetLcd
+<- sub  ESB/Pfs/g2w2/Device/Res/GetLcd
         MQTT properties:  Correlation Data = "g7h8"
         payload:          { "Text": "Hull integrity nominal", "FontSize": 20 }
 ```
@@ -249,12 +250,12 @@ ESB/{myType}/{myConnectionId}/Res/App/GameTicks
 ### 7.5 Set LCD Text
 
 ```
--> pub  ESB/Pfs/g2w2/Req/Device/SetText
-        MQTT properties:  Response Topic   = "ESB/Pfs/g2w2/Res/Device/SetText"
+-> pub  ESB/Pfs/g2w2/Device/Req/SetText
+        MQTT properties:  Response Topic   = "ESB/Pfs/g2w2/Device/Res/SetText"
                           Correlation Data = "i9j0"
         payload:          { "EntityId": 42, "DeviceName": "StatusLcd", "Value": "Warning: Low Fuel" }
 
-<- sub  ESB/Pfs/g2w2/Res/Device/SetText
+<- sub  ESB/Pfs/g2w2/Device/Res/SetText
         MQTT properties:  Correlation Data = "i9j0"
         payload:          { "ok": true }
 ```
@@ -262,12 +263,12 @@ ESB/{myType}/{myConnectionId}/Res/App/GameTicks
 ### 7.6 Read a Light Color
 
 ```
--> pub  ESB/Pfs/g2w2/Req/Device/GetLight
-        MQTT properties:  Response Topic   = "ESB/Pfs/g2w2/Res/Device/GetLight"
+-> pub  ESB/Pfs/g2w2/Device/Req/GetLight
+        MQTT properties:  Response Topic   = "ESB/Pfs/g2w2/Device/Res/GetLight"
                           Correlation Data = "m3n4"
         payload:          { "EntityId": 42, "DeviceName": "EntryLight" }
 
-<- sub  ESB/Pfs/g2w2/Res/Device/GetLight
+<- sub  ESB/Pfs/g2w2/Device/Res/GetLight
         MQTT properties:  Correlation Data = "m3n4"
         payload:          { "Color": { "R": 255, "G": 128, "B": 0, "A": 255 }, "Intensity": 1.0 }
 ```
@@ -279,18 +280,18 @@ ESB/{myType}/{myConnectionId}/Res/App/GameTicks
 Events are server-pushed and carry no correlation. Any subscriber may listen. Entity IDs are in the payload.
 
 ```
-ESB/Pfs/g2w2/Evt/Playfield/EntityEntered
-ESB/Pfs/g2w2/Evt/Player/HealthChanged
-ESB/Pfs/g2w2/Evt/Structure/FuelLow
-ESB/Client/9baq/Evt/App/GameStateChanged
+ESB/Pfs/g2w2/Playfield/Evt/EntityEntered
+ESB/Pfs/g2w2/Player/Evt/HealthChanged
+ESB/Pfs/g2w2/Structure/Evt/FuelLow
+ESB/Client/9baq/App/Evt/GameStateChanged
 ```
 
 Wildcard subscriptions aggregate events across connections:
 
 ```
-ESB/Pfs/+/Evt/Player/#          # all player events across all Pfs
-ESB/Pfs/+/Evt/Structure/FuelLow # fuel alerts across all playfields
-ESB/+/+/Evt/Player/HealthChanged # health changes from any participant type
+ESB/Pfs/+/Player/Evt/#           # all player events across all Pfs
+ESB/Pfs/+/Structure/Evt/FuelLow  # fuel alerts across all playfields
+ESB/+/+/Player/Evt/HealthChanged  # health changes from any participant type
 ```
 
 ---
@@ -300,7 +301,7 @@ ESB/+/+/Evt/Player/HealthChanged # health changes from any participant type
 Errors use the `Err` direction with the `cid` as the operation segment, mirroring the response pattern. Any participant or observer subscribed to the `Err` topic can react - logging, alerting, or retrying.
 
 ```
-<- sub  ESB/Pfs/g2w2/Err/Structure/e5f6
+<- sub  ESB/Pfs/g2w2/Structure/Err/e5f6
         MQTT properties:  Correlation Data = "e5f6"
         payload:          { "code": "DeviceLocked", "description": "Device is locked" }
 ```
@@ -308,7 +309,7 @@ Errors use the `Err` direction with the `cid` as the operation segment, mirrorin
 Timeouts are emitted by the **requester** on their own `Err` topic:
 
 ```
-<- sub  ESB/Client/9baq/Err/Player/c3d4
+<- sub  ESB/Client/9baq/Player/Err/c3d4
         payload:          { "code": "Timeout", "description": "No response received" }
 ```
 
@@ -321,7 +322,7 @@ Async callbacks that fail or do not return within the expected window emit on th
 Log messages use the `Log` direction with the level as the operation segment.
 
 ```
-ESB/{participantType}/{connectionId}/Log/{scope}/{level}
+ESB/{participantType}/{connectionId}/{scope}/Log/{level}
 ```
 
 ### 10.1 Payload Structure
@@ -341,9 +342,9 @@ ESB/{participantType}/{connectionId}/Log/{scope}/{level}
 Log publishing by `Client`, `Pfs`, and `Ds` participants is controlled by a config file on those processes. External participants self-manage their log publishing. Subscribers may filter by participant type, connection, scope, or level using standard MQTT wildcards:
 
 ```
-ESB/+/+/Log/#          # all log messages from all participants
-ESB/Pfs/+/Log/App/#    # all App-scope logs from all playfield servers
-ESB/edna/+/Log/#       # all logs from the edna participant
+ESB/+/+/+/Log/#        # all log messages from all participants
+ESB/Pfs/+/App/Log/#    # all App-scope logs from all playfield servers
+ESB/edna/+/+/Log/#     # all logs from the edna participant
 ```
 
 ---
@@ -356,7 +357,7 @@ ESB/edna/+/Log/#       # all logs from the edna participant
 | MQTT version | Targets MQTT 5.0 on Mosquitto 2.1.2; `Response Topic` and `Correlation Data` are protocol-level properties, not payload fields |
 | Correlation | Implements the Correlation Identifier EIP (Hohpe & Woolf); pending map keyed by `cid`; timeout emits `Err` on requester's own topic |
 | Connection isolation | `connectionId` ensures messages reach exactly one process; no unintended fan-out across participants |
-| Segment order | `{dir}` precedes `{scope}` so a single wildcard `ESB/+/{connId}/Req/#` covers all scopes including `Device` |
+| Segment order | `{scope}` precedes `{msgType}` so all traffic for a logical domain is naturally grouped; a two-segment wildcard `ESB/+/{connId}/+/Req/#` covers all inbound requests |
 | Playfield context | Both `Client` and `Pfs` have a current playfield; participant type implies intent -- client-side vs. authoritative server-side representation |
 | Async callbacks | Methods like `GetStructure` reply late to the `Response Topic`; callers set a timeout and emit `Err` on expiry |
 | Entity IDs | Always in payload, never in topic; keeps topic structure uniform across all scopes and participant types |

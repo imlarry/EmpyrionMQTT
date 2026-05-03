@@ -57,7 +57,7 @@ namespace EDNAClient.Helpers
             try
             {
                 EdnaLogger.Detail($"[MqttRequester] -> {subjectId} seq={seq}");
-                await _messenger.SendAsync($"{EsbApp}/Q/{subjectId}/*/{seq}", payload);
+                await _messenger.PublishAsync($"{EsbApp}/Q/{subjectId}/*/{seq}", payload);
 
                 var result = await tcs.Task.WaitAsync(Timeout);
                 EdnaLogger.Detail($"[MqttRequester] <- {subjectId} seq={seq} ok={result.Ok}");

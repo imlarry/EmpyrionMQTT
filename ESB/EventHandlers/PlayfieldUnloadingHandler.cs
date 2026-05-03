@@ -1,6 +1,6 @@
 using Eleon.Modding;
 using ESB.Interfaces;
-
+using ESB.Messaging;
 using Newtonsoft.Json.Linq;
 
 namespace ESB.EventHandlers
@@ -29,7 +29,7 @@ namespace ESB.EventHandlers
                     new JProperty("GameTicks", _ctx.ModApi.Application.GameTicks),
                     new JProperty("Name", playfield.Name));
                 string pfUnloadingJson = json.ToString(Newtonsoft.Json.Formatting.None);
-                await EmitEventAsync("Playfield", "Unloading", pfUnloadingJson);
+                await _ctx.Messenger.SendAsync("Playfield", MessageType.Evt, "Unloading", pfUnloadingJson);
             });
         }
     }

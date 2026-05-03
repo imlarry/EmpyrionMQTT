@@ -1,7 +1,7 @@
 using Eleon.Modding;
 using ESB.Helpers;
 using ESB.Interfaces;
-
+using ESB.Messaging;
 using Newtonsoft.Json.Linq;
 
 namespace ESB.EventHandlers
@@ -39,7 +39,7 @@ namespace ESB.EventHandlers
                     new JProperty("Type", entity.Type.ToString())
                 );
                 string loadedJson = json.ToString(Newtonsoft.Json.Formatting.None);
-                await EmitEventAsync("Playfield", "EntityLoaded", loadedJson);
+                await _ctx.Messenger.SendAsync("Playfield", MessageType.Evt, "EntityLoaded", loadedJson);
             });
         }
     }

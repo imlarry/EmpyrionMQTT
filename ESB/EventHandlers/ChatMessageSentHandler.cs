@@ -1,5 +1,6 @@
 using Eleon;
 using ESB.Interfaces;
+using ESB.Messaging;
 using Newtonsoft.Json.Linq;
 
 namespace ESB.EventHandlers
@@ -28,7 +29,7 @@ namespace ESB.EventHandlers
                 new JProperty("Text", chatMsgData.Text)
                         );
                 string chatJson = json.ToString(Newtonsoft.Json.Formatting.None);
-                await EmitEventAsync("App", "ChatMessageSent", chatJson);
+                await _ctx.Messenger.SendAsync("App", MessageType.Evt, "ChatMessageSent", chatJson);
             });
         }
     }

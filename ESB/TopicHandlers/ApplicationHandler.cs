@@ -373,8 +373,7 @@ namespace ESB.TopicHandlers
                         new JProperty("LinkId",         linkId        ?? ""),
                         new JProperty("InputContent",   inputContent  ?? ""),
                         new JProperty("CustomValue",    customVal));
-                    string evtTopic = $"ESB/{_ctx.BusManager.ParticipantType}/{_ctx.Messenger.ClientId()}/Evt/App/DialogResponse";
-                    _ = _ctx.Messenger.SendAsync(evtTopic, response.ToString(Formatting.None));
+                    _ = _ctx.Messenger.SendAsync("App", MessageType.Evt, "DialogResponse", response.ToString(Formatting.None));
                 }
 
                 bool displayed = false;

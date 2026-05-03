@@ -14,7 +14,7 @@ namespace ESB.TopicHandlers
         {
             var pt = ctx.ParsedTopic;
             string op = pt.MetaOperation != null ? $"{pt.Operation}.{pt.MetaOperation}" : pt.Operation;
-            string replyTopic = $"ESB/{pt.ParticipantType}/{pt.ConnectionId}/Res/{pt.Scope}/{op}";
+            string replyTopic = $"ESB/{pt.ParticipantType}/{pt.ConnectionId}/{pt.Scope}/Res/{op}";
             return messenger.ReplyAsync(replyTopic, ctx.CorrelationData, payload);
         }
 
@@ -22,8 +22,8 @@ namespace ESB.TopicHandlers
         {
             var pt = ctx.ParsedTopic;
             string op = pt.MetaOperation != null ? $"{pt.Operation}.{pt.MetaOperation}" : pt.Operation;
-            string errTopic = $"ESB/{pt.ParticipantType}/{pt.ConnectionId}/Err/{pt.Scope}/{op}";
-            return messenger.SendAsync(errTopic, errorJson);
+            string errTopic = $"ESB/{pt.ParticipantType}/{pt.ConnectionId}/{pt.Scope}/Err/{op}";
+            return messenger.ReplyAsync(errTopic, ctx.CorrelationData, errorJson);
         }
 
         // -------------------------------------------------------------------------

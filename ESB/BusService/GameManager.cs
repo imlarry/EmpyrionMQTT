@@ -70,13 +70,13 @@ namespace ESB
             GameIdentifier = IdentifierHelper.GenerateIdentifier(GameName, 8);
             GameMode = _ctx.ModApi.Application.Mode.ToString();
 
-            string pending = ConsumePendingRetained("Evt", "BlockAndIdtemMapping");
+            string pending = ConsumePendingRetained("Registry", "BlockAndIdtemMapping");
             if (!string.IsNullOrEmpty(pending))
                 ApplyMappingFromJson(pending);
 
             var json = new JObject(
                 new JProperty("Status", "Created"));
-            await _ctx.Messenger.SendAsync($"ESB/{_ctx.BusManager.ParticipantType}/{_ctx.Messenger.ClientId()}/Log/App/GameManager", json.ToString(Newtonsoft.Json.Formatting.None));
+            await _ctx.Messenger.SendAsync("App", MessageType.Log, "GameManager", json.ToString(Newtonsoft.Json.Formatting.None));
         }
         public async Task StateChanged(bool hasEntered)
         {
@@ -96,7 +96,7 @@ namespace ESB
             GameIdentifier = IdentifierHelper.GenerateIdentifier(GameName, 8);
             GameMode = _ctx.ModApi.Application.Mode.ToString();
 
-            string pending = ConsumePendingRetained("Evt", "BlockAndIdtemMapping");
+            string pending = ConsumePendingRetained("Registry", "BlockAndIdtemMapping");
             if (!string.IsNullOrEmpty(pending))
                 ApplyMappingFromJson(pending);
 

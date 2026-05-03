@@ -104,9 +104,9 @@ public sealed class SBTestClient : IAsyncDisposable
 
     /// <summary>
     /// Sends an ESB/ request and awaits the response.
-    /// Publishes to: ESB/{targetType}/{targetConnId}/Req/{scope}/{operation}
-    /// Response arrives on: ESB/{targetType}/{targetConnId}/Res/{scope}/{operation}
-    /// Errors arrive on:    ESB/{targetType}/{targetConnId}/Err/{scope}/{operation}
+    /// Publishes to: ESB/{targetType}/{targetConnId}/{scope}/Req/{operation}
+    /// Response arrives on: ESB/{targetType}/{targetConnId}/{scope}/Res/{operation}
+    /// Errors arrive on:    ESB/{targetType}/{targetConnId}/{scope}/Err/{operation}
     /// </summary>
     public async Task<JObject> RequestAsync(
         string targetConnId,
@@ -116,8 +116,8 @@ public sealed class SBTestClient : IAsyncDisposable
         string requestJson,
         int timeoutMs = 5000)
     {
-        string responseTopic = $"ESB/{targetType}/{targetConnId}/Res/{scope}/{operation}";
-        string errorTopic    = $"ESB/{targetType}/{targetConnId}/Err/{scope}/{operation}";
+        string responseTopic = $"ESB/{targetType}/{targetConnId}/{scope}/Res/{operation}";
+        string errorTopic    = $"ESB/{targetType}/{targetConnId}/{scope}/Err/{operation}";
 
         var tcs = new TaskCompletionSource<JObject>();
 
@@ -147,7 +147,7 @@ public sealed class SBTestClient : IAsyncDisposable
             await _client.SubscribeAsync(subOptions, CancellationToken.None);
 
             var message = new MqttApplicationMessageBuilder()
-                .WithTopic($"ESB/{targetType}/{targetConnId}/Req/{scope}/{operation}")
+                .WithTopic($"ESB/{targetType}/{targetConnId}/{scope}/Req/{operation}")
                 .WithPayload(requestJson)
                 .Build();
             await _client.PublishAsync(message, CancellationToken.None);

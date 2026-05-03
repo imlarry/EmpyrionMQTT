@@ -1,6 +1,6 @@
 using Eleon.Modding;
 using ESB.Interfaces;
-
+using ESB.Messaging;
 using Newtonsoft.Json.Linq;
 
 namespace ESB.EventHandlers
@@ -54,7 +54,7 @@ namespace ESB.EventHandlers
                 );
 
                 string pfLoadedJson = json.ToString(Newtonsoft.Json.Formatting.None);
-                await EmitEventAsync("Playfield", "Loaded", pfLoadedJson);
+                await _ctx.Messenger.SendAsync("Playfield", MessageType.Evt, "Loaded", pfLoadedJson);
             });
         }
     }

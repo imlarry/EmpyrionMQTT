@@ -1,6 +1,7 @@
 using Eleon.Modding;
 using ESB.Helpers;
 using ESB.Interfaces;
+using ESB.Messaging;
 using Newtonsoft.Json.Linq;
 
 namespace ESB.EventHandlers
@@ -14,6 +15,8 @@ namespace ESB.EventHandlers
             await Execute(async () =>
             {
                 if (_suppressedEvents.Contains(type)) return;
+               
+                // _suppressedEvents.Add(type); // Sampling: uncomment to capture one sample of each GameEvent type, then auto-suppress.
 
                 JObject json = new JObject(
                 new JProperty("GameTicks", _ctx.ModApi.Application.GameTicks));
@@ -77,7 +80,7 @@ namespace ESB.EventHandlers
                 }
 
                 string jsonString = json?.ToString(Newtonsoft.Json.Formatting.None);
-                await EmitEventAsync("App", type.ToString(), jsonString);
+                await _ctx.Messenger.SendAsync("App", MessageType.Evt, type.ToString(), jsonString);
             });
         }
     }

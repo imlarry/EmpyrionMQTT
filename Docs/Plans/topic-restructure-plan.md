@@ -1,4 +1,8 @@
-# Topic Schema Restructure: Move {dir} Before {scope}
+# Topic Schema Restructure: Move {dir} Before {scope} [SUPERSEDED]
+
+> This plan was NOT adopted. The canonical format is scope-first:
+> `ESB/{participantType}/{connectionId}/{scope}/{msgType}/{operation}`
+> See TopicSchema.md for the current definition.
 
 ## Problem
 
