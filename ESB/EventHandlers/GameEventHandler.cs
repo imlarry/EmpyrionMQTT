@@ -73,14 +73,17 @@ namespace ESB.EventHandlers
                     IEntity ent;
                     if (pf != null && pf.Entities.TryGetValue(entityId, out ent) && ent != null && ent.Structure != null)
                     {
-                        var content = ent.Structure.GetDevice<IContainer>(vector).GetContent();
-                        var contentsJson = MessageHelpers.ItemStacksJson(content, _ctx.GameManager.BlockAndItemMapping);
+                        var container    = ent.Structure.GetDevice<IContainer>(vector);
+                        var content      = container?.GetContent();
+                        var contentsJson = content != null
+                            ? MessageHelpers.ItemStacksJson(content, _ctx.GameManager.BlockAndItemMapping)
+                            : new JArray();
                         json.Add(new JProperty("ItemStack", contentsJson));
                     }
                 }
 
                 string jsonString = json?.ToString(Newtonsoft.Json.Formatting.None);
-                await _ctx.Messenger.SendAsync("App", MessageType.Evt, type.ToString(), jsonString);
+                await _ctx.Messenger.SendAsync("Game", MessageType.Evt, type.ToString(), jsonString);
             });
         }
     }

@@ -16,19 +16,14 @@ namespace ESB.Messaging
     public class Messenger : IMessenger
     {
         private BaseContextData _ctx;
-        private string _applicationId;
         private string _machineId;
         private string _clientId;
         private string _participantType;
         private MqttFactory _mqttFactory;
         private IMqttClient _mqttClient;
         private readonly Dictionary<string, Func<MessageContext, Task>> _handlers = new Dictionary<string, Func<MessageContext, Task>>();
-
-        // ApplicationId ... returns the ApplicationId associated with the connection
-        public string ApplicationId()
-        {
-            return _applicationId;
-        }
+        private readonly Dictionary<string, Func<string, string, Task>> _eventCallbacks = new Dictionary<string, Func<string, string, Task>>();
+        private readonly object _callbackLock = new object();
 
         // MachineId ... returns the MachineId associated with the connection
         public string MachineId()
@@ -119,7 +114,7 @@ namespace ESB.Messaging
         }
 
         // ConnectAsync ... build client and connect to broker
-        public async Task ConnectAsync(BaseContextData ctx, string applicationId, string withTcpServer = "localhost", int port = 1883, string username = null, string password = null, string caFilePath = null, string participantType = "")
+        public async Task ConnectAsync(BaseContextData ctx, string participantType, string withTcpServer = "localhost", int port = 1883, string username = null, string password = null, string caFilePath = null)
         {
             string tokenDir  = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "EmpyrionESB");
             Directory.CreateDirectory(tokenDir);
@@ -136,7 +131,6 @@ namespace ESB.Messaging
             }
             
             _ctx = ctx;
-            _applicationId   = applicationId;
             _participantType = participantType;
             _machineId = IdentifierHelper.GenerateIdentifier(token, 6);
             _clientId  = IdentifierHelper.GenerateIdentifier(participantType + token, 4);
@@ -162,11 +156,11 @@ namespace ESB.Messaging
 
             var now = DateTime.Now.ToString("s");
             var json = new JObject(
-                new JProperty("WithTcpServer", withTcpServer),
-                new JProperty("Application",   _applicationId),
-                new JProperty("MachineId",     _machineId),
-                new JProperty("ClientId",      _clientId),
-                new JProperty("ConnectedAt",   now));
+                new JProperty("WithTcpServer",   withTcpServer),
+                new JProperty("ParticipantType", _participantType),
+                new JProperty("MachineId",       _machineId),
+                new JProperty("ClientId",        _clientId),
+                new JProperty("ConnectedAt",     now));
             await LogAsync("ConnectAsync", json.ToString(Newtonsoft.Json.Formatting.None));
         }
 
@@ -234,10 +228,12 @@ namespace ESB.Messaging
             await _mqttClient.PublishAsync(message, CancellationToken.None);
         }
 
-        // SubscribeEventAsync ... subscribe to an ESB/ event topic filter; stub pending EDNA rework
-        public Task SubscribeEventAsync(string topicFilter, Func<string, string, Task> callback)
+        // SubscribeEventAsync ... subscribe to a topic filter with a raw (topic, payload) callback
+        public async Task SubscribeEventAsync(string topicFilter, Func<string, string, Task> callback)
         {
-            throw new NotImplementedException("SubscribeEventAsync: pending EDNA rework for ESB/ schema");
+            lock (_callbackLock)
+                _eventCallbacks[topicFilter] = callback;
+            await SubscribeBrokerAsync(topicFilter);
         }
 
         // UnsubscribeAsync ... unsubscribe from a topic
@@ -268,6 +264,46 @@ namespace ESB.Messaging
             await _mqttClient.PublishAsync(message, CancellationToken.None);
         }
 
+        // RequestAsync ... publish a Req with MQTT5 ResponseTopic; awaits and returns the reply payload
+        public async Task<string> RequestAsync(string scope, string operation, string payload, TimeSpan timeout)
+        {
+            var shortId       = Guid.NewGuid().ToString("N").Substring(0, 8);
+            var responseTopic = $"tmp/{_clientId}/{shortId}";
+            var tcs           = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+            lock (_callbackLock)
+                _eventCallbacks[responseTopic] = (t, p) => { tcs.TrySetResult(p ?? ""); return Task.CompletedTask; };
+
+            await SubscribeBrokerAsync(responseTopic);
+
+            var message = new MqttApplicationMessageBuilder()
+                .WithTopic($"ESB/{_participantType}/{_clientId}/{scope}/Req/{operation}")
+                .WithPayload(payload)
+                .WithResponseTopic(responseTopic)
+                .WithCorrelationData(Encoding.ASCII.GetBytes(shortId))
+                .Build();
+            await _mqttClient.PublishAsync(message, CancellationToken.None);
+
+            using (var cts = new CancellationTokenSource(timeout))
+            {
+                cts.Token.Register(() => tcs.TrySetCanceled());
+                try
+                {
+                    return await tcs.Task;
+                }
+                catch (OperationCanceledException)
+                {
+                    throw new TimeoutException($"RequestAsync {scope}/{operation}: no response within {(int)timeout.TotalSeconds}s");
+                }
+                finally
+                {
+                    lock (_callbackLock)
+                        _eventCallbacks.Remove(responseTopic);
+                    await UnsubscribeAsync(responseTopic);
+                }
+            }
+        }
+
         // LogAsync ... emit an ESB/{participantType}/{connectionId}/App/Log/{operation} message
         private Task LogAsync(string operation, string payload)
         {
@@ -291,6 +327,25 @@ namespace ESB.Messaging
             var dbg = new JObject(new JProperty("Topic", topic), new JProperty("Payload", "[not included in this log]"));
             await LogAsync("ProcessingMessage", dbg.ToString(Newtonsoft.Json.Formatting.None));
 #endif
+
+            // Dispatch to raw event callbacks (response topics, direct subscriptions)
+            KeyValuePair<string, Func<string, string, Task>>[] callbacks;
+            lock (_callbackLock)
+            {
+                callbacks = new KeyValuePair<string, Func<string, string, Task>>[_eventCallbacks.Count];
+                int i = 0;
+                foreach (var kv in _eventCallbacks) callbacks[i++] = kv;
+            }
+            foreach (var kv in callbacks)
+            {
+                if (MqttTopicFilterComparer.Compare(topic, kv.Key) == MqttTopicFilterCompareResult.IsMatch)
+                    await kv.Value(topic, payload);
+            }
+
+            // ESB dispatch-key routing for well-formed ESB/{type}/{id}/{scope}/{msgType}/{op} topics
+            var parts = topic.Split('/');
+            if (parts.Length != 6 || parts[0] != "ESB") return;
+
             var pt = ParseTopic(topic);
 
             Func<MessageContext, Task> handler;

@@ -39,7 +39,7 @@ namespace ESB.EventHandlers
                     new JProperty("Type", entity.Type.ToString())
                 );
                 string loadedJson = json.ToString(Newtonsoft.Json.Formatting.None);
-                await _ctx.Messenger.SendAsync("Playfield", MessageType.Evt, "EntityLoaded", loadedJson);
+                await _ctx.Messenger.SendAsync("Entity", MessageType.Evt, "EntityLoaded", loadedJson);
             });
         }
     }

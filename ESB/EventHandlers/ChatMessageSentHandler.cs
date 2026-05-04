@@ -29,7 +29,7 @@ namespace ESB.EventHandlers
                 new JProperty("Text", chatMsgData.Text)
                         );
                 string chatJson = json.ToString(Newtonsoft.Json.Formatting.None);
-                await _ctx.Messenger.SendAsync("App", MessageType.Evt, "ChatMessageSent", chatJson);
+                await _ctx.Messenger.SendAsync("Chat", MessageType.Evt, "ChatMessageSent", chatJson);
             });
         }
     }

@@ -8,23 +8,19 @@ namespace EDNAClient.Skills.ThreatRadar
     /// <summary>
     /// Subscribes to ESB Feeds.Scan and keeps ThreatViewModel current with
     /// directional threat levels. Each snapshot atomically updates both the
-    /// player position and the threat entity set — no polling, no per-entity
+    /// player position and the threat entity set -- no polling, no per-entity
     /// TraceEntity subscriptions.
     /// </summary>
     public class ThreatTracker
     {
-        private const string EsbApp = "Client";
-
         private readonly IMessenger      _messenger;
         private readonly ThreatViewModel _viewModel;
 
         // Threat entities keyed by entity id; value is last-known XZ position
-        private readonly Dictionary<int, (float X, float Z)> _threats = new();
+        private readonly Dictionary<int, (float X, float Z)> _threats = new Dictionary<int, (float X, float Z)>();
 
         private float _playerX, _playerZ;
         private float _fwdX = 0f, _fwdZ = 1f;   // default: facing +Z (world north)
-
-        private int _seqId;
 
         public ThreatTracker(IMessenger messenger, ThreatViewModel viewModel)
         {
@@ -36,8 +32,10 @@ namespace EDNAClient.Skills.ThreatRadar
 
         public async Task StartAsync()
         {
-            await _messenger.SubscribeEventAsync("+/E/Feeds.Scan/+/+", OnScanSnapshot);
-            await _messenger.SubscribeEventAsync("+/E/GameEvent.PlayfieldEntered/+/+", OnPlayfieldEntered);
+            // App/Evt/PlayfieldEntered published by GameEventHandler for GameEventType.PlayfieldEntered
+            await _messenger.SubscribeEventAsync("ESB/+/+/App/Evt/PlayfieldEntered", OnPlayfieldEntered); // TODO: refacor this approach
+            // App/Evt/Feeds.Scan: pending server implementation; subscribing now so it activates when available
+            await _messenger.SubscribeEventAsync("ESB/+/+/App/Evt/Feeds.Scan", OnScanSnapshot); // TODO: refacor this approach
         }
 
         private Task OnPlayfieldEntered(string topic, string payload)
@@ -58,8 +56,8 @@ namespace EDNAClient.Skills.ThreatRadar
 
         private async Task RequestScanAsync()
         {
-            var seq = Interlocked.Increment(ref _seqId);
-            await _messenger.PublishAsync($"{EsbApp}/Q/Feeds.Scan/*/{seq}", "{\"Duration\":300,\"RefreshRate\":2}");
+            // App scope pending confirmation when Feeds.Scan is added to ESB server
+            await _messenger.SendAsync("App", MessageType.Req, "Feeds.Scan", "{\"Duration\":300,\"RefreshRate\":2}");
         }
 
         // ── Scan snapshot handler ──────────────────────────────────────────

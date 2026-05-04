@@ -13,11 +13,10 @@ namespace EDNAClient.Skills.Scripting.Api
     ///   mqtt.subscribe(topicFilter, fn)               -- direct broker subscription
     ///
     /// IMPORTANT -- subscribe() constraint:
-    ///   The underlying Messenger routes messages by SubjectId (topic segment 3) and supports
-    ///   only one handler per SubjectId. Subscribing from Lua to a SubjectId that is already
-    ///   claimed by a C# skill (e.g. "Feeds.Scan") will replace that handler. Prefer the
-    ///   broadcast model (EdnaService calls LuaScriptHost.Broadcast) for topics owned by C#.
-    ///   Use subscribe() only for topics that are exclusively consumed by Lua scripts.
+    ///   Each call to subscribe() registers one callback per topic filter; subscribing the same
+    ///   filter twice replaces the earlier callback. For topics also consumed by C# skills,
+    ///   prefer the broadcast model (EdnaService calls LuaScriptHost.Broadcast) rather than
+    ///   subscribing directly from Lua.
     /// </summary>
     [MoonSharpUserData]
     public sealed class LuaMqttApi
@@ -54,7 +53,7 @@ namespace EDNAClient.Skills.Scripting.Api
         ///     log.info("got: " .. payload)
         ///   end)
         /// </summary>
-        public void subscribe(string topicFilter, DynValue handler)
+        public void subscribe(string topicFilter, DynValue handler) // TODO: refacor this approach
         {
             EdnaLogger.Detail($"[{_engine.Name}] mqtt.subscribe {topicFilter}");
             var task = _messenger.SubscribeEventAsync(topicFilter, (topic, payload) =>

@@ -1,7 +1,7 @@
-﻿using System.Collections.Generic;
-using System.IO;
+﻿using System.IO;
 using System.Threading.Tasks;
 using System.Reflection;
+using Eleon.Modding;
 using ESB.Configuration;
 using ESB.EventHandlers;
 using ESB.Helpers;
@@ -15,17 +15,8 @@ namespace ESB
         private readonly ContextData _ctx;
         private readonly EventManager _eMgr;
 
-        public string ApplicationName  { get; private set; }
         public string ParticipantType  { get; private set; }
         public string ESBModPath       { get; private set; }
-
-        // Maps Eleon ApplicationMode.ToString() values to ESB/ participant type tokens.
-        private static readonly Dictionary<string, string> ParticipantTypeMap = new Dictionary<string, string>
-        {
-            { "Client",          "Client" },
-            { "DedicatedServer", "Ds"     },
-            { "PlayfieldServer", "Pfs"    },
-        };
 
         public BusManager(ContextData context, EventManager eMgr)
         {
@@ -33,9 +24,13 @@ namespace ESB
             _eMgr = eMgr;
             _ctx.BusManager = this;
 
-            ApplicationName = _ctx.ModApi.Application.Mode.ToString();
-            ParticipantTypeMap.TryGetValue(ApplicationName, out var pt);
-            ParticipantType = pt;
+            switch (_ctx.ModApi.Application.Mode)
+            {
+                case ApplicationMode.Client:          ParticipantType = "Client"; break;
+                case ApplicationMode.DedicatedServer: ParticipantType = "Ds";     break;
+                case ApplicationMode.PlayfieldServer: ParticipantType = "Pfs";    break;
+                default: ParticipantType = _ctx.ModApi.Application.Mode.ToString(); break;
+            }
 
             Assembly currentAssembly = Assembly.GetExecutingAssembly();
             ESBModPath = Path.GetDirectoryName(currentAssembly.Location);
@@ -48,13 +43,12 @@ namespace ESB
 
             await _ctx.Messenger.ConnectAsync
                     (_ctx
-                    , ApplicationName
+                    , ParticipantType
                     , _ctx.ESBConfig.MQTThost.WithTcpServer
                     , _ctx.ESBConfig.MQTThost.Port
                     , _ctx.ESBConfig.MQTThost.Username
                     , _ctx.ESBConfig.MQTThost.Password
-                    , _ctx.ESBConfig.MQTThost.CAFilePath
-                    , ParticipantType);
+                    , _ctx.ESBConfig.MQTThost.CAFilePath);
 
             await PublishRegistryEntryAsync();
 

@@ -25,7 +25,6 @@ namespace EDNAClient.Core
         private readonly WorkspaceWindow    _workspace;
 
         private GameWindowEventHook?  _windowHook;
-        private HashSet<string>       _blockedByPolicy = new();
 
         public EdnaService(IEdnaSkill[] skills, TrayIconManager tray, EdnaSettings settings, WorkspaceWindow workspace)
         {
@@ -84,12 +83,11 @@ namespace EDNAClient.Core
                         EnabledSkillIds = _settings.EnabledSkillIds
                     });
 
-                    await _ctx.Messenger.SubscribeEventAsync("+/E/Application.OnPlayfieldLoaded/+/+", OnPlayfieldLoaded);
-                    await _ctx.Messenger.SubscribeEventAsync("+/E/Application.GameEnter/+/+", OnGameEnter);
-                    await _ctx.Messenger.SubscribeEventAsync("+/E/Application.GameExit/+/+",  OnGameExit);
-                    await _ctx.Messenger.SubscribeEventAsync("+/E/Application.EdnaPolicy/+/+", OnPolicyReceived);
+                    await _ctx.Messenger.SubscribeEventAsync("ESB/+/+/App/Evt/GameEnter",      OnGameEnter);      // TODO: refacor this approach
+                    await _ctx.Messenger.SubscribeEventAsync("ESB/+/+/App/Evt/GameExit",       OnGameExit);       // TODO: refacor this approach
+                    await _ctx.Messenger.SubscribeEventAsync("ESB/+/+/Playfield/Evt/Loaded",   OnPlayfieldLoaded); // TODO: refacor this approach
 #if DEBUG
-                    EdnaLogger.Log("Subscribed: GameEnter, GameExit, EdnaPolicy");
+                    EdnaLogger.Log("Subscribed: GameEnter, GameExit, PlayfieldLoaded");
 #endif
 
                     foreach (var skill in EnabledSkills())
@@ -134,7 +132,6 @@ namespace EDNAClient.Core
                 CloseGameSession(processExiting: true);
 
                 foreach (var skill in _skills) skill.Stop();
-                _blockedByPolicy.Clear();
 
                 _tray.OnGameExited();
 
@@ -181,7 +178,7 @@ namespace EDNAClient.Core
 
                 EdnaLogger.Log($"GameEnter: mode={gameMode} path={saveGamePath}");
 
-                _ctx.AuthoritativeSource = topic.Split('/')[0];
+                _ctx.AuthoritativeSource = topic.Split('/')[1]; // TODO: refacor this approach
 
                 await Application.Current.Dispatcher.InvokeAsync(() =>
                 {
@@ -258,32 +255,6 @@ namespace EDNAClient.Core
                     catch (Exception ex) { EdnaLogger.Error($"OnGameExit failed for '{skill.Id}'", ex); }
         }
 
-        private Task OnPolicyReceived(string topic, string payload)
-        {
-            try
-            {
-                var j       = JObject.Parse(payload);
-                var allowed = j["AllowedSkills"];
-
-                if (allowed == null || allowed.Type == JTokenType.Null)
-                {
-                    _blockedByPolicy.Clear();
-                    return Task.CompletedTask;
-                }
-
-                var allowedIds = allowed.ToObject<HashSet<string>>() ?? new HashSet<string>();
-                _blockedByPolicy = _skills.Select(s => s.Id).Except(allowedIds).ToHashSet();
-
-                foreach (var skill in _skills.Where(s => _blockedByPolicy.Contains(s.Id)))
-                    skill.Stop();
-            }
-            catch (Exception ex)
-            {
-                EdnaLogger.Error("OnPolicyReceived failed", ex);
-            }
-            return Task.CompletedTask;
-        }
-
         private void EnsureHookInstalled()
         {
             if (_windowHook != null) return;
@@ -308,7 +279,6 @@ namespace EDNAClient.Core
         }
 
         private IEnumerable<IEdnaSkill> EnabledSkills() =>
-            _skills.Where(s => _settings.EnabledSkillIds.Contains(s.Id)
-                            && !_blockedByPolicy.Contains(s.Id));
+            _skills.Where(s => _settings.EnabledSkillIds.Contains(s.Id));
     }
 }
