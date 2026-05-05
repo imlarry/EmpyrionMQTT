@@ -89,10 +89,10 @@ namespace ESB.TopicHandlers
 
         public void Register()
         {
-            _ctx.Messenger.RegisterHandler("Player/GetProperties", Properties);
-            _ctx.Messenger.RegisterHandler("Player/Teleport",      Teleport);
-            _ctx.Messenger.RegisterHandler("Player/DamageEntity",  DamageEntity);
-            _ctx.Messenger.RegisterHandler("Player/Describe",      Describe);
+            _ctx.Messenger.RegisterHandler("Player/req/GetProperties", Properties);
+            _ctx.Messenger.RegisterHandler("Player/req/Teleport",      Teleport);
+            _ctx.Messenger.RegisterHandler("Player/req/DamageEntity",  DamageEntity);
+            _ctx.Messenger.RegisterHandler("Player/req/Describe",      Describe);
         }
 
         public async Task Describe(MessageContext ctx)

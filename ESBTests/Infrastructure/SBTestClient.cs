@@ -1,6 +1,5 @@
 using ESB.Configuration;
 using ESB.Helpers;
-using ESB.Messaging;
 using MQTTnet;
 using MQTTnet.Client;
 using MQTTnet.Formatter;
@@ -16,25 +15,33 @@ namespace ESBTests.Infrastructure;
 
 /// <summary>
 /// MQTT5-native test client for the ESB/ topic schema.
-/// Uses ResponseTopic + CorrelationData for request/reply rather than topic substitution.
+/// Connects as participantType "Test" with a random 4-char client ID.
+/// Uses ResponseTopic + CorrelationData for request/reply.
 ///
 /// Usage:
 ///   await using var mqtt = await SBTestClient.ConnectAsync();
-///   string connId = await mqtt.FindConnectionAsync("Client");
-///   var payload = await mqtt.RequestAsync(connId, "Client", "App", "GameTicks", "{}");
+///   var payload = await mqtt.RequestAsync("App", "GameTicks", "{}");
 ///   Assert.NotNull(payload["GameTicks"]);
 /// </summary>
 public sealed class SBTestClient : IAsyncDisposable
 {
     private readonly IMqttClient _client;
     private readonly MqttFactory _factory;
-    private SBTestClient(IMqttClient client, MqttFactory factory)
+    private readonly string      _participantType;
+    private readonly string      _clientId;
+    private readonly ConcurrentDictionary<string, TaskCompletionSource<JObject>> _pending
+        = new ConcurrentDictionary<string, TaskCompletionSource<JObject>>();
+
+    private SBTestClient(IMqttClient client, MqttFactory factory, string participantType, string clientId)
     {
-        _client  = client;
-        _factory = factory;
+        _client          = client;
+        _factory         = factory;
+        _participantType = participantType;
+        _clientId        = clientId;
+        _client.ApplicationMessageReceivedAsync += OnMessageReceivedAsync;
     }
 
-    public static async Task<SBTestClient> ConnectAsync()
+    public static async Task<SBTestClient> ConnectAsync(string participantType = "Test")
     {
         var configPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ESB_Info.yaml");
         var cfg = YamlFileReader.ReadYamlFile<ESBConfig>(configPath).MQTThost;
@@ -50,118 +57,85 @@ public sealed class SBTestClient : IAsyncDisposable
             builder = builder.WithCredentials(cfg.Username, cfg.Password);
 
         await client.ConnectAsync(builder.Build(), CancellationToken.None);
-        return new SBTestClient(client, factory);
+
+        var clientId = Guid.NewGuid().ToString("N").Substring(0, 4);
+        var instance = new SBTestClient(client, factory, participantType, clientId);
+
+        // Persistent response subscription -- receives replies to all RequestAsync calls.
+        var subOptions = factory.CreateSubscribeOptionsBuilder()
+            .WithTopicFilter(f => f.WithTopic($"ESB/{participantType}/{clientId}/+/res/+"))
+            .Build();
+        await client.SubscribeAsync(subOptions, CancellationToken.None);
+
+        return instance;
     }
 
     /// <summary>
-    /// Reads retained ESB/Registry/# messages and returns the connectionId of the first
-    /// participant whose "type" field matches <paramref name="participantType"/>.
-    /// Throws if none found within <paramref name="timeoutMs"/>.
-    /// </summary>
-    public async Task<string> FindConnectionAsync(string participantType, int timeoutMs = 3000)
-    {
-        var found = new TaskCompletionSource<string>();
-
-        Func<MqttApplicationMessageReceivedEventArgs, Task> onMessage = e =>
-        {
-            var topic = e.ApplicationMessage.Topic;
-            if (!topic.StartsWith("ESB/Registry/")) return Task.CompletedTask;
-            var seg = e.ApplicationMessage.PayloadSegment;
-            if (seg.Count == 0) return Task.CompletedTask;
-            var json = Encoding.UTF8.GetString(seg.Array!, seg.Offset, seg.Count);
-            try
-            {
-                var obj = JObject.Parse(json);
-                if (obj["type"]?.Value<string>() == participantType)
-                {
-                    var connId = topic.Substring("ESB/Registry/".Length);
-                    found.TrySetResult(connId);
-                }
-            }
-            catch { }
-            return Task.CompletedTask;
-        };
-
-        _client.ApplicationMessageReceivedAsync += onMessage;
-        try
-        {
-            var subOptions = _factory.CreateSubscribeOptionsBuilder()
-                .WithTopicFilter(f => f.WithTopic("ESB/Registry/#"))
-                .Build();
-            await _client.SubscribeAsync(subOptions, CancellationToken.None);
-
-            using var cts = new CancellationTokenSource(timeoutMs);
-            cts.Token.Register(() => found.TrySetException(
-                new TimeoutException($"No ESB participant of type '{participantType}' found within {timeoutMs}ms")));
-
-            return await found.Task;
-        }
-        finally
-        {
-            _client.ApplicationMessageReceivedAsync -= onMessage;
-        }
-    }
-
-    /// <summary>
-    /// Sends an ESB/ request and awaits the response.
-    /// Publishes to: ESB/{targetType}/{targetConnId}/{scope}/Req/{operation}
-    /// Response arrives on: ESB/{targetType}/{targetConnId}/{scope}/Res/{operation}
-    /// Errors arrive on:    ESB/{targetType}/{targetConnId}/{scope}/Err/{operation}
+    /// Sends an ESB request and awaits the response via MQTT5 ResponseTopic + CorrelationData.
+    /// Publishes to:  ESB/{participantType}/{clientId}/{scope}/req/{operation}
+    /// ResponseTopic: ESB/{participantType}/{clientId}/{scope}/res/{operation}
+    /// Errors are returned inside the res payload as {"Error": "..."}.
     /// </summary>
     public async Task<JObject> RequestAsync(
-        string targetConnId,
-        string targetType,
         string scope,
         string operation,
         string requestJson,
         int timeoutMs = 5000)
     {
-        string responseTopic = $"ESB/{targetType}/{targetConnId}/{scope}/Res/{operation}";
-        string errorTopic    = $"ESB/{targetType}/{targetConnId}/{scope}/Err/{operation}";
+        var shortId       = Guid.NewGuid().ToString("N").Substring(0, 8);
+        var responseTopic = $"ESB/{_participantType}/{_clientId}/{scope}/res/{operation}";
+        var tcs           = new TaskCompletionSource<JObject>();
 
-        var tcs = new TaskCompletionSource<JObject>();
-
-        Func<MqttApplicationMessageReceivedEventArgs, Task> onMessage = e =>
-        {
-            var topic = e.ApplicationMessage.Topic;
-            if (topic != responseTopic && topic != errorTopic) return Task.CompletedTask;
-            var seg  = e.ApplicationMessage.PayloadSegment;
-            var json = Encoding.UTF8.GetString(seg.Array!, seg.Offset, seg.Count);
-            try
-            {
-                var token = JToken.Parse(json);
-                var jobj  = token as JObject ?? new JObject(new JProperty("items", token));
-                tcs.TrySetResult(jobj);
-            }
-            catch (Exception ex) { tcs.TrySetException(ex); }
-            return Task.CompletedTask;
-        };
-
-        _client.ApplicationMessageReceivedAsync += onMessage;
+        _pending[shortId] = tcs;
         try
         {
-            var subOptions = _factory.CreateSubscribeOptionsBuilder()
-                .WithTopicFilter(f => f.WithTopic(responseTopic))
-                .WithTopicFilter(f => f.WithTopic(errorTopic))
-                .Build();
-            await _client.SubscribeAsync(subOptions, CancellationToken.None);
-
             var message = new MqttApplicationMessageBuilder()
-                .WithTopic($"ESB/{targetType}/{targetConnId}/{scope}/Req/{operation}")
+                .WithTopic($"ESB/{_participantType}/{_clientId}/{scope}/req/{operation}")
                 .WithPayload(requestJson)
+                .WithResponseTopic(responseTopic)
+                .WithCorrelationData(Encoding.ASCII.GetBytes(shortId))
                 .Build();
             await _client.PublishAsync(message, CancellationToken.None);
 
             using var cts = new CancellationTokenSource(timeoutMs);
-            cts.Token.Register(() => tcs.TrySetException(
-                new TimeoutException($"ESB/Req/{scope}/{operation}: no response within {timeoutMs}ms")));
-
-            return await tcs.Task;
+            cts.Token.Register(() => tcs.TrySetCanceled());
+            try
+            {
+                return await tcs.Task;
+            }
+            catch (OperationCanceledException)
+            {
+                throw new TimeoutException($"{scope}/{operation}: no response within {timeoutMs}ms");
+            }
         }
         finally
         {
-            _client.ApplicationMessageReceivedAsync -= onMessage;
+            _pending.TryRemove(shortId, out _);
         }
+    }
+
+    private Task OnMessageReceivedAsync(MqttApplicationMessageReceivedEventArgs e)
+    {
+        var corrData = e.ApplicationMessage.CorrelationData;
+        if (corrData == null || corrData.Length == 0) return Task.CompletedTask;
+
+        string shortId;
+        try   { shortId = Encoding.ASCII.GetString(corrData); }
+        catch { return Task.CompletedTask; }
+
+        if (!_pending.TryGetValue(shortId, out var tcs)) return Task.CompletedTask;
+
+        var seg  = e.ApplicationMessage.PayloadSegment;
+        var json = Encoding.UTF8.GetString(seg.Array!, seg.Offset, seg.Count);
+        try
+        {
+            var token = JToken.Parse(json);
+            var jobj  = token as JObject ?? new JObject(new JProperty("items", token));
+            tcs.TrySetResult(jobj);
+        }
+        catch (Exception ex) { tcs.TrySetException(ex); }
+
+        return Task.CompletedTask;
     }
 
     public async ValueTask DisposeAsync()

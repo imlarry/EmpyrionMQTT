@@ -19,8 +19,7 @@ public class Test_Introspection_Integration
     public async Task GetPathFor_Describe_ReturnsStructuredMetadata()
     {
         await using var mqtt = await SBTestClient.ConnectAsync();
-        var connId  = await mqtt.FindConnectionAsync("Client");
-        var payload = await mqtt.RequestAsync(connId, "Client", "App", "GetPathFor.Describe", "{}");
+        var payload = await mqtt.RequestAsync("App", "GetPathFor.Describe", "{}");
 
         Assert.Equal("GetPathFor", payload["Operation"]!.Value<string>());
         Assert.Equal("App",        payload["Scope"]!.Value<string>());
@@ -39,8 +38,7 @@ public class Test_Introspection_Integration
     public async Task GetPathFor_UnknownSuffix_ReturnsError()
     {
         await using var mqtt = await SBTestClient.ConnectAsync();
-        var connId  = await mqtt.FindConnectionAsync("Client");
-        var payload = await mqtt.RequestAsync(connId, "Client", "App", "GetPathFor.Unknown", "{}");
+        var payload = await mqtt.RequestAsync("App", "GetPathFor.Unknown", "{}");
 
         Assert.NotNull(payload["Error"]);
         Assert.Contains("Unknown", payload["Error"]!.Value<string>() ?? "");
@@ -53,8 +51,7 @@ public class Test_Introspection_Integration
     public async Task AppDescribe_ReturnsScopeManifest()
     {
         await using var mqtt = await SBTestClient.ConnectAsync();
-        var connId  = await mqtt.FindConnectionAsync("Client");
-        var payload = await mqtt.RequestAsync(connId, "Client", "App", "Describe", "{}");
+        var payload = await mqtt.RequestAsync("App", "Describe", "{}");
 
         Assert.Equal("App", payload["Scope"]!.Value<string>());
         var ops = payload["Operations"] as JArray;

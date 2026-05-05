@@ -21,7 +21,7 @@ namespace ESB.EventHandlers
             }
             catch (Exception ex)
             {
-                await _ctx.Messenger.SendAsync("App", MessageType.Err, GetType().Name, ex.ToString());
+                await _ctx.Messenger.SendAsync("App", MessageType.Log, GetType().Name, ex.ToString());
             }
         }
     }

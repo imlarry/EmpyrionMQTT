@@ -30,14 +30,14 @@ namespace EDNAClient.Skills.Scripting.Api
             _engine    = engine;
         }
 
-        /// <summary>Publish a message. msgType must be one of: Req Res Evt Err Log</summary>
+        /// <summary>Publish a message. msgType must be one of: Req Res Evt Log</summary>
         public void publish(string scope, string msgTypeStr, string name, string payload)
         {
             EdnaLogger.Detail($"[{_engine.Name}] mqtt.publish {scope}/{msgTypeStr}/{name}");
             MessageType msgType;
             if (!System.Enum.TryParse(msgTypeStr, out msgType))
             {
-                _ = _messenger.SendAsync("App", MessageType.Err, "LuaMqttApi.InvalidMsgType",
+                _ = _messenger.SendAsync("App", MessageType.Log, "LuaMqttApi.InvalidMsgType",
                     $"{{\"Script\":\"{_engine.Name}\",\"MsgType\":{JsonConvert.SerializeObject(msgTypeStr)}}}");
                 return;
             }

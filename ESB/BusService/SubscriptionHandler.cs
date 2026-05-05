@@ -19,12 +19,12 @@ namespace ESB
             new StructureHandler(_ctx).Register();
             new RegistryHandler(_ctx).Register();
 
-            // ESB/{type}/{connId}/{scope}/Req/{op}
-            await _ctx.Messenger.SubscribeBrokerAsync($"ESB/+/{_ctx.Messenger.ClientId()}/+/Req/#");
+            // ESB/{requesterType}/{requesterId}/{scope}/req/{op}
+            await _ctx.Messenger.SubscribeBrokerAsync("ESB/+/+/+/req/+");
 
             // Game-scoped retained topics published by any Client under the Registry dir.
             if (_ctx.BusManager.ParticipantType != "Ds")
-                await _ctx.Messenger.SubscribeBrokerAsync("ESB/Client/+/Registry/Evt/#");
+                await _ctx.Messenger.SubscribeBrokerAsync("ESB/Client/+/Registry/evt/#");
         }
     }
 }

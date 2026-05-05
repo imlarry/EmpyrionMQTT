@@ -21,8 +21,7 @@ public class Test_Player_Integration
     public async Task Properties_NoPayload_ReturnsAllFields()
     {
         await using var mqtt = await SBTestClient.ConnectAsync();
-        var connId  = await mqtt.FindConnectionAsync("Client");
-        var payload = await mqtt.RequestAsync(connId, "Client", "Player", "GetProperties", "{}");
+        var payload = await mqtt.RequestAsync("Player", "GetProperties", "{}");
 
         if (payload["Error"] == null)
         {
@@ -44,8 +43,7 @@ public class Test_Player_Integration
     public async Task Properties_SelectFields_ReturnsOnlyRequested()
     {
         await using var mqtt = await SBTestClient.ConnectAsync();
-        var connId  = await mqtt.FindConnectionAsync("Client");
-        var payload = await mqtt.RequestAsync(connId, "Client", "Player", "GetProperties",
+        var payload = await mqtt.RequestAsync("Player", "GetProperties",
             "{\"Properties\":[\"SteamId\",\"Health\"]}");
 
         if (payload["Error"] == null)
@@ -65,8 +63,7 @@ public class Test_Player_Integration
     public async Task Properties_Bag_ContainsItemStacks()
     {
         await using var mqtt = await SBTestClient.ConnectAsync();
-        var connId  = await mqtt.FindConnectionAsync("Client");
-        var payload = await mqtt.RequestAsync(connId, "Client", "Player", "GetProperties",
+        var payload = await mqtt.RequestAsync("Player", "GetProperties",
             "{\"Properties\":[\"Bag\"]}");
 
         if (payload["Error"] == null)
@@ -90,8 +87,7 @@ public class Test_Player_Integration
     public async Task Properties_Toolbar_ContainsItemStacks()
     {
         await using var mqtt = await SBTestClient.ConnectAsync();
-        var connId  = await mqtt.FindConnectionAsync("Client");
-        var payload = await mqtt.RequestAsync(connId, "Client", "Player", "GetProperties",
+        var payload = await mqtt.RequestAsync("Player", "GetProperties",
             "{\"Properties\":[\"Toolbar\"]}");
 
         if (payload["Error"] == null)
@@ -115,8 +111,7 @@ public class Test_Player_Integration
     public async Task Properties_InvalidProperty_ReturnsErrorWithValidList()
     {
         await using var mqtt = await SBTestClient.ConnectAsync();
-        var connId  = await mqtt.FindConnectionAsync("Client");
-        var payload = await mqtt.RequestAsync(connId, "Client", "Player", "GetProperties",
+        var payload = await mqtt.RequestAsync("Player", "GetProperties",
             "{\"Properties\":[\"NotAProperty\"]}");
 
         Assert.NotNull(payload["Error"]);
@@ -130,8 +125,7 @@ public class Test_Player_Integration
     public async Task Properties_Position_ContainsXYZ()
     {
         await using var mqtt = await SBTestClient.ConnectAsync();
-        var connId  = await mqtt.FindConnectionAsync("Client");
-        var payload = await mqtt.RequestAsync(connId, "Client", "Player", "GetProperties",
+        var payload = await mqtt.RequestAsync("Player", "GetProperties",
             "{\"Properties\":[\"Position\"]}");
 
         if (payload["Error"] == null)
@@ -152,8 +146,7 @@ public class Test_Player_Integration
     public async Task Properties_FactionData_ContainsGroupAndId()
     {
         await using var mqtt = await SBTestClient.ConnectAsync();
-        var connId  = await mqtt.FindConnectionAsync("Client");
-        var payload = await mqtt.RequestAsync(connId, "Client", "Player", "GetProperties",
+        var payload = await mqtt.RequestAsync("Player", "GetProperties",
             "{\"Properties\":[\"FactionData\"]}");
 
         if (payload["Error"] == null)
@@ -177,8 +170,7 @@ public class Test_Player_Integration
     public async Task Teleport_PosOnly_ReturnsOk()
     {
         await using var mqtt = await SBTestClient.ConnectAsync();
-        var connId  = await mqtt.FindConnectionAsync("Client");
-        var payload = await mqtt.RequestAsync(connId, "Client", "Player", "Teleport",
+        var payload = await mqtt.RequestAsync("Player", "Teleport",
             $"{{\"Pos\":{KnownState.PlayerSpawnPos}}}");
 
         if (payload["Error"] == null)
@@ -191,8 +183,7 @@ public class Test_Player_Integration
     public async Task Teleport_MissingPos_ReturnsError()
     {
         await using var mqtt = await SBTestClient.ConnectAsync();
-        var connId  = await mqtt.FindConnectionAsync("Client");
-        var payload = await mqtt.RequestAsync(connId, "Client", "Player", "Teleport", "{}");
+        var payload = await mqtt.RequestAsync("Player", "Teleport", "{}");
 
         Assert.NotNull(payload["Error"]);
         Assert.Contains("Pos argument is required", payload["Error"]!.Value<string>() ?? "");
@@ -202,8 +193,7 @@ public class Test_Player_Integration
     public async Task Teleport_WithPlayfield_MissingRot_ReturnsError()
     {
         await using var mqtt = await SBTestClient.ConnectAsync();
-        var connId  = await mqtt.FindConnectionAsync("Client");
-        var payload = await mqtt.RequestAsync(connId, "Client", "Player", "Teleport",
+        var payload = await mqtt.RequestAsync("Player", "Teleport",
             $"{{\"Pos\":{KnownState.PlayerSpawnPos},\"Playfield\":\"{KnownState.Playfield}\"}}");
 
         Assert.NotNull(payload["Error"]);
@@ -218,8 +208,7 @@ public class Test_Player_Integration
     public async Task DamageEntity_ZeroDamage_ReturnsOkOrError()
     {
         await using var mqtt = await SBTestClient.ConnectAsync();
-        var connId  = await mqtt.FindConnectionAsync("Client");
-        var payload = await mqtt.RequestAsync(connId, "Client", "Player", "DamageEntity",
+        var payload = await mqtt.RequestAsync("Player", "DamageEntity",
             "{\"DamageAmount\":0,\"DamageType\":0}");
 
         // R: {ok:true}   X: {Error:...}  -- either is acceptable (dedicated server has no LocalPlayer)

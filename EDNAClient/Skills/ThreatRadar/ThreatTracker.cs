@@ -32,10 +32,10 @@ namespace EDNAClient.Skills.ThreatRadar
 
         public async Task StartAsync()
         {
-            // App/Evt/PlayfieldEntered published by GameEventHandler for GameEventType.PlayfieldEntered
-            await _messenger.SubscribeEventAsync("ESB/+/+/App/Evt/PlayfieldEntered", OnPlayfieldEntered); // TODO: refacor this approach
-            // App/Evt/Feeds.Scan: pending server implementation; subscribing now so it activates when available
-            await _messenger.SubscribeEventAsync("ESB/+/+/App/Evt/Feeds.Scan", OnScanSnapshot); // TODO: refacor this approach
+            // App/evt/PlayfieldEntered published by GameEventHandler for GameEventType.PlayfieldEntered
+            await _messenger.SubscribeEventAsync("ESB/+/+/App/evt/PlayfieldEntered", OnPlayfieldEntered); // TODO: refacor this approach
+            // App/evt/Feeds.Scan: pending server implementation; subscribing now so it activates when available
+            await _messenger.SubscribeEventAsync("ESB/+/+/App/evt/Feeds.Scan", OnScanSnapshot); // TODO: refacor this approach
         }
 
         private Task OnPlayfieldEntered(string topic, string payload)

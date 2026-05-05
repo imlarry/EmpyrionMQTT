@@ -20,21 +20,21 @@ namespace ESB.TopicHandlers
 
         public void Register()
         {
-            _ctx.Messenger.RegisterHandler("App/GameTicks",           GameTicks);
-            _ctx.Messenger.RegisterHandler("App/Mode",                Mode);
-            _ctx.Messenger.RegisterHandler("App/State",               State);
-            _ctx.Messenger.RegisterHandler("App/ModApiProperties",    ModApiProperties);
-            _ctx.Messenger.RegisterHandler("App/GetAllPlayfields",    GetAllPlayfields);
-            _ctx.Messenger.RegisterHandler("App/PfServerInfos",       GetPfServerInfos);
-            _ctx.Messenger.RegisterHandler("App/PlayerEntityIds",     GetPlayerEntityIds);
-            _ctx.Messenger.RegisterHandler("App/BlockAndItemMapping", GetBlockAndItemMapping);
-            _ctx.Messenger.RegisterHandler("App/GetPathFor",          GetPathFor);
-            _ctx.Messenger.RegisterHandler("App/GetPlayerDataFor",    GetPlayerDataFor);
-            _ctx.Messenger.RegisterHandler("App/GetStructure",        GetStructure);
-            _ctx.Messenger.RegisterHandler("App/GetStructures",       GetStructures);
-            _ctx.Messenger.RegisterHandler("App/SendChatMessage",     SendChatMessage);
-            _ctx.Messenger.RegisterHandler("App/ShowDialogBox",       ShowDialogBox);
-            _ctx.Messenger.RegisterHandler("App/Describe",            AppDescribe);
+            _ctx.Messenger.RegisterHandler("App/req/GameTicks",           GameTicks);
+            _ctx.Messenger.RegisterHandler("App/req/Mode",                Mode);
+            _ctx.Messenger.RegisterHandler("App/req/State",               State);
+            _ctx.Messenger.RegisterHandler("App/req/ModApiProperties",    ModApiProperties);
+            _ctx.Messenger.RegisterHandler("App/req/GetAllPlayfields",    GetAllPlayfields);
+            _ctx.Messenger.RegisterHandler("App/req/PfServerInfos",       GetPfServerInfos);
+            _ctx.Messenger.RegisterHandler("App/req/PlayerEntityIds",     GetPlayerEntityIds);
+            _ctx.Messenger.RegisterHandler("App/req/BlockAndItemMapping", GetBlockAndItemMapping);
+            _ctx.Messenger.RegisterHandler("App/req/GetPathFor",          GetPathFor);
+            _ctx.Messenger.RegisterHandler("App/req/GetPlayerDataFor",    GetPlayerDataFor);
+            _ctx.Messenger.RegisterHandler("App/req/GetStructure",        GetStructure);
+            _ctx.Messenger.RegisterHandler("App/req/GetStructures",       GetStructures);
+            _ctx.Messenger.RegisterHandler("App/req/SendChatMessage",     SendChatMessage);
+            _ctx.Messenger.RegisterHandler("App/req/ShowDialogBox",       ShowDialogBox);
+            _ctx.Messenger.RegisterHandler("App/req/Describe",            AppDescribe);
         }
 
         public async Task AppDescribe(MessageContext ctx)

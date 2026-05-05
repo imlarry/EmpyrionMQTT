@@ -11,7 +11,7 @@ namespace ESB.TopicHandlers
 
         public void Register()
         {
-            _ctx.Messenger.RegisterHandler("Registry/BlockAndIdtemMapping", BlockAndIdtemMapping);
+            _ctx.Messenger.RegisterHandler("Registry/evt/BlockAndIdtemMapping", BlockAndIdtemMapping);
         }
 
         // BlockAndIdtemMapping ... applies a game-scoped retained ID->Name mapping from any Client.

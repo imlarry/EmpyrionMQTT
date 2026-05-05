@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using MQTTnet.Client;
 
@@ -20,7 +21,8 @@ namespace ESB.Messaging
         Task PublishRetainedAsync(string topic, string payload, uint expirySeconds);
         Task SubscribeEventAsync(string topicFilter, Func<string, string, Task> callback);
         Task UnsubscribeAsync(string topic);
-        Task SendAsync(string scope, MessageType msgType, string name, string payload);
+        Task SendAsync(string scope, MessageType msgType, string operation, string payload);
+        Task SendAsync(string scope, MessageType msgType, string operation, string payload, List<KeyValuePair<string, string>> userProperties);
         Task PublishAsync(string topic, string payload);  // raw publish for non-ESB schemas
         Task<string> RequestAsync(string scope, string operation, string payload, TimeSpan timeout);
     }

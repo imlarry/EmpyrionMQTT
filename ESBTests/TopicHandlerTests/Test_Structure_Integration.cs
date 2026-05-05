@@ -23,8 +23,7 @@ public class Test_Structure_Integration
     public async Task Info_ReturnsStructureProperties()
     {
         await using var mqtt = await SBTestClient.ConnectAsync();
-        var connId  = await mqtt.FindConnectionAsync("Client");
-        var payload = await mqtt.RequestAsync(connId, "Client", "Structure", "Info",
+        var payload = await mqtt.RequestAsync("Structure", "Info",
             $"{{\"EntityId\":{EID}}}");
 
         Assert.Equal(EID, payload["EntityId"]!.Value<int>());
@@ -36,8 +35,7 @@ public class Test_Structure_Integration
     public async Task Info_UnknownEntityId_ReturnsError()
     {
         await using var mqtt = await SBTestClient.ConnectAsync();
-        var connId  = await mqtt.FindConnectionAsync("Client");
-        var payload = await mqtt.RequestAsync(connId, "Client", "Structure", "Info",
+        var payload = await mqtt.RequestAsync("Structure", "Info",
             "{\"EntityId\":999999}");
 
         Assert.NotNull(payload["Error"]);
@@ -51,8 +49,7 @@ public class Test_Structure_Integration
     public async Task Tanks_ReturnsFuelOxygenPentaxid()
     {
         await using var mqtt = await SBTestClient.ConnectAsync();
-        var connId  = await mqtt.FindConnectionAsync("Client");
-        var payload = await mqtt.RequestAsync(connId, "Client", "Structure", "Tanks",
+        var payload = await mqtt.RequestAsync("Structure", "Tanks",
             $"{{\"EntityId\":{EID}}}");
 
         Assert.NotNull(payload["FuelTank"]);
@@ -68,8 +65,7 @@ public class Test_Structure_Integration
     public async Task GetAllCustomDeviceNames_ContainsKnownDevices()
     {
         await using var mqtt = await SBTestClient.ConnectAsync();
-        var connId  = await mqtt.FindConnectionAsync("Client");
-        var payload = await mqtt.RequestAsync(connId, "Client", "Structure", "GetAllCustomDeviceNames",
+        var payload = await mqtt.RequestAsync("Structure", "GetAllCustomDeviceNames",
             $"{{\"EntityId\":{EID}}}");
 
         var names = payload["DeviceNames"]!.ToObject<string[]>();
@@ -86,8 +82,7 @@ public class Test_Structure_Integration
     public async Task GetDevicePositions_Constructor_ReturnsPositions()
     {
         await using var mqtt = await SBTestClient.ConnectAsync();
-        var connId  = await mqtt.FindConnectionAsync("Client");
-        var payload = await mqtt.RequestAsync(connId, "Client", "Structure", "GetDevicePositions",
+        var payload = await mqtt.RequestAsync("Structure", "GetDevicePositions",
             $"{{\"EntityId\":{EID},\"DeviceName\":\"{KnownState.DeviceName1}\"}}");
 
         Assert.NotNull(payload["Positions"]);
@@ -98,8 +93,7 @@ public class Test_Structure_Integration
     public async Task GetDevicePositions_Fridge_ReturnsPositions()
     {
         await using var mqtt = await SBTestClient.ConnectAsync();
-        var connId  = await mqtt.FindConnectionAsync("Client");
-        var payload = await mqtt.RequestAsync(connId, "Client", "Structure", "GetDevicePositions",
+        var payload = await mqtt.RequestAsync("Structure", "GetDevicePositions",
             $"{{\"EntityId\":{EID},\"DeviceName\":\"{KnownState.DeviceName2}\"}}");
 
         Assert.NotNull(payload["Positions"]);
@@ -114,8 +108,7 @@ public class Test_Structure_Integration
     public async Task AddTankContent_FuelZero_ReturnsContentAndCapacity()
     {
         await using var mqtt = await SBTestClient.ConnectAsync();
-        var connId  = await mqtt.FindConnectionAsync("Client");
-        var payload = await mqtt.RequestAsync(connId, "Client", "Structure", "AddTankContent",
+        var payload = await mqtt.RequestAsync("Structure", "AddTankContent",
             $"{{\"EntityId\":{EID},\"TankType\":\"Fuel\",\"Amount\":0.0}}");
 
         Assert.Equal("Fuel", payload["TankType"]!.Value<string>());
@@ -127,8 +120,7 @@ public class Test_Structure_Integration
     public async Task AddTankContent_UnknownTankType_ReturnsError()
     {
         await using var mqtt = await SBTestClient.ConnectAsync();
-        var connId  = await mqtt.FindConnectionAsync("Client");
-        var payload = await mqtt.RequestAsync(connId, "Client", "Structure", "AddTankContent",
+        var payload = await mqtt.RequestAsync("Structure", "AddTankContent",
             $"{{\"EntityId\":{EID},\"TankType\":\"Plasma\",\"Amount\":0.0}}");
 
         Assert.NotNull(payload["Error"]);
@@ -142,8 +134,7 @@ public class Test_Structure_Integration
     public async Task GetDockedVessels_ReturnsArray()
     {
         await using var mqtt = await SBTestClient.ConnectAsync();
-        var connId  = await mqtt.FindConnectionAsync("Client");
-        var payload = await mqtt.RequestAsync(connId, "Client", "Structure", "GetDockedVessels",
+        var payload = await mqtt.RequestAsync("Structure", "GetDockedVessels",
             $"{{\"EntityId\":{EID}}}");
 
         Assert.NotNull(payload["DockedVessels"]);
@@ -157,8 +148,7 @@ public class Test_Structure_Integration
     public async Task GetPassengers_ReturnsArray()
     {
         await using var mqtt = await SBTestClient.ConnectAsync();
-        var connId  = await mqtt.FindConnectionAsync("Client");
-        var payload = await mqtt.RequestAsync(connId, "Client", "Structure", "GetPassengers",
+        var payload = await mqtt.RequestAsync("Structure", "GetPassengers",
             $"{{\"EntityId\":{EID}}}");
 
         Assert.NotNull(payload["Passengers"]);
@@ -173,8 +163,7 @@ public class Test_Structure_Integration
     public async Task GetBlockSignals_NoFilter_ReturnsSignals()
     {
         await using var mqtt = await SBTestClient.ConnectAsync();
-        var connId  = await mqtt.FindConnectionAsync("Client");
-        var payload = await mqtt.RequestAsync(connId, "Client", "Structure", "GetBlockSignals",
+        var payload = await mqtt.RequestAsync("Structure", "GetBlockSignals",
             $"{{\"EntityId\":{EID}}}");
 
         Assert.NotNull(payload["Signals"]);
@@ -184,8 +173,7 @@ public class Test_Structure_Integration
     public async Task GetBlockSignals_FilterByName_ReturnsFridgeSignal()
     {
         await using var mqtt = await SBTestClient.ConnectAsync();
-        var connId  = await mqtt.FindConnectionAsync("Client");
-        var payload = await mqtt.RequestAsync(connId, "Client", "Structure", "GetBlockSignals",
+        var payload = await mqtt.RequestAsync("Structure", "GetBlockSignals",
             $"{{\"EntityId\":{EID},\"Filter\":\"{KnownState.SignalName}\"}}");
 
         Assert.NotNull(payload["Signals"]);
@@ -203,8 +191,7 @@ public class Test_Structure_Integration
     public async Task GetControlPanelSignals_ReturnsSignals()
     {
         await using var mqtt = await SBTestClient.ConnectAsync();
-        var connId  = await mqtt.FindConnectionAsync("Client");
-        var payload = await mqtt.RequestAsync(connId, "Client", "Structure", "GetControlPanelSignals",
+        var payload = await mqtt.RequestAsync("Structure", "GetControlPanelSignals",
             $"{{\"EntityId\":{EID}}}");
 
         Assert.NotNull(payload["Signals"]);
@@ -218,8 +205,7 @@ public class Test_Structure_Integration
     public async Task GetSignalState_FridgeSignal_ReturnsBoolState()
     {
         await using var mqtt = await SBTestClient.ConnectAsync();
-        var connId  = await mqtt.FindConnectionAsync("Client");
-        var payload = await mqtt.RequestAsync(connId, "Client", "Structure", "GetSignalState",
+        var payload = await mqtt.RequestAsync("Structure", "GetSignalState",
             $"{{\"EntityId\":{EID},\"SignalName\":\"{KnownState.SignalName}\"}}");
 
         Assert.Equal(KnownState.SignalName, payload["SignalName"]!.Value<string>());
@@ -234,8 +220,7 @@ public class Test_Structure_Integration
     public async Task GetSignalReceivers_FridgeSignal_ReturnsReceivers()
     {
         await using var mqtt = await SBTestClient.ConnectAsync();
-        var connId  = await mqtt.FindConnectionAsync("Client");
-        var payload = await mqtt.RequestAsync(connId, "Client", "Structure", "GetSignalReceivers",
+        var payload = await mqtt.RequestAsync("Structure", "GetSignalReceivers",
             $"{{\"EntityId\":{EID},\"SignalName\":\"{KnownState.SignalName}\"}}");
 
         Assert.NotNull(payload["Receivers"]);
@@ -249,8 +234,7 @@ public class Test_Structure_Integration
     public async Task GetSendSignalName_LeverSwitchPosition_ReturnsFridgeSignal()
     {
         await using var mqtt = await SBTestClient.ConnectAsync();
-        var connId  = await mqtt.FindConnectionAsync("Client");
-        var payload = await mqtt.RequestAsync(connId, "Client", "Structure", "GetSendSignalName",
+        var payload = await mqtt.RequestAsync("Structure", "GetSendSignalName",
             $"{{\"EntityId\":{EID},\"Pos\":{KnownState.LeverSwitchBlock}}}");
 
         Assert.Equal(KnownState.SignalName, payload["SignalName"]!.Value<string>());
@@ -264,8 +248,7 @@ public class Test_Structure_Integration
     public async Task StructToGlobalPos_Origin_ReturnsNonZeroGlobalPos()
     {
         await using var mqtt = await SBTestClient.ConnectAsync();
-        var connId  = await mqtt.FindConnectionAsync("Client");
-        var payload = await mqtt.RequestAsync(connId, "Client", "Structure", "StructToGlobalPos",
+        var payload = await mqtt.RequestAsync("Structure", "StructToGlobalPos",
             $"{{\"EntityId\":{EID},\"StructPos\":{{\"X\":0,\"Y\":0,\"Z\":0}}}}");
 
         var globalPos = payload["GlobalPos"]!;
@@ -287,8 +270,7 @@ public class Test_Structure_Integration
     public async Task GlobalToStructPos_BaseLocation_ReturnsNonZeroStructPos()
     {
         await using var mqtt = await SBTestClient.ConnectAsync();
-        var connId  = await mqtt.FindConnectionAsync("Client");
-        var payload = await mqtt.RequestAsync(connId, "Client", "Structure", "GlobalToStructPos",
+        var payload = await mqtt.RequestAsync("Structure", "GlobalToStructPos",
             $"{{\"EntityId\":{EID},\"Pos\":{KnownState.BaseGlobalPos}}}");
 
         var structPos = payload["StructPos"]!;
@@ -308,8 +290,7 @@ public class Test_Structure_Integration
     public async Task SetFaction_NoneGroup_ReturnsConfirmationOrError()
     {
         await using var mqtt = await SBTestClient.ConnectAsync();
-        var connId  = await mqtt.FindConnectionAsync("Client");
-        var payload = await mqtt.RequestAsync(connId, "Client", "Structure", "SetFaction",
+        var payload = await mqtt.RequestAsync("Structure", "SetFaction",
             $"{{\"EntityId\":{EID},\"FactionGroup\":\"None\",\"FactionEntityId\":0}}");
 
         Assert.True(payload["EntityId"] != null || payload["Error"] != null,
@@ -320,8 +301,7 @@ public class Test_Structure_Integration
     public async Task SetFaction_UnknownGroup_ReturnsError()
     {
         await using var mqtt = await SBTestClient.ConnectAsync();
-        var connId  = await mqtt.FindConnectionAsync("Client");
-        var payload = await mqtt.RequestAsync(connId, "Client", "Structure", "SetFaction",
+        var payload = await mqtt.RequestAsync("Structure", "SetFaction",
             $"{{\"EntityId\":{EID},\"FactionGroup\":\"NotAGroup\",\"FactionEntityId\":0}}");
 
         Assert.NotNull(payload["Error"]);

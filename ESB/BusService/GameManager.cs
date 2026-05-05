@@ -26,10 +26,10 @@ namespace ESB
             _ctx.GameManager = this;
         }
 
-        // GameRetainedEventTopic ... builds a game-scoped Evt topic using the stable GameIdentifier.
+        // GameRetainedEventTopic ... builds a game-scoped evt topic using the stable GameIdentifier.
         public string GameRetainedEventTopic(string scope, string operation)
         {
-            return "ESB/Client/" + GameIdentifier + "/" + scope + "/Evt/" + operation;
+            return "ESB/Client/" + GameIdentifier + "/" + scope + "/evt/" + operation;
         }
 
         // StorePendingRetained ... called by SubscriptionHandler when a retained message arrives before game entry.

@@ -12,18 +12,23 @@ namespace ESB.TopicHandlers
     {
         internal static Task ReplyAsync(IMessenger messenger, MessageContext ctx, string payload)
         {
-            var pt = ctx.ParsedTopic;
-            string op = pt.MetaOperation != null ? $"{pt.Operation}.{pt.MetaOperation}" : pt.Operation;
-            string replyTopic = $"ESB/{pt.ParticipantType}/{pt.ConnectionId}/{pt.Scope}/Res/{op}";
+            string replyTopic = ResolveReplyTopic(ctx);
             return messenger.ReplyAsync(replyTopic, ctx.CorrelationData, payload);
         }
 
         internal static Task ReplyErrorAsync(IMessenger messenger, MessageContext ctx, string errorJson)
         {
+            string replyTopic = ResolveReplyTopic(ctx);
+            return messenger.ReplyAsync(replyTopic, ctx.CorrelationData, errorJson);
+        }
+
+        private static string ResolveReplyTopic(MessageContext ctx)
+        {
+            if (ctx.ResponseTopic != null)
+                return ctx.ResponseTopic;
             var pt = ctx.ParsedTopic;
             string op = pt.MetaOperation != null ? $"{pt.Operation}.{pt.MetaOperation}" : pt.Operation;
-            string errTopic = $"ESB/{pt.ParticipantType}/{pt.ConnectionId}/{pt.Scope}/Err/{op}";
-            return messenger.ReplyAsync(errTopic, ctx.CorrelationData, errorJson);
+            return $"ESB/{pt.ParticipantType}/{pt.ConnectionId}/{pt.Scope}/res/{op}";
         }
 
         // -------------------------------------------------------------------------

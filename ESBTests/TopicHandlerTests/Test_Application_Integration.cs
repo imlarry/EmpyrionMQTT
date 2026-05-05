@@ -19,8 +19,7 @@ public class Test_Application_Integration
     public async Task GameTicks_ReturnsPositiveNumber()
     {
         await using var mqtt = await SBTestClient.ConnectAsync();
-        var connId  = await mqtt.FindConnectionAsync("Client");
-        var payload = await mqtt.RequestAsync(connId, "Client", "App", "GameTicks", "{}");
+        var payload = await mqtt.RequestAsync("App", "GameTicks", "{}");
 
         Assert.NotNull(payload["GameTicks"]);
         Assert.True(payload["GameTicks"]!.Value<long>() > 0,
@@ -34,8 +33,7 @@ public class Test_Application_Integration
     public async Task Mode_ReturnsModeString()
     {
         await using var mqtt = await SBTestClient.ConnectAsync();
-        var connId  = await mqtt.FindConnectionAsync("Client");
-        var payload = await mqtt.RequestAsync(connId, "Client", "App", "Mode", "{}");
+        var payload = await mqtt.RequestAsync("App", "Mode", "{}");
 
         Assert.NotNull(payload["Mode"]);
         Assert.False(string.IsNullOrEmpty(payload["Mode"]!.Value<string>()),
@@ -49,8 +47,7 @@ public class Test_Application_Integration
     public async Task State_ReturnsStateString()
     {
         await using var mqtt = await SBTestClient.ConnectAsync();
-        var connId  = await mqtt.FindConnectionAsync("Client");
-        var payload = await mqtt.RequestAsync(connId, "Client", "App", "State", "{}");
+        var payload = await mqtt.RequestAsync("App", "State", "{}");
 
         Assert.NotNull(payload["State"]);
         Assert.False(string.IsNullOrEmpty(payload["State"]!.Value<string>()),
@@ -64,8 +61,7 @@ public class Test_Application_Integration
     public async Task ModApiProperties_ReturnsExpectedKeys()
     {
         await using var mqtt = await SBTestClient.ConnectAsync();
-        var connId  = await mqtt.FindConnectionAsync("Client");
-        var payload = await mqtt.RequestAsync(connId, "Client", "App", "ModApiProperties", "{}");
+        var payload = await mqtt.RequestAsync("App", "ModApiProperties", "{}");
 
         Assert.NotNull(payload["Application"]);
         Assert.NotNull(payload["GUI"]);
@@ -79,8 +75,7 @@ public class Test_Application_Integration
     public async Task GetAllPlayfields_ContainsAkua()
     {
         await using var mqtt = await SBTestClient.ConnectAsync();
-        var connId  = await mqtt.FindConnectionAsync("Client");
-        var payload = await mqtt.RequestAsync(connId, "Client", "App", "GetAllPlayfields", "{}");
+        var payload = await mqtt.RequestAsync("App", "GetAllPlayfields", "{}");
 
         // Handler returns a JSON array; SBTestClient wraps it under "items"
         var array = payload["items"] as JArray ?? new JArray();
@@ -95,8 +90,7 @@ public class Test_Application_Integration
     public async Task GetPlayerEntityIds_ReturnsArray()
     {
         await using var mqtt = await SBTestClient.ConnectAsync();
-        var connId  = await mqtt.FindConnectionAsync("Client");
-        var payload = await mqtt.RequestAsync(connId, "Client", "App", "PlayerEntityIds", "{}");
+        var payload = await mqtt.RequestAsync("App", "PlayerEntityIds", "{}");
 
         // May be an array (no players online) or an object -- just check it arrives
         Assert.NotNull(payload);
@@ -109,8 +103,7 @@ public class Test_Application_Integration
     public async Task GetPathFor_Root_ReturnsPath()
     {
         await using var mqtt = await SBTestClient.ConnectAsync();
-        var connId  = await mqtt.FindConnectionAsync("Client");
-        var payload = await mqtt.RequestAsync(connId, "Client", "App", "GetPathFor",
+        var payload = await mqtt.RequestAsync("App", "GetPathFor",
             "{\"AppFolder\":\"Root\"}");
 
         Assert.Equal("Root", payload["AppFolder"]!.Value<string>());
@@ -122,8 +115,7 @@ public class Test_Application_Integration
     public async Task GetPathFor_SaveGame_ReturnsPath()
     {
         await using var mqtt = await SBTestClient.ConnectAsync();
-        var connId  = await mqtt.FindConnectionAsync("Client");
-        var payload = await mqtt.RequestAsync(connId, "Client", "App", "GetPathFor",
+        var payload = await mqtt.RequestAsync("App", "GetPathFor",
             "{\"AppFolder\":\"SaveGame\"}");
 
         Assert.Equal("SaveGame", payload["AppFolder"]!.Value<string>());
@@ -138,8 +130,7 @@ public class Test_Application_Integration
     public async Task GetStructure_BaseEntity_ReturnsStructureInfo()
     {
         await using var mqtt = await SBTestClient.ConnectAsync();
-        var connId  = await mqtt.FindConnectionAsync("Client");
-        var payload = await mqtt.RequestAsync(connId, "Client", "App", "GetStructure",
+        var payload = await mqtt.RequestAsync("App", "GetStructure",
             $"{{\"EntityId\":{KnownState.BaseEntityId}}}", timeoutMs: 10000);
 
         Assert.Equal(KnownState.BaseEntityId, payload["Id"]!.Value<int>());
@@ -154,8 +145,7 @@ public class Test_Application_Integration
     public async Task GetStructures_AkuaPlayfield_ReturnsStructureList()
     {
         await using var mqtt = await SBTestClient.ConnectAsync();
-        var connId  = await mqtt.FindConnectionAsync("Client");
-        var payload = await mqtt.RequestAsync(connId, "Client", "App", "GetStructures",
+        var payload = await mqtt.RequestAsync("App", "GetStructures",
             $"{{\"PlayfieldName\":\"{KnownState.Playfield}\"}}", timeoutMs: 10000);
 
         // Handler returns a bare JSON array; SBTestClient wraps it under "items"
@@ -167,8 +157,7 @@ public class Test_Application_Integration
     public async Task GetStructures_MissingBothFilters_ReturnsError()
     {
         await using var mqtt = await SBTestClient.ConnectAsync();
-        var connId  = await mqtt.FindConnectionAsync("Client");
-        var payload = await mqtt.RequestAsync(connId, "Client", "App", "GetStructures", "{}");
+        var payload = await mqtt.RequestAsync("App", "GetStructures", "{}");
 
         Assert.NotNull(payload["Error"]);
     }

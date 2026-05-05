@@ -18,21 +18,21 @@ namespace ESB.TopicHandlers
 
         public void Register()
         {
-            _ctx.Messenger.RegisterHandler("Structure/Info",                   Info);
-            _ctx.Messenger.RegisterHandler("Structure/Tanks",                  Tanks);
-            _ctx.Messenger.RegisterHandler("Structure/GetAllCustomDeviceNames",GetAllCustomDeviceNames);
-            _ctx.Messenger.RegisterHandler("Structure/GetDevicePositions",     GetDevicePositions);
-            _ctx.Messenger.RegisterHandler("Structure/GetDockedVessels",       GetDockedVessels);
-            _ctx.Messenger.RegisterHandler("Structure/GetPassengers",          GetPassengers);
-            _ctx.Messenger.RegisterHandler("Structure/GetBlockSignals",        GetBlockSignals);
-            _ctx.Messenger.RegisterHandler("Structure/GetControlPanelSignals", GetControlPanelSignals);
-            _ctx.Messenger.RegisterHandler("Structure/GetSignalState",         GetSignalState);
-            _ctx.Messenger.RegisterHandler("Structure/GetSignalReceivers",     GetSignalReceivers);
-            _ctx.Messenger.RegisterHandler("Structure/GetSendSignalName",      GetSendSignalName);
-            _ctx.Messenger.RegisterHandler("Structure/AddTankContent",         AddTankContent);
-            _ctx.Messenger.RegisterHandler("Structure/SetFaction",             SetFaction);
-            _ctx.Messenger.RegisterHandler("Structure/StructToGlobalPos",      StructToGlobalPos);
-            _ctx.Messenger.RegisterHandler("Structure/GlobalToStructPos",      GlobalToStructPos);
+            _ctx.Messenger.RegisterHandler("Structure/req/Info",                   Info);
+            _ctx.Messenger.RegisterHandler("Structure/req/Tanks",                  Tanks);
+            _ctx.Messenger.RegisterHandler("Structure/req/GetAllCustomDeviceNames",GetAllCustomDeviceNames);
+            _ctx.Messenger.RegisterHandler("Structure/req/GetDevicePositions",     GetDevicePositions);
+            _ctx.Messenger.RegisterHandler("Structure/req/GetDockedVessels",       GetDockedVessels);
+            _ctx.Messenger.RegisterHandler("Structure/req/GetPassengers",          GetPassengers);
+            _ctx.Messenger.RegisterHandler("Structure/req/GetBlockSignals",        GetBlockSignals);
+            _ctx.Messenger.RegisterHandler("Structure/req/GetControlPanelSignals", GetControlPanelSignals);
+            _ctx.Messenger.RegisterHandler("Structure/req/GetSignalState",         GetSignalState);
+            _ctx.Messenger.RegisterHandler("Structure/req/GetSignalReceivers",     GetSignalReceivers);
+            _ctx.Messenger.RegisterHandler("Structure/req/GetSendSignalName",      GetSendSignalName);
+            _ctx.Messenger.RegisterHandler("Structure/req/AddTankContent",         AddTankContent);
+            _ctx.Messenger.RegisterHandler("Structure/req/SetFaction",             SetFaction);
+            _ctx.Messenger.RegisterHandler("Structure/req/StructToGlobalPos",      StructToGlobalPos);
+            _ctx.Messenger.RegisterHandler("Structure/req/GlobalToStructPos",      GlobalToStructPos);
             // Device scope operations are deferred to a future DeviceHandler pass.
         }
 

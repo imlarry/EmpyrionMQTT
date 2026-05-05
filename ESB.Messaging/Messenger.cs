@@ -23,6 +23,7 @@ namespace ESB.Messaging
         private IMqttClient _mqttClient;
         private readonly Dictionary<string, Func<MessageContext, Task>> _handlers = new Dictionary<string, Func<MessageContext, Task>>();
         private readonly Dictionary<string, Func<string, string, Task>> _eventCallbacks = new Dictionary<string, Func<string, string, Task>>();
+        private readonly Dictionary<string, TaskCompletionSource<string>> _pendingResponses = new Dictionary<string, TaskCompletionSource<string>>();
         private readonly object _callbackLock = new object();
 
         // MachineId ... returns the MachineId associated with the connection
@@ -70,7 +71,7 @@ namespace ESB.Messaging
                 MsgType         = p[4],
                 Operation       = op,
                 MetaOperation   = metaOp,
-                DispatchKey     = $"{p[3]}/{op}"
+                DispatchKey     = $"{p[3]}/{p[4]}/{op}"
             };
         }
 
@@ -129,7 +130,7 @@ namespace ESB.Messaging
             {
                 token = File.ReadAllText(tokenPath).Trim();
             }
-            
+
             _ctx = ctx;
             _participantType = participantType;
             _machineId = IdentifierHelper.GenerateIdentifier(token, 6);
@@ -153,6 +154,9 @@ namespace ESB.Messaging
             }
 
             await _mqttClient.ConnectAsync(mqttClientOptions, CancellationToken.None);
+
+            // Subscribe once for all responses directed to this participant.
+            await SubscribeBrokerAsync($"ESB/{_participantType}/{_clientId}/+/res/+");
 
             var now = DateTime.Now.ToString("s");
             var json = new JObject(
@@ -244,14 +248,25 @@ namespace ESB.Messaging
             await LogAsync("Unsubscribe", json.ToString(Newtonsoft.Json.Formatting.None));
         }
 
-        // SendAsync ... publish to ESB/{participantType}/{connectionId}/{scope}/{msgType}/{name}
-        public async Task SendAsync(string scope, MessageType msgType, string name, string payload)
+        // SendAsync ... publish to ESB/{participantType}/{connectionId}/{scope}/{msgType}/{operation}
+        public async Task SendAsync(string scope, MessageType msgType, string operation, string payload)
         {
             var message = new MqttApplicationMessageBuilder()
-                .WithTopic($"ESB/{_participantType}/{_clientId}/{scope}/{msgType}/{name}")
+                .WithTopic($"ESB/{_participantType}/{_clientId}/{scope}/{msgType.ToString().ToLower()}/{operation}")
                 .WithPayload(payload)
                 .Build();
             await _mqttClient.PublishAsync(message, CancellationToken.None);
+        }
+
+        // SendAsync ... same as above with MQTT5 user properties for point-to-point targeting
+        public async Task SendAsync(string scope, MessageType msgType, string operation, string payload, List<KeyValuePair<string, string>> userProperties)
+        {
+            var builder = new MqttApplicationMessageBuilder()
+                .WithTopic($"ESB/{_participantType}/{_clientId}/{scope}/{msgType.ToString().ToLower()}/{operation}")
+                .WithPayload(payload);
+            foreach (var kv in userProperties)
+                builder = builder.WithUserProperty(kv.Key, kv.Value);
+            await _mqttClient.PublishAsync(builder.Build(), CancellationToken.None);
         }
 
         // PublishAsync ... raw publish to a fully-formed topic (for non-ESB schemas)
@@ -264,20 +279,18 @@ namespace ESB.Messaging
             await _mqttClient.PublishAsync(message, CancellationToken.None);
         }
 
-        // RequestAsync ... publish a Req with MQTT5 ResponseTopic; awaits and returns the reply payload
+        // RequestAsync ... publish a req with MQTT5 ResponseTopic; awaits and returns the reply payload
         public async Task<string> RequestAsync(string scope, string operation, string payload, TimeSpan timeout)
         {
             var shortId       = Guid.NewGuid().ToString("N").Substring(0, 8);
-            var responseTopic = $"tmp/{_clientId}/{shortId}";
+            var responseTopic = $"ESB/{_participantType}/{_clientId}/{scope}/res/{operation}";
             var tcs           = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
 
             lock (_callbackLock)
-                _eventCallbacks[responseTopic] = (t, p) => { tcs.TrySetResult(p ?? ""); return Task.CompletedTask; };
-
-            await SubscribeBrokerAsync(responseTopic);
+                _pendingResponses[shortId] = tcs;
 
             var message = new MqttApplicationMessageBuilder()
-                .WithTopic($"ESB/{_participantType}/{_clientId}/{scope}/Req/{operation}")
+                .WithTopic($"ESB/{_participantType}/{_clientId}/{scope}/req/{operation}")
                 .WithPayload(payload)
                 .WithResponseTopic(responseTopic)
                 .WithCorrelationData(Encoding.ASCII.GetBytes(shortId))
@@ -298,13 +311,12 @@ namespace ESB.Messaging
                 finally
                 {
                     lock (_callbackLock)
-                        _eventCallbacks.Remove(responseTopic);
-                    await UnsubscribeAsync(responseTopic);
+                        _pendingResponses.Remove(shortId);
                 }
             }
         }
 
-        // LogAsync ... emit an ESB/{participantType}/{connectionId}/App/Log/{operation} message
+        // LogAsync ... emit an ESB/{participantType}/{connectionId}/App/log/{operation} message
         private Task LogAsync(string operation, string payload)
         {
             return SendAsync("App", MessageType.Log, operation, payload);
@@ -328,7 +340,29 @@ namespace ESB.Messaging
             await LogAsync("ProcessingMessage", dbg.ToString(Newtonsoft.Json.Formatting.None));
 #endif
 
-            // Dispatch to raw event callbacks (response topics, direct subscriptions)
+            // Demux RequestAsync responses by correlation data before any other dispatch.
+            var parts = topic.Split('/');
+            if (parts.Length == 6 && parts[0] == "ESB" && parts[4] == "res")
+            {
+                var cd = e.ApplicationMessage.CorrelationData;
+                if (cd != null && cd.Length > 0)
+                {
+                    var shortId = Encoding.ASCII.GetString(cd);
+                    TaskCompletionSource<string> pendingTcs = null;
+                    lock (_callbackLock)
+                    {
+                        if (_pendingResponses.TryGetValue(shortId, out pendingTcs))
+                            _pendingResponses.Remove(shortId);
+                    }
+                    if (pendingTcs != null)
+                    {
+                        pendingTcs.TrySetResult(payload ?? "");
+                        return;
+                    }
+                }
+            }
+
+            // Dispatch to raw event callbacks (direct subscriptions via SubscribeEventAsync)
             KeyValuePair<string, Func<string, string, Task>>[] callbacks;
             lock (_callbackLock)
             {
@@ -343,10 +377,17 @@ namespace ESB.Messaging
             }
 
             // ESB dispatch-key routing for well-formed ESB/{type}/{id}/{scope}/{msgType}/{op} topics
-            var parts = topic.Split('/');
             if (parts.Length != 6 || parts[0] != "ESB") return;
 
             var pt = ParseTopic(topic);
+
+            List<KeyValuePair<string, string>> userProps = null;
+            if (e.ApplicationMessage.UserProperties != null && e.ApplicationMessage.UserProperties.Count > 0)
+            {
+                userProps = new List<KeyValuePair<string, string>>(e.ApplicationMessage.UserProperties.Count);
+                foreach (var up in e.ApplicationMessage.UserProperties)
+                    userProps.Add(new KeyValuePair<string, string>(up.Name, up.Value));
+            }
 
             Func<MessageContext, Task> handler;
             _handlers.TryGetValue(pt.DispatchKey, out handler);
@@ -358,7 +399,8 @@ namespace ESB.Messaging
                     ParsedTopic     = pt,
                     Payload         = payload,
                     ResponseTopic   = e.ApplicationMessage.ResponseTopic,
-                    CorrelationData = e.ApplicationMessage.CorrelationData
+                    CorrelationData = e.ApplicationMessage.CorrelationData,
+                    UserProperties  = userProps
                 });
             }
             else
