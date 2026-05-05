@@ -1,17 +1,19 @@
-# Plan: ESB Subprocess Launch + Unified Config + EDNA Startup State Machine
+# Plan: ESB Subprocess Launch + Unified Config + EDNA Simplified Startup
 
 ## Context
 
 EDNAClient and an ESB Client process are always a matched pair on the same machine. The
 current model requires manual EDNA launch and has no offline capability. This plan:
 
-1. Has BusManager.Init() launch EDNAClient as a subprocess when running as Client, and
-   kill it on Shutdown().
+1. Has BusManager.Init() launch EDNA.exe as a detached process when running as Client.
+   EDNA outlives the game session; BusManager does not track or kill it.
 2. Absorbs EDNA_Info.yaml into ESB_Info.yaml as an EDNA: block (single config file).
 3. Makes EDNA autonomous -- she finds ESB_Info.yaml herself via the Steam registry anchor,
-   with no dependency on being launched by ESB.
-4. Introduces a startup state machine so EDNA knows what situation she is in and can respond
-   appropriately. Wizard flows are stubbed with PLAN.md files for future stages.
+   with no dependency on being launched by ESB. Can also be launched via desktop shortcut.
+4. EDNA connects to MQTT immediately on startup (no GameProcessWatcher). Tray icon blinks
+   red while MQTT is down, blinks green when connected, goes solid green in-game.
+5. Setup wizard stubs (EDNAClient/Setup/) and startup state detection (EDNAClient/Startup/)
+   are scaffolded for a future sprint. SteamLocator is active for ESB_Info.yaml discovery.
 
 ---
 
@@ -437,36 +439,59 @@ LAN-only scope: username/password auth only, no TLS for initial setup.
 
 | File | Change |
 |------|--------|
-| ESB\BusService\BusManager.cs | _ednaProcess field, LaunchEdnaClient(), Shutdown() kill |
+| ESB\BusService\BusManager.cs | LaunchEdnaClient() detached fire-and-forget; no process tracking |
 | ESB\Configuration\ESB_Info.yaml | Add EDNA: block |
 | EDNAClient\Configuration\EsbInfo.cs | Add EdnaInfo EDNA property |
 | EDNAClient\Configuration\WellKnownPaths.cs | LocateEsbInfoFile() with Steam fallback, SaveEdnaSettings() |
-| EDNAClient\Core\EdnaService.cs | Read from esbInfo.EDNA, update save call |
-| EDNAClient\App.xaml.cs | StartupOrchestrator call, state-based routing |
-| EDNAClient\Configuration\EDNA_Info.yaml | Delete |
-| EDNAClient\Startup\StartupState.cs | New enum |
-| EDNAClient\Startup\StartupOrchestrator.cs | New state machine |
-| EDNAClient\Startup\SteamLocator.cs | New Steam registry discovery |
+| EDNAClient\Configuration\EDNA_Info.yaml | Deleted |
+| EDNAClient\Core\EdnaService.cs | StartAsync() connects MQTT immediately; no GameProcessWatcher |
+| EDNAClient\Core\EdnaSettings.cs | Load/Save from ESB_Info.yaml EDNA block |
+| EDNAClient\Core\GameProcessWatcher.cs | Deleted |
+| EDNAClient\Core\IndicatorState.cs | Deleted |
+| EDNAClient\Tray\TrayIconManager.cs | Blink red/green states; solid green in-game; Exit-only menu |
+| EDNAClient\App.xaml.cs | Direct startup; no StartupOrchestrator branch |
+| EDNAClient\Startup\SteamLocator.cs | New -- Steam registry discovery (used by WellKnownPaths) |
+| EDNAClient\Startup\StartupState.cs | New stub enum (future setup wizard sprint) |
+| EDNAClient\Startup\StartupOrchestrator.cs | New stub (future setup wizard sprint) |
 | EDNAClient\Startup\PLAN.md | New stub plan |
 | EDNAClient\Setup\ISetupStep.cs | New stub interface |
 | EDNAClient\Setup\EsbInstaller.cs | New stub |
 | EDNAClient\Setup\MosquittoInstaller.cs | New stub |
 | EDNAClient\Setup\PLAN.md | New stub plan |
+| EDNAClient\EDNA.csproj | Remove EDNA_Info.yaml build entry |
 
 ESB.Messaging\ is untouched (frozen).
 
 ---
 
+## Implementation notes
+
+- Deployed exe name is EDNA.exe (not EDNAClient.exe). BusManager.LaunchEdnaClient() uses
+  Path.Combine(ESBModPath, "EDNA", "EDNA.exe").
+- EDNA runs as a fully detached process. BusManager does not hold a Process handle and
+  does not kill EDNA on Shutdown(). EDNA outlives the game session and can also be launched
+  independently via a desktop shortcut. EDNA's single-instance mutex (Local\EDNA_SingleInstance)
+  prevents duplicate instances when the game triggers launch while EDNA is already running.
+- EDNAClient.Core.EdnaSettings.Load() and Save() now read/write the EDNA block in
+  ESB_Info.yaml via WellKnownPaths.LoadEsbInfo() / SaveEdnaSettings(). EDNA_Info.yaml
+  is deleted from the project and disk.
+- All nullable warnings in Startup/ and WellKnownPaths.cs resolved: SteamLocator methods
+  return string?, LocateEsbInfoFile() returns string?, LoadInfo<T> accepts string?.
+
 ## Verification
 
-1. Build both projects -- no errors.
-2. Start game client -- BusManager.Init fires, EDNAClient.exe launches, tray icon appears.
-3. Confirm EDNA reads EnabledSkillIds from ESB_Info.yaml EDNA block.
-4. Toggle a skill -- confirm ESB_Info.yaml is updated with EDNA block preserved and ESB
-   metadata (Name, Author, etc.) preserved.
-5. Close game -- Shutdown() fires, EDNA process is killed.
-6. Launch EDNAClient.exe directly (no game running):
-   a. With ESB_Info.yaml present and MQTT up: state == Ready, full connect.
-   b. With MQTT down: state == NoMqtt, tray shows advisory, no crash.
-   c. With no ESB_Info.yaml: state == NoEsb, tray shows advisory.
-   d. With Empyrion not installed: state == NoEmpyrion, tray shows advisory.
+- [x] 1. Build both projects -- no errors, 0 warnings in changed files.
+- [x] 2. Start game client -- BusManager.Init fires, EDNA.exe launches detached, tray appears.
+         (confirmed via Empyrion log: "EDNA launch: started detached PID <n>")
+- [x] 3. MQTT up: tray blinks green on startup. MQTT down: tray blinks red, no crash.
+- [x] 4. Enter game: tray goes solid green. Exit to lobby: tray returns to blink green.
+- [x] 5. Confirm EDNA reads EnabledSkillIds from ESB_Info.yaml EDNA block.
+         (all 4 skills in yaml started; empty default would start none -- yaml confirmed read)
+- [x] 6. Close game -- ESB shuts down; EDNA tray remains running (detached process).
+- [x] 7. Launch EDNA.exe directly (no game running) -- tray appears, blinks green if MQTT up.
+
+## Future sprints
+
+- Setup wizards (EDNAClient/Setup/) driven from tray context menu based on StartupState.
+- Tray context menu rebuilt as part of EDNAClient workspace UI sprint.
+- MQTT v5 response topics for deterministic ESB<->EDNA routing without connection-mapping cache.

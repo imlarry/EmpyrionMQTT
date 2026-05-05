@@ -16,11 +16,6 @@
 
   <ItemGroup>
     <Content Include="Resources\edna.ico" />
-    <!-- EDNA_Info.yaml is read/written from AppDomain.BaseDirectory at runtime -->
-    <None Include="Configuration\EDNA_Info.yaml">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-      <Link>EDNA_Info.yaml</Link>
-    </None>
   </ItemGroup>
 
   <ItemGroup>

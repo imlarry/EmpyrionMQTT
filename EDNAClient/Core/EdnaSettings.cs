@@ -15,7 +15,7 @@ namespace EDNAClient.Core
 
         public static EdnaSettings Load()
         {
-            var info = WellKnownPaths.LoadInfo<EdnaInfo>(WellKnownPaths.EdnaInfoFile);
+            var info = WellKnownPaths.LoadEsbInfo()?.EDNA;
             EdnaLogger.DetailEnabled = info?.DetailEnabled ?? false;
             return new EdnaSettings
             {
@@ -27,9 +27,9 @@ namespace EDNAClient.Core
 
         public void Save()
         {
-            var info = WellKnownPaths.LoadInfo<EdnaInfo>(WellKnownPaths.EdnaInfoFile) ?? new EdnaInfo();
+            var info = WellKnownPaths.LoadEsbInfo()?.EDNA ?? new EdnaInfo();
             info.EnabledSkillIds = EnabledSkillIds;
-            WellKnownPaths.SaveInfo(WellKnownPaths.EdnaInfoFile, info);
+            WellKnownPaths.SaveEdnaSettings(info);
         }
 
         public bool GetRunAtStartup()

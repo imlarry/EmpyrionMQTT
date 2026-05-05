@@ -18,26 +18,22 @@ namespace EDNAClient.Core
         private readonly EdnaContext        _ctx;
         private readonly IEdnaSkill[]       _skills;
         private readonly TrayIconManager    _tray;
-        private readonly EdnaSettings       _settings;
-        private readonly GameProcessWatcher _watcher;
         private readonly LuaScriptHost      _luaHost;
         private readonly HotkeyManager      _hotkeys;
         private readonly WorkspaceWindow    _workspace;
 
-        private GameWindowEventHook?  _windowHook;
+        private EdnaInfo             _settings = new EdnaInfo();
+        private GameWindowEventHook? _windowHook;
 
-        public EdnaService(IEdnaSkill[] skills, TrayIconManager tray, EdnaSettings settings, WorkspaceWindow workspace)
+        public EdnaService(IEdnaSkill[] skills, TrayIconManager tray, WorkspaceWindow workspace)
         {
             _ctx       = new EdnaContext();
             _skills    = skills;
             _tray      = tray;
-            _settings  = settings;
             _workspace = workspace;
-            _watcher   = new GameProcessWatcher();
             _luaHost   = new LuaScriptHost();
             _hotkeys   = new HotkeyManager();
 
-            // Register skills that support document persistence with the workspace.
             foreach (var skill in _skills.OfType<IDocumentSkill>())
             {
                 _workspace.RegisterDocumentSkill(skill);
@@ -45,12 +41,43 @@ namespace EDNAClient.Core
             }
         }
 
-        public void Start()
+        public async Task StartAsync()
         {
-            _watcher.GameStarted += OnGameStarted;
-            _watcher.GameExited  += OnGameExited;
-            EdnaLogger.Log("Watching for game process");
-            _watcher.Start();
+            try
+            {
+                var esbInfo = WellKnownPaths.LoadEsbInfo();
+                var mqtt    = esbInfo?.MQTThost ?? new MqttConnectionSettings();
+                _settings   = esbInfo?.EDNA ?? new EdnaInfo();
+
+                await _ctx.Messenger.ConnectAsync(_ctx, "EDNA",
+                    mqtt.WithTcpServer, mqtt.Port, mqtt.Username, mqtt.Password, mqtt.CAFilePath);
+                EdnaLogger.Log($"MQTT connected to {mqtt.WithTcpServer ?? "localhost"}");
+
+                WellKnownPaths.SaveEdnaSettings(_settings);
+
+                await _ctx.Messenger.SubscribeEventAsync("ESB/+/+/App/Evt/GameEnter",      OnGameEnter);
+                await _ctx.Messenger.SubscribeEventAsync("ESB/+/+/App/Evt/GameExit",       OnGameExit);
+                await _ctx.Messenger.SubscribeEventAsync("ESB/+/+/Playfield/Evt/Loaded",   OnPlayfieldLoaded);
+
+                foreach (var skill in EnabledSkills())
+                {
+                    await skill.StartAsync(_ctx.Messenger);
+                    EdnaLogger.Log($"Skill '{skill.Id}' started");
+                }
+
+                foreach (var skill in EnabledSkills())
+                    if (skill is IHotkeyProvider provider)
+                        foreach (var req in provider.GetHotkeyRequests())
+                            _hotkeys.Register(req);
+
+                _tray.SetConnected();
+                EdnaLogger.Log("EDNA connected and ready");
+            }
+            catch (Exception ex)
+            {
+                _tray.SetMqttDown();
+                EdnaLogger.Error("MQTT connect failed", ex);
+            }
         }
 
         public async Task StopAsync()
@@ -60,87 +87,7 @@ namespace EDNAClient.Core
             _luaHost.Stop();
             foreach (var skill in _skills) skill.Stop();
             _hotkeys.Dispose();
-            _watcher.Dispose();
             await _ctx.Messenger.DisconnectAsync();
-        }
-
-        private void OnGameStarted()
-        {
-            Application.Current.Dispatcher.InvokeAsync(async () =>
-            {
-                try
-                {
-                    EdnaLogger.Log("Game process detected");
-
-                    var esbInfo = WellKnownPaths.LoadEsbInfo();
-                    var mqtt    = esbInfo?.MQTThost ?? new MqttConnectionSettings();
-                    await _ctx.Messenger.ConnectAsync(_ctx, "EDNA",
-                        mqtt.WithTcpServer, mqtt.Port, mqtt.Username, mqtt.Password, mqtt.CAFilePath);
-                    EdnaLogger.Log($"MQTT connected to {mqtt.WithTcpServer ?? "localhost"}");
-
-                    WellKnownPaths.SaveInfo(WellKnownPaths.EdnaInfoFile, new EdnaInfo
-                    {
-                        EnabledSkillIds = _settings.EnabledSkillIds
-                    });
-
-                    await _ctx.Messenger.SubscribeEventAsync("ESB/+/+/App/Evt/GameEnter",      OnGameEnter);      // TODO: refacor this approach
-                    await _ctx.Messenger.SubscribeEventAsync("ESB/+/+/App/Evt/GameExit",       OnGameExit);       // TODO: refacor this approach
-                    await _ctx.Messenger.SubscribeEventAsync("ESB/+/+/Playfield/Evt/Loaded",   OnPlayfieldLoaded); // TODO: refacor this approach
-#if DEBUG
-                    EdnaLogger.Log("Subscribed: GameEnter, GameExit, PlayfieldLoaded");
-#endif
-
-                    foreach (var skill in EnabledSkills())
-                    {
-                        await skill.StartAsync(_ctx.Messenger);
-                        EdnaLogger.Log($"Skill '{skill.Id}' started");
-                    }
-
-                    foreach (var skill in EnabledSkills())
-                        if (skill is IHotkeyProvider provider)
-                            foreach (var req in provider.GetHotkeyRequests())
-                                _hotkeys.Register(req);
-
-                    _tray.UpdateState(IndicatorState.Healthy, gameRunning: true);
-                    _tray.OnGameStarted();
-                    _tray.ShowBalloon("EDNA Active", "Game detected \u2014 overlay enabled.");
-                    EdnaLogger.Log("EDNA active");
-
-                    EnsureHookInstalled();
-                }
-                catch (Exception ex)
-                {
-                    _tray.UpdateState(IndicatorState.Error, gameRunning: true);
-                    _tray.ShowBalloon("EDNA Error", ex.Message);
-                    EdnaLogger.Error("OnGameStarted failed", ex);
-                }
-            });
-        }
-
-        private void OnGameExited()
-        {
-            Application.Current.Dispatcher.Invoke(async () =>
-            {
-                EdnaLogger.Log("Game process exited");
-                _windowHook?.Dispose();
-                _windowHook = null;
-                _hotkeys.UnregisterAll();
-                _luaHost.Stop();
-
-                // Save workspace state while skills are still alive (nav/docs present),
-                // then let skills close their UI, then do full skill teardown.
-                CloseGameSession(processExiting: true);
-
-                foreach (var skill in _skills) skill.Stop();
-
-                _tray.OnGameExited();
-
-                try { await _ctx.Messenger.DisconnectAsync(); }
-                catch (Exception ex) { EdnaLogger.Warn($"Disconnect failed: {ex.Message}"); }
-
-                _tray.UpdateState(IndicatorState.Offline, gameRunning: false);
-                _watcher.Start();
-            });
         }
 
         private Task OnPlayfieldLoaded(string topic, string payload)
@@ -178,7 +125,7 @@ namespace EDNAClient.Core
 
                 EdnaLogger.Log($"GameEnter: mode={gameMode} path={saveGamePath}");
 
-                _ctx.AuthoritativeSource = topic.Split('/')[1]; // TODO: refacor this approach
+                _ctx.AuthoritativeSource = topic.Split('/')[1];
 
                 await Application.Current.Dispatcher.InvokeAsync(() =>
                 {
@@ -200,8 +147,6 @@ namespace EDNAClient.Core
                             EdnaLogger.Log($"Notified {skill.Id} of GameEnter");
                         }
 
-                    // Restore documents from the previous session on the UI thread,
-                    // after OnGameEnter has set up each skill's per-session state.
                     await Application.Current.Dispatcher.InvokeAsync(() =>
                     {
                         foreach (var skill in _skills.OfType<IDocumentSkill>())
@@ -215,6 +160,8 @@ namespace EDNAClient.Core
                         }
                     });
                 }
+
+                _tray.SetInGame();
             }
             catch (Exception ex)
             {
@@ -231,7 +178,14 @@ namespace EDNAClient.Core
             {
                 _luaHost.Broadcast("on_game_exit", topic, payload);
                 _luaHost.Stop();
-                Application.Current.Dispatcher.InvokeAsync(() => CloseGameSession(processExiting: false));
+                Application.Current.Dispatcher.InvokeAsync(() =>
+                {
+                    _windowHook?.Dispose();
+                    _windowHook = null;
+                    _hotkeys.UnregisterAll();
+                    CloseGameSession();
+                    _tray.SetConnected();
+                });
             }
             catch (Exception ex)
             {
@@ -240,14 +194,10 @@ namespace EDNAClient.Core
             return Task.CompletedTask;
         }
 
-        // Saves workspace state, calls OnGameExit on skills (closes UI), hides workspace.
-        // If processExiting=true, skill.Stop() follows immediately; if false, skills stay
-        // running (MQTT subscriptions kept alive) awaiting the next GameEnter.
-        private void CloseGameSession(bool processExiting)
+        private void CloseGameSession()
         {
-            EdnaLogger.Log($"[EdnaService] CloseGameSession processExiting={processExiting}");
             _tray.ClearLocation();
-            _workspace.SaveAndHide();
+            _workspace.SaveState();
 
             foreach (var skill in _skills)
                 if (skill is IGameContextReceiver receiver)

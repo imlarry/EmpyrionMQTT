@@ -56,13 +56,43 @@ namespace ESB
             await subscriptionHandler.SubscribeAll();
 
             _eMgr.EnableEventHandlers();
+
+            if (ParticipantType == "Client")
+            {
+                LaunchEdnaClient();
+            }
         }
 
         public async Task Shutdown()
         {
             _eMgr.DisableEventHandlers();
-            // await ClearRegistryEntryAsync(); // this clears an entry, a will can clear it if the client disconnects unexpectedly. Retained messages with empty payload are discarded by the broker.
+            // await ClearRegistryEntryAsync(); // a will can clear it if the client disconnects unexpectedly. Retained messages with empty payload are discarded by the broker.
             await _ctx.Messenger.DisconnectAsync();
+        }
+
+        private void LaunchEdnaClient()
+        {
+            string ednaExe = Path.Combine(ESBModPath, "EDNA", "EDNA.exe");
+            _ctx.ModApi.Log($"EDNA launch: looking for '{ednaExe}'");
+            if (!File.Exists(ednaExe))
+            {
+                _ctx.ModApi.Log("EDNA launch: exe not found -- skipping");
+                return;
+            }
+            try
+            {
+                var psi = new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName        = ednaExe,
+                    UseShellExecute = true
+                };
+                var p = System.Diagnostics.Process.Start(psi);
+                _ctx.ModApi.Log($"EDNA launch: started detached PID {p?.Id}");
+            }
+            catch (System.Exception ex)
+            {
+                _ctx.ModApi.Log($"EDNA launch failed: {ex.Message}");
+            }
         }
 
         private async Task PublishRegistryEntryAsync()

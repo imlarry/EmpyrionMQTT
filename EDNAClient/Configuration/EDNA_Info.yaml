@@ -1,9 +1,0 @@
-# EDNA skill configuration
-# Add or remove skill IDs to control which overlays are active.
-# Available: ThreatRadar, FloorMap, ScriptEditor, GalaxyMap
-
-EnabledSkillIds:
-- ThreatRadar
-- FloorMap
-- ScriptEditor
-- GalaxyMap

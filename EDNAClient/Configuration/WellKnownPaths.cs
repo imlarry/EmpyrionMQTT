@@ -1,26 +1,14 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
+using EDNAClient.Startup;
 using YamlDotNet.Serialization;
 using YamlDotNet.Serialization.NamingConventions;
 
 namespace EDNAClient.Configuration
 {
-    /// <summary>
-    /// Paths and helpers for EDNA/ESB configuration files.
-    /// Both ESB_Info.yaml and EDNA_Info.yaml are read from (and written to) the
-    /// application's output directory, which is the ESB mod folder after deployment.
-    /// </summary>
     public static class WellKnownPaths
     {
-        // ESB_Info.yaml -- lives one level up in the ESB mod folder (ESB/ESB_Info.yaml);
-        // EDNA is deployed to ESB/EDNA/ so "../ESB_Info.yaml" is the canonical copy.
-        private static readonly string EsbInfoFile = Path.Combine(
-            AppDomain.CurrentDomain.BaseDirectory, "..", "ESB_Info.yaml");
-
-        // EDNA_Info.yaml -- read/write; lives alongside the executable in the mod folder
-        public static readonly string EdnaInfoFile = Path.Combine(
-            AppDomain.CurrentDomain.BaseDirectory, "EDNA_Info.yaml");
-
         // workspace_state.json -- UI state written by WorkspaceWindow; never overwritten by build
         public static readonly string WorkspaceStateFile = Path.Combine(
             AppDomain.CurrentDomain.BaseDirectory, "workspace_state.json");
@@ -38,12 +26,22 @@ namespace EDNAClient.Configuration
             .WithNamingConvention(PascalCaseNamingConvention.Instance)
             .Build();
 
-        /// <summary>Load ESB_Info.yaml from the app's output directory.</summary>
-        public static EsbInfo? LoadEsbInfo()
-            => LoadInfo<EsbInfo>(EsbInfoFile);
+        // Two-step lookup: deployed path first, then Steam registry fallback.
+        public static string? LocateEsbInfoFile()
+        {
+            // Try 1: deployed alongside mod (ESBModPath\EDNA\EDNAClient.exe -> ..\ESB_Info.yaml)
+            string relative = Path.GetFullPath(
+                Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "ESB_Info.yaml"));
+            if (File.Exists(relative)) return relative;
 
-        /// <summary>Deserialize a YAML file into T. Returns null if the file doesn't exist or parse fails.</summary>
-        public static T? LoadInfo<T>(string path) where T : class
+            // Try 2: Steam registry anchor
+            return SteamLocator.GetEsbInfoPath();
+        }
+
+        public static EsbInfo? LoadEsbInfo() => LoadInfo<EsbInfo>(LocateEsbInfoFile());
+
+        // Deserialize a YAML file into T. Returns null if the file doesn't exist or parse fails.
+        public static T? LoadInfo<T>(string? path) where T : class
         {
             try
             {
@@ -58,7 +56,7 @@ namespace EDNAClient.Configuration
             }
         }
 
-        /// <summary>Serialize obj to YAML and write to path (creates parent dirs as needed).</summary>
+        // Serialize obj to YAML and write to path (creates parent dirs as needed).
         public static void SaveInfo(string path, object obj)
         {
             try
@@ -70,6 +68,34 @@ namespace EDNAClient.Configuration
             catch (Exception ex)
             {
                 EDNAClient.Core.EdnaLogger.Warn($"SaveInfo failed for '{path}': {ex.Message}");
+            }
+        }
+
+        // Update only the EDNA block in ESB_Info.yaml, preserving all other fields.
+        public static void SaveEdnaSettings(EdnaInfo edna)
+        {
+            string? path = LocateEsbInfoFile();
+            if (path == null) return;
+            try
+            {
+                var deserializer = new DeserializerBuilder().Build();
+                var raw = File.Exists(path)
+                    ? deserializer.Deserialize<Dictionary<object, object>>(File.ReadAllText(path))
+                      ?? new Dictionary<object, object>()
+                    : new Dictionary<object, object>();
+                raw["EDNA"] = new Dictionary<object, object>
+                {
+                    { "EnabledSkillIds", new List<string>(edna.EnabledSkillIds) },
+                    { "DetailEnabled",   edna.DetailEnabled }
+                };
+                var serializer = new SerializerBuilder()
+                    .WithNamingConvention(PascalCaseNamingConvention.Instance)
+                    .Build();
+                File.WriteAllText(path, serializer.Serialize(raw));
+            }
+            catch (Exception ex)
+            {
+                EDNAClient.Core.EdnaLogger.Warn($"SaveEdnaSettings failed for '{path}': {ex.Message}");
             }
         }
     }

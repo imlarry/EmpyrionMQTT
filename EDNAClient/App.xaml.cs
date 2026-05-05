@@ -7,7 +7,6 @@ using EDNAClient.Skills.Scripting.ScriptEditor;
 using EDNAClient.Skills.GalaxyMap;
 using EDNAClient.Skills.ThreatRadar;
 using EDNAClient.Tray;
-using EDNAClient.Settings;
 using EDNAClient.Workspace;
 
 namespace EDNAClient
@@ -34,33 +33,24 @@ namespace EDNAClient
             EdnaLogger.Init(WellKnownPaths.LogsDirectory);
             EdnaLogger.Log("EDNA starting");
 
-            // WPF apps must opt out of automatic shutdown when the last window closes,
-            // since EDNA runs as a tray-only app until the game is detected.
             ShutdownMode = ShutdownMode.OnExplicitShutdown;
-
-            // Enable WinForms visual styles so the context menu renders correctly.
             WinFormsApp.EnableVisualStyles();
 
-            var settings   = EdnaSettings.Load();
-            _workspace     = new WorkspaceWindow(settings);
+            _tray      = new TrayIconManager();
+            _workspace = new WorkspaceWindow(EdnaSettings.Load());
+            _workspace.Show();
 
             var threatRadar  = new ThreatRadarSkill(new ThreatViewModel());
             var floorMap     = new FloorMapSkill(_workspace);
             var scriptEditor = new ScriptEditorSkill(_workspace);
             var galaxyMap    = new GalaxyMapSkill(_workspace);
 
-            _tray = new TrayIconManager(() =>
-            {
-                var dlg = new SettingsWindow(settings);
-                dlg.ShowDialog();
-            });
-
             _service = new EdnaService(
-                skills:     new IEdnaSkill[] { threatRadar, floorMap, scriptEditor, galaxyMap },
-                tray:       _tray,
-                settings:   settings,
-                workspace:  _workspace);
-            _service.Start();
+                skills:    new IEdnaSkill[] { threatRadar, floorMap, scriptEditor, galaxyMap },
+                tray:      _tray,
+                workspace: _workspace);
+
+            _ = _service.StartAsync();
         }
 
         protected override async void OnExit(ExitEventArgs e)

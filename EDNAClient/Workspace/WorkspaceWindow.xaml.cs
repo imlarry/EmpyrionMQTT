@@ -59,7 +59,7 @@ namespace EDNAClient.Workspace
             // Re-apply expansion state whenever a new root section is added by a skill.
             _navViewModel.RootNodes.CollectionChanged += OnNavRootsChanged;
 
-            _closingHandler = (s, e) => { e.Cancel = true; SaveAndHide(); };
+            _closingHandler = (s, e) => { e.Cancel = true; Application.Current.Shutdown(); };
             Closing += _closingHandler;
         }
 
@@ -379,13 +379,12 @@ namespace EDNAClient.Workspace
             }
         }
 
-        // Captures full workspace state and saves to disk, then hides the window.
+        // Captures full workspace state and saves to disk. Window stays visible.
         // Must be called while skills are still alive (nav/docs still present).
-        internal void SaveAndHide()
+        internal void SaveState()
         {
             _state.CaptureBounds(this);
 
-            // Collect open document IDs from registered skills.
             _state.OpenDocuments = new Dictionary<string, List<string>>();
             foreach (var skill in _documentSkills)
             {
@@ -394,7 +393,6 @@ namespace EDNAClient.Workspace
                     _state.OpenDocuments[skill.Id] = ids.ToList();
             }
 
-            // Collect nav expansion state while sections are still present.
             _state.ExpandedNav = _navViewModel.CollectExpandedPaths();
 
             EdnaLogger.Log($"[Workspace] saving state: bounds={_state.Left:F0},{_state.Top:F0} docs={_state.OpenDocuments.Values.Sum(v => v.Count)} navPaths={_state.ExpandedNav.Count}");
@@ -413,11 +411,11 @@ namespace EDNAClient.Workspace
             }
 
             _state.Save(WellKnownPaths.WorkspaceStateFile);
-            Hide();
         }
 
         internal void ForceClose()
         {
+            SaveState();
             Closing -= _closingHandler;
             Close();
         }
