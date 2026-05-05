@@ -1,3 +1,6 @@
+using System;
+using System.Collections.Generic;
+using System.Threading.Tasks;
 using Eleon.Modding;
 using ESB.GameApi;
 using ESB.Configuration;
@@ -20,5 +23,8 @@ namespace ESB
         public BusManager BusManager { get; set; }
         public GameManager GameManager { get; set; }
         public MainThreadRunner MainThreadRunner { get; } = new MainThreadRunner(); // should I constuct this here?
+
+        public bool IsReady { get; set; }
+        public Queue<Func<Task>> EventQueue { get; } = new Queue<Func<Task>>();
     }
 }

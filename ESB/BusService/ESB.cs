@@ -123,6 +123,9 @@ namespace ESB
             // create the event manager
             _eventManager = new EventManager(_contextData, chatMessageSentHandler, entityLoadedHandler, entityUnloadedHandler, gameEnteredHandler, gameEventHandler, playfieldLoadedHandler, playfieldUnloadingHandler, updateHandler);
 
+            // register delegates immediately so no game events are missed during MQTT startup
+            _eventManager.EnableEventHandlers();
+
             // initialize bus manager (message broker, database, etc)
             _busManager = new BusManager(_contextData, _eventManager);
             await _busManager.Init();

@@ -60,9 +60,38 @@ Init() called by game
 
 ---
 
+# Open Issues Closed by This Sprint
+
+## CurrentPlayfield reliability on Pfs
+
+`GameManager.CurrentPlayfield` is set by `PlayfieldLoadedHandler`, which fires from a
+server-side game event. In coop mode the Pfs misses this event during the MQTT startup
+window, leaving `CurrentPlayfield` null and causing all `Structure/req/*` handlers to
+return an error until the next playfield transition (teleport etc.) re-fires the event.
+
+Once the queue-and-drain pattern is in place, the Pfs will buffer the initial
+`OnPlayfieldLoaded` event and process it after `IsReady`, making `CurrentPlayfield`
+reliable from first use. The `ClientPlayfield` fallback added in Sprint 2 of the
+response-topic refactor remains as a belt-and-suspenders guard for the Client process.
+
+## LocalPlayer reliability in coop client
+
+`IModApi.LocalPlayer` is null on a coop client in some configurations, causing
+`Player/req/Teleport` (and potentially other Player handlers) to return
+"LocalPlayer is null" before argument validation runs.
+
+Proposed fix: identify the local player entity via entity-loaded event filtering
+(match the entity whose properties correspond to the local client's identity) rather
+than depending on `IModApi.LocalPlayer`. This mirrors the CurrentPlayfield approach
+and should be investigated during this sprint.
+
+---
+
 # Verification
 
 1. Build and deploy to game.
 2. Start a save game; confirm `Application.GameEnter` event arrives on MQTT after startup completes.
 3. Confirm no exceptions in the ESB log during the startup window.
 4. Confirm high-frequency `Update` drain does not introduce observable lag (event queue should be empty within one tick under normal load).
+5. Coop mode: confirm `Structure/req/Info` returns data immediately on Pfs without requiring a playfield transition first.
+6. Coop mode: confirm `Player/req/GetProperties` returns player data on a coop client (LocalPlayer investigation).

@@ -55,7 +55,7 @@ namespace ESB
             var subscriptionHandler = new SubscriptionHandler(_ctx);
             await subscriptionHandler.SubscribeAll();
 
-            _eMgr.EnableEventHandlers();
+            _ctx.IsReady = true;
 
             if (ParticipantType == "Client")
             {

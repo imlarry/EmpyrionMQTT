@@ -229,11 +229,32 @@ Mark with `[Trait("Category", "Integration")]`.
 
 ---
 
+## Coop vs Single-Player Testing Notes
+
+Sprint 2 was validated in both single-player (93/93) and coop mode. Two coop-specific gaps
+remain as open issues, both tracked for resolution in the StartupEventCapture sprint:
+
+**Structure handlers -- CurrentPlayfield null on Pfs at startup**
+`GetStructureForEntity` now falls back to `IModApi.ClientPlayfield` when
+`GameManager.CurrentPlayfield` is null, which covers the client-side case.
+For Pfs, `CurrentPlayfield` is set by `PlayfieldLoadedHandler` from a server-side event, but
+that event is missed during the MQTT startup window (race condition). Once StartupEventCapture
+is implemented, Pfs will queue the event and `CurrentPlayfield` will be reliable.
+
+**Player handlers -- LocalPlayer null in coop client**
+`IModApi.LocalPlayer` is null on a coop client in some configurations. The Player/Teleport
+tests expect argument-validation errors but receive "LocalPlayer is null" first.
+Proposed fix: resolve the local player via entity-loaded filtering (identify the entity whose
+player matches the client's identity) rather than relying on `IModApi.LocalPlayer` directly.
+This is an open issue to investigate in the StartupEventCapture sprint alongside CurrentPlayfield.
+
+---
+
 ## Follow-on Sprints
 
-### Sprint 2 -- Fix solution callers
+### Sprint 2 -- Fix solution callers -- COMPLETE
 
-Update all projects that break due to:
+Updated all projects for:
 - `MessageType.Err` removal
 - `DispatchKey` format change (`{scope}/{op}` -> `{scope}/{msgType}/{op}`)
 - msgType casing change in topics (PascalCase -> lowercase)

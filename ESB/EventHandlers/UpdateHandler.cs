@@ -1,3 +1,5 @@
+using System;
+using System.Threading.Tasks;
 using ESB.Interfaces;
 using ESB.Messaging;
 
@@ -22,6 +24,27 @@ namespace ESB.EventHandlers
                 {
                     _ctx.MainThreadRunner.ProcessActions();
                 }
+            }
+
+            if (_ctx.IsReady)
+            {
+                while (_ctx.EventQueue.Count > 0)
+                {
+                    var work = _ctx.EventQueue.Dequeue();
+                    _ = DrainAsync(work);
+                }
+            }
+        }
+
+        private async Task DrainAsync(Func<Task> work)
+        {
+            try
+            {
+                await work();
+            }
+            catch (Exception ex)
+            {
+                await _ctx.Messenger.SendAsync("App", MessageType.Log, "UpdateHandler", ex.ToString());
             }
         }
     }

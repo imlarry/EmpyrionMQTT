@@ -1,6 +1,5 @@
 using System;
 using System.Threading.Tasks;
-using ESB.Messaging;
 
 namespace ESB.EventHandlers
 {
@@ -13,16 +12,10 @@ namespace ESB.EventHandlers
             _ctx = context;
         }
 
-        protected async Task Execute(Func<Task> work)
+        protected Task Execute(Func<Task> work)
         {
-            try
-            {
-                await work();
-            }
-            catch (Exception ex)
-            {
-                await _ctx.Messenger.SendAsync("App", MessageType.Log, GetType().Name, ex.ToString());
-            }
+            _ctx.EventQueue.Enqueue(work);
+            return Task.CompletedTask;
         }
     }
 }

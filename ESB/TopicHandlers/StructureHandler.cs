@@ -42,7 +42,7 @@ namespace ESB.TopicHandlers
         // -------------------------------------------------------------------------
         private async Task<IStructure> GetStructureForEntity(MessageContext ctx, int entityId)
         {
-            var pf = _ctx.GameManager.CurrentPlayfield;
+            var pf = _ctx.GameManager.CurrentPlayfield ?? _ctx.ModApi.ClientPlayfield;
             if (pf == null)
             {
                 await HandlerHelper.ReplyErrorAsync(_ctx.Messenger, ctx,
