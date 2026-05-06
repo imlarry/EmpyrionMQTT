@@ -55,9 +55,9 @@ namespace EDNAClient.Core
 
                 WellKnownPaths.SaveEdnaSettings(_settings);
 
-                await _ctx.Messenger.SubscribeEventAsync("ESB/+/+/App/evt/GameEnter",      OnGameEnter);
-                await _ctx.Messenger.SubscribeEventAsync("ESB/+/+/App/evt/GameExit",       OnGameExit);
-                await _ctx.Messenger.SubscribeEventAsync("ESB/+/+/Playfield/evt/Loaded",   OnPlayfieldLoaded);
+                await _ctx.Messenger.SubscribeBrokerAsync(scope: "App",       msgType: MessageType.Evt, operation: "GameEnter",  callback: OnGameEnter);
+                await _ctx.Messenger.SubscribeBrokerAsync(scope: "App",       msgType: MessageType.Evt, operation: "GameExit",   callback: OnGameExit);
+                await _ctx.Messenger.SubscribeBrokerAsync(scope: "Playfield", msgType: MessageType.Evt, operation: "Loaded",     callback: OnPlayfieldLoaded);
 
                 foreach (var skill in EnabledSkills())
                 {

@@ -75,6 +75,17 @@ namespace ESB.Messaging
             };
         }
 
+        // BuildTopic ... assembles an ESB/ topic; null segment -> "+"
+        private string BuildTopic(string participantType, string connectionId, string scope, MessageType? msgType, string operation)
+        {
+            return string.Format("ESB/{0}/{1}/{2}/{3}/{4}",
+                participantType ?? "+",
+                connectionId    ?? "+",
+                scope           ?? "+",
+                msgType.HasValue ? msgType.Value.ToString().ToLower() : "+",
+                operation       ?? "+");
+        }
+
         // MqttClientOptions ... function used to create an MQTT client options object
         public MqttClientOptions CreateMqttClientOptions(string withTcpServer = "localhost", int port = 0, string username = null, string password = null, string caFilePath = null, string willTopic = null)
         {
@@ -153,11 +164,8 @@ namespace ESB.Messaging
                 mqttClientOptions = CreateMqttClientOptions(withTcpServer, port, username, password, caFilePath);
             }
 
+            // Perform and report connection
             await _mqttClient.ConnectAsync(mqttClientOptions, CancellationToken.None);
-
-            // Subscribe once for all responses directed to this participant.
-            await SubscribeBrokerAsync($"ESB/{_participantType}/{_clientId}/+/res/+");
-
             var now = DateTime.Now.ToString("s");
             var json = new JObject(
                 new JProperty("WithTcpServer",   withTcpServer),
@@ -166,6 +174,9 @@ namespace ESB.Messaging
                 new JProperty("ClientId",        _clientId),
                 new JProperty("ConnectedAt",     now));
             await LogAsync("ConnectAsync", json.ToString(Newtonsoft.Json.Formatting.None));
+
+            // Subscribe once for all responses directed to this participant.
+            await SubscribeBrokerAsync(participantType: _participantType, connectionId: _clientId, msgType: MessageType.Res);
         }
 
         // DisconnectAsync ... disconnect from broker
@@ -185,17 +196,51 @@ namespace ESB.Messaging
                 _handlers[dispatchKey] = handler;
         }
 
-        // SubscribeBrokerAsync ... subscribe to an arbitrary broker topic filter
-        public async Task SubscribeBrokerAsync(string topicFilter)
+        // SubscribeBrokerAsync ... subscribe using structured ESB topic segments; null -> "+"
+        // Optional callback registers a direct (topic, payload) handler for wildcard-matched delivery.
+        public async Task SubscribeBrokerAsync(string participantType = null, string connectionId = null, string scope = null, MessageType? msgType = null, string operation = null, Func<string, string, Task> callback = null)
+        {
+            var topicFilter = BuildTopic(participantType, connectionId, scope, msgType, operation);
+            if (callback != null)
+            {
+                lock (_callbackLock)
+                {
+                    _eventCallbacks[topicFilter] = callback;
+                }
+            }
+            await SubscribeRawAsync(topicFilter);
+        }
+
+        // SubscribeEventAsync ... raw-filter subscription for LuaMqttApi (Lua-supplied filter strings)
+        public async Task SubscribeEventAsync(string topicFilter, Func<string, string, Task> callback)
+        {
+            lock (_callbackLock)
+            {
+                _eventCallbacks[topicFilter] = callback;
+            }
+            await SubscribeRawAsync(topicFilter);
+        }
+
+        // SubscribeRawAsync ... shared broker subscription implementation
+        private async Task SubscribeRawAsync(string topicFilter)
         {
             var mqttSubscribeOptions = _mqttFactory.CreateSubscribeOptionsBuilder()
                 .WithTopicFilter(f => f.WithTopic(topicFilter))
                 .Build();
             await _mqttClient.SubscribeAsync(mqttSubscribeOptions, CancellationToken.None);
-            var json = new JObject(
+            var logJson = new JObject(
                 new JProperty("TopicFilter",        topicFilter),
                 new JProperty("RegisteredHandlers", AvailableTopics()));
-            await LogAsync("Subscribed", json.ToString(Newtonsoft.Json.Formatting.None));
+            await LogAsync("Subscribed", logJson.ToString(Newtonsoft.Json.Formatting.None));
+        }
+
+        // UnsubscribeAsync ... unsubscribe using structured ESB topic segments; null -> "+"
+        public async Task UnsubscribeAsync(string participantType = null, string connectionId = null, string scope = null, MessageType? msgType = null, string operation = null)
+        {
+            var topic = BuildTopic(participantType, connectionId, scope, msgType, operation);
+            await _mqttClient.UnsubscribeAsync(topic);
+            var json = new JObject(new JProperty("Topic", topic));
+            await LogAsync("Unsubscribe", json.ToString(Newtonsoft.Json.Formatting.None));
         }
 
         // ReplyAsync ... publish a response using MQTT5 ResponseTopic + CorrelationData
@@ -209,88 +254,52 @@ namespace ESB.Messaging
             await _mqttClient.PublishAsync(message, CancellationToken.None);
         }
 
-        // PublishRetainedAsync ... publish a retained message (used for registry entries)
-        public async Task PublishRetainedAsync(string topic, string payload)
+        // PublishRetainedAsync ... publish a retained message to a structured ESB topic
+        public async Task PublishRetainedAsync(string scope, MessageType msgType, string operation, string payload, uint expirySeconds = 0u)
         {
-            var message = new MqttApplicationMessageBuilder()
-                .WithTopic(topic)
-                .WithPayload(payload)
-                .WithRetainFlag(true)
-                .Build();
-            await _mqttClient.PublishAsync(message, CancellationToken.None);
-        }
-
-        // PublishRetainedAsync ... publish a retained message with MQTT5 MessageExpiryInterval
-        public async Task PublishRetainedAsync(string topic, string payload, uint expirySeconds)
-        {
-            var message = new MqttApplicationMessageBuilder()
-                .WithTopic(topic)
-                .WithPayload(payload)
-                .WithRetainFlag(true)
-                .WithMessageExpiryInterval(expirySeconds)
-                .Build();
-            await _mqttClient.PublishAsync(message, CancellationToken.None);
-        }
-
-        // SubscribeEventAsync ... subscribe to a topic filter with a raw (topic, payload) callback
-        public async Task SubscribeEventAsync(string topicFilter, Func<string, string, Task> callback)
-        {
-            lock (_callbackLock)
-                _eventCallbacks[topicFilter] = callback;
-            await SubscribeBrokerAsync(topicFilter);
-        }
-
-        // UnsubscribeAsync ... unsubscribe from a topic
-        public async Task UnsubscribeAsync(string topic)
-        {
-            await _mqttClient.UnsubscribeAsync(topic);
-            var json = new JObject(new JProperty("Topic", topic));
-            await LogAsync("Unsubscribe", json.ToString(Newtonsoft.Json.Formatting.None));
-        }
-
-        // SendAsync ... publish to ESB/{participantType}/{connectionId}/{scope}/{msgType}/{operation}
-        public async Task SendAsync(string scope, MessageType msgType, string operation, string payload)
-        {
-            var message = new MqttApplicationMessageBuilder()
-                .WithTopic($"ESB/{_participantType}/{_clientId}/{scope}/{msgType.ToString().ToLower()}/{operation}")
-                .WithPayload(payload)
-                .Build();
-            await _mqttClient.PublishAsync(message, CancellationToken.None);
-        }
-
-        // SendAsync ... same as above with MQTT5 user properties for point-to-point targeting
-        public async Task SendAsync(string scope, MessageType msgType, string operation, string payload, List<KeyValuePair<string, string>> userProperties)
-        {
+            var topic = BuildTopic(_participantType, _clientId, scope, msgType, operation);
             var builder = new MqttApplicationMessageBuilder()
-                .WithTopic($"ESB/{_participantType}/{_clientId}/{scope}/{msgType.ToString().ToLower()}/{operation}")
-                .WithPayload(payload);
-            foreach (var kv in userProperties)
-                builder = builder.WithUserProperty(kv.Key, kv.Value);
+                .WithTopic(topic)
+                .WithPayload(payload)
+                .WithRetainFlag(true);
+            if (expirySeconds > 0u)
+                builder = builder.WithMessageExpiryInterval(expirySeconds);
             await _mqttClient.PublishAsync(builder.Build(), CancellationToken.None);
         }
 
-        // PublishAsync ... raw publish to a fully-formed topic (for non-ESB schemas)
-        public async Task PublishAsync(string topic, string payload)
+        // SendAsync ... publish to ESB/{participantType}/{connectionId}/{scope}/{msgType}/{operation}
+        public async Task SendAsync(string scope, MessageType msgType, string operation, string payload, List<KeyValuePair<string, string>> userProperties = null)
         {
-            var message = new MqttApplicationMessageBuilder()
+            var topic = BuildTopic(_participantType, _clientId, scope, msgType, operation);
+            var builder = new MqttApplicationMessageBuilder()
                 .WithTopic(topic)
-                .WithPayload(payload)
-                .Build();
-            await _mqttClient.PublishAsync(message, CancellationToken.None);
+                .WithPayload(payload);
+            if (userProperties != null)
+            {
+                foreach (var kv in userProperties)
+                {
+                    builder = builder.WithUserProperty(kv.Key, kv.Value);
+                }
+            }
+            await _mqttClient.PublishAsync(builder.Build(), CancellationToken.None);
         }
 
-        // RequestAsync ... publish a req with MQTT5 ResponseTopic; awaits and returns the reply payload
+        // RequestAsync ... publish a req with MQTT5 ResponseTopic; awaits and returns the reply payload.
+        // Not on IMessenger -- no production callers; kept for integration tests on the concrete type.
         public async Task<string> RequestAsync(string scope, string operation, string payload, TimeSpan timeout)
         {
             var shortId       = Guid.NewGuid().ToString("N").Substring(0, 8);
-            var responseTopic = $"ESB/{_participantType}/{_clientId}/{scope}/res/{operation}";
+            var responseTopic = BuildTopic(_participantType, _clientId, scope, MessageType.Res, operation);
             var tcs           = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
 
             lock (_callbackLock)
+            {
                 _pendingResponses[shortId] = tcs;
+            }
 
+            var topic = BuildTopic(_participantType, _clientId, scope, MessageType.Req, operation);
             var message = new MqttApplicationMessageBuilder()
-                .WithTopic($"ESB/{_participantType}/{_clientId}/{scope}/req/{operation}")
+                .WithTopic(topic)
                 .WithPayload(payload)
                 .WithResponseTopic(responseTopic)
                 .WithCorrelationData(Encoding.ASCII.GetBytes(shortId))
@@ -311,9 +320,21 @@ namespace ESB.Messaging
                 finally
                 {
                     lock (_callbackLock)
+                    {
                         _pendingResponses.Remove(shortId);
+                    }
                 }
             }
+        }
+
+        // PublishAsync ... raw publish to a fully-formed topic (internal escape hatch only)
+        internal async Task PublishAsync(string topic, string payload)
+        {
+            var message = new MqttApplicationMessageBuilder()
+                .WithTopic(topic)
+                .WithPayload(payload)
+                .Build();
+            await _mqttClient.PublishAsync(message, CancellationToken.None);
         }
 
         // LogAsync ... emit an ESB/{participantType}/{connectionId}/App/log/{operation} message
@@ -341,18 +362,20 @@ namespace ESB.Messaging
 #endif
 
             // Demux RequestAsync responses by correlation data before any other dispatch.
-            var parts = topic.Split('/');
+            string[] parts = topic.Split('/');
             if (parts.Length == 6 && parts[0] == "ESB" && parts[4] == "res")
             {
                 var cd = e.ApplicationMessage.CorrelationData;
                 if (cd != null && cd.Length > 0)
                 {
-                    var shortId = Encoding.ASCII.GetString(cd);
+                    string shortId = Encoding.ASCII.GetString(cd);
                     TaskCompletionSource<string> pendingTcs = null;
                     lock (_callbackLock)
                     {
                         if (_pendingResponses.TryGetValue(shortId, out pendingTcs))
+                        {
                             _pendingResponses.Remove(shortId);
+                        }
                     }
                     if (pendingTcs != null)
                     {
@@ -362,7 +385,7 @@ namespace ESB.Messaging
                 }
             }
 
-            // Dispatch to raw event callbacks (direct subscriptions via SubscribeEventAsync)
+            // Dispatch to raw event callbacks (registered via SubscribeBrokerAsync with callback)
             KeyValuePair<string, Func<string, string, Task>>[] callbacks;
             lock (_callbackLock)
             {
@@ -373,7 +396,9 @@ namespace ESB.Messaging
             foreach (var kv in callbacks)
             {
                 if (MqttTopicFilterComparer.Compare(topic, kv.Key) == MqttTopicFilterCompareResult.IsMatch)
+                {
                     await kv.Value(topic, payload);
+                }
             }
 
             // ESB dispatch-key routing for well-formed ESB/{type}/{id}/{scope}/{msgType}/{op} topics

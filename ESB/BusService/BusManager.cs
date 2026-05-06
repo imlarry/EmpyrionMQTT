@@ -5,6 +5,7 @@ using Eleon.Modding;
 using ESB.Configuration;
 using ESB.EventHandlers;
 using ESB.Helpers;
+using ESB.Messaging;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
@@ -97,16 +98,14 @@ namespace ESB
 
         private async Task PublishRegistryEntryAsync()
         {
-            string connId = _ctx.Messenger.ClientId();
             var json = new JObject(new JProperty("type", ParticipantType));
-            await _ctx.Messenger.PublishRetainedAsync($"ESB/Registry/{connId}", json.ToString(Formatting.None));
+            await _ctx.Messenger.PublishRetainedAsync("Registry", MessageType.Evt, "Connect", json.ToString(Formatting.None));
         }
 
         private async Task ClearRegistryEntryAsync()
         {
-            string connId = _ctx.Messenger.ClientId();
             // empty retained payload instructs the broker to discard the retained message
-            await _ctx.Messenger.PublishRetainedAsync($"ESB/Registry/{connId}", "");
+            await _ctx.Messenger.PublishRetainedAsync("Registry", MessageType.Evt, "Connect", "");
         }
     }
 }

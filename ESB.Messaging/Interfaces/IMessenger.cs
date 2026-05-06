@@ -15,15 +15,12 @@ namespace ESB.Messaging
         Task ConnectAsync(BaseContextData ctx, string participantType, string withTcpServer = "localhost", int port = 1883, string username = null, string password = null, string caFilePath = null);
         Task DisconnectAsync();
         void RegisterHandler(string dispatchKey, Func<MessageContext, Task> handler);
-        Task SubscribeBrokerAsync(string topicFilter);
+        Task SubscribeBrokerAsync(string participantType = null, string connectionId = null, string scope = null, MessageType? msgType = null, string operation = null, Func<string, string, Task> callback = null);
+        Task SubscribeEventAsync(string topicFilter, Func<string, string, Task> callback);  // raw-filter path for LuaMqttApi (Lua-supplied filters)
+        Task UnsubscribeAsync(string participantType = null, string connectionId = null, string scope = null, MessageType? msgType = null, string operation = null);
         Task ReplyAsync(string responseTopic, byte[] correlationData, string payload);
-        Task PublishRetainedAsync(string topic, string payload);
-        Task PublishRetainedAsync(string topic, string payload, uint expirySeconds);
-        Task SubscribeEventAsync(string topicFilter, Func<string, string, Task> callback);
-        Task UnsubscribeAsync(string topic);
-        Task SendAsync(string scope, MessageType msgType, string operation, string payload);
-        Task SendAsync(string scope, MessageType msgType, string operation, string payload, List<KeyValuePair<string, string>> userProperties);
-        Task PublishAsync(string topic, string payload);  // raw publish for non-ESB schemas
+        Task PublishRetainedAsync(string scope, MessageType msgType, string operation, string payload, uint expirySeconds = 0u);
+        Task SendAsync(string scope, MessageType msgType, string operation, string payload, List<KeyValuePair<string, string>> userProperties = null);
         Task<string> RequestAsync(string scope, string operation, string payload, TimeSpan timeout);
     }
 }

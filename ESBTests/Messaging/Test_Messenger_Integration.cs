@@ -58,7 +58,7 @@ public class Test_Messenger_Integration
             var received = new TaskCompletionSource<string>();
 
             sub = await ConnectAsync("SubLc");
-            await sub.SubscribeEventAsync("ESB/+/+/Game/evt/Ping", (topic, _) =>
+            await sub.SubscribeBrokerAsync(scope: "Game", msgType: MessageType.Evt, operation: "Ping", callback: (topic, _) =>
             {
                 received.TrySetResult(topic);
                 return Task.CompletedTask;
@@ -74,7 +74,7 @@ public class Test_Messenger_Integration
     }
 
     [Fact]
-    public async Task SendAsync_PascalCaseTopicFilterReceivesNothing()
+    public async Task SendAsync_WrongOperationFilter_ReceivesNothing()
     {
         Messenger? pub = null, sub = null;
         try
@@ -82,7 +82,7 @@ public class Test_Messenger_Integration
             var received = false;
 
             sub = await ConnectAsync("SubPc");
-            await sub.SubscribeEventAsync("ESB/+/+/Game/Evt/Ping", (_, __) =>
+            await sub.SubscribeBrokerAsync(scope: "Game", msgType: MessageType.Evt, operation: "OtherPing", callback: (_, __) =>
             {
                 received = true;
                 return Task.CompletedTask;
@@ -92,7 +92,7 @@ public class Test_Messenger_Integration
             await pub.SendAsync("Game", MessageType.Evt, "Ping", "{}");
             await Task.Delay(400);
 
-            Assert.False(received, "uppercase Evt topic filter should not match lowercase evt topic");
+            Assert.False(received, "filter for OtherPing must not match published Ping topic");
         }
         finally { await Disconnect(pub!); await Disconnect(sub!); }
     }
@@ -115,7 +115,7 @@ public class Test_Messenger_Integration
                 received.TrySetResult(ctx);
                 return Task.CompletedTask;
             });
-            await sub.SubscribeBrokerAsync("ESB/+/+/Game/evt/Ping");
+            await sub.SubscribeBrokerAsync(scope: "Game", msgType: MessageType.Evt, operation: "Ping");
 
             pub = await ConnectAsync("PubUp");
             await pub.SendAsync("Game", MessageType.Evt, "Ping", "{}",
@@ -147,7 +147,7 @@ public class Test_Messenger_Integration
                 received.TrySetResult(ctx);
                 return Task.CompletedTask;
             });
-            await sub.SubscribeBrokerAsync("ESB/+/+/Game/evt/Ping");
+            await sub.SubscribeBrokerAsync(scope: "Game", msgType: MessageType.Evt, operation: "Ping");
 
             pub = await ConnectAsync("PubNup");
             await pub.SendAsync("Game", MessageType.Evt, "Ping", "{}");
@@ -174,7 +174,7 @@ public class Test_Messenger_Integration
             sub = await ConnectAsync("SubRE");
             sub.RegisterHandler("Game/req/Ping", ctx => { reqReceived.TrySetResult(true); return Task.CompletedTask; });
             sub.RegisterHandler("Game/evt/Ping", ctx => { evtReceived.TrySetResult(true); return Task.CompletedTask; });
-            await sub.SubscribeBrokerAsync("ESB/+/+/Game/+/Ping");
+            await sub.SubscribeBrokerAsync(scope: "Game", operation: "Ping");
 
             pub = await ConnectAsync("PubRE");
             await pub.SendAsync("Game", MessageType.Req, "Ping", "{}");
@@ -198,7 +198,7 @@ public class Test_Messenger_Integration
 
             sub = await ConnectAsync("SubUdk");
             sub.RegisterHandler("Game/evt/Ping", ctx => { evtFired = true; return Task.CompletedTask; });
-            await sub.SubscribeBrokerAsync("ESB/+/+/Game/+/Ping");
+            await sub.SubscribeBrokerAsync(scope: "Game", operation: "Ping");
 
             pub = await ConnectAsync("PubUdk");
             await pub.SendAsync("Game", MessageType.Req, "Ping", "{}");
@@ -227,7 +227,7 @@ public class Test_Messenger_Integration
                 capturedResponseTopic = ctx.ResponseTopic;
                 await sub.ReplyAsync(ctx.ResponseTopic!, ctx.CorrelationData!, "{}");
             });
-            await sub.SubscribeBrokerAsync("ESB/+/+/Tracking/req/Enable");
+            await sub.SubscribeBrokerAsync(scope: "Tracking", msgType: MessageType.Req, operation: "Enable");
 
             pub = await ConnectAsync("PubRt");
             await pub.RequestAsync("Tracking", "Enable", "{}", TimeSpan.FromSeconds(5));
@@ -253,7 +253,7 @@ public class Test_Messenger_Integration
                 // Echo the incoming payload back so we can verify which TCS receives which result.
                 await sub.ReplyAsync(ctx.ResponseTopic!, ctx.CorrelationData!, ctx.Payload ?? "");
             });
-            await sub.SubscribeBrokerAsync("ESB/+/+/Tracking/req/Enable");
+            await sub.SubscribeBrokerAsync(scope: "Tracking", msgType: MessageType.Req, operation: "Enable");
 
             pub = await ConnectAsync("PubCd");
             var t1 = pub.RequestAsync("Tracking", "Enable", "payload1", TimeSpan.FromSeconds(5));
@@ -296,7 +296,7 @@ public class Test_Messenger_Integration
             sub = await ConnectAsync("SubAt");
             sub.RegisterHandler("Tracking/req/Enable", async ctx =>
                 await sub.ReplyAsync(ctx.ResponseTopic!, ctx.CorrelationData!, "ok"));
-            await sub.SubscribeBrokerAsync("ESB/+/+/Tracking/req/Enable");
+            await sub.SubscribeBrokerAsync(scope: "Tracking", msgType: MessageType.Req, operation: "Enable");
 
             var result = await pub.RequestAsync("Tracking", "Enable", "{}", TimeSpan.FromSeconds(5));
             Assert.Equal("ok", result);
@@ -313,7 +313,7 @@ public class Test_Messenger_Integration
             sub = await ConnectAsync("SubE2e");
             sub.RegisterHandler("Tracking/req/Enable", async ctx =>
                 await sub.ReplyAsync(ctx.ResponseTopic!, ctx.CorrelationData!, "{\"Status\":\"ok\"}"));
-            await sub.SubscribeBrokerAsync("ESB/+/+/Tracking/req/Enable");
+            await sub.SubscribeBrokerAsync(scope: "Tracking", msgType: MessageType.Req, operation: "Enable");
 
             pub = await ConnectAsync("PubE2e");
             var result = await pub.RequestAsync("Tracking", "Enable", "{}", TimeSpan.FromSeconds(5));
@@ -339,7 +339,7 @@ public class Test_Messenger_Integration
             sub = await ConnectAsync("SubPs");
             sub.RegisterHandler("Tracking/req/Enable", async ctx =>
                 await sub.ReplyAsync(ctx.ResponseTopic!, ctx.CorrelationData!, "pong"));
-            await sub.SubscribeBrokerAsync("ESB/+/+/Tracking/req/Enable");
+            await sub.SubscribeBrokerAsync(scope: "Tracking", msgType: MessageType.Req, operation: "Enable");
 
             // Requester: ConnectAsync auto-subscribes ESB/{type}/{id}/+/res/+.
             // No additional subscribe call is made.

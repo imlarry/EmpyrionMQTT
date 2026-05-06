@@ -26,12 +26,6 @@ namespace ESB
             _ctx.GameManager = this;
         }
 
-        // GameRetainedEventTopic ... builds a game-scoped evt topic using the stable GameIdentifier.
-        public string GameRetainedEventTopic(string scope, string operation)
-        {
-            return "ESB/Client/" + GameIdentifier + "/" + scope + "/evt/" + operation;
-        }
-
         // StorePendingRetained ... called by SubscriptionHandler when a retained message arrives before game entry.
         public void StorePendingRetained(string gameId, string scope, string operation, string payload)
         {
@@ -108,10 +102,7 @@ namespace ESB
                     BlockAndItemMapping = new Dictionary<int, string>();
                     foreach (var pair in raw)
                         BlockAndItemMapping[pair.Value] = pair.Key;
-                    _ = _ctx.Messenger.PublishRetainedAsync(
-                            GameRetainedEventTopic("Registry", "BlockAndIdtemMapping"),
-                            BuildMappingJson(),
-                            3600u);
+                    _ = _ctx.Messenger.PublishRetainedAsync("Registry", MessageType.Evt, "BlockAndIdtemMapping", BuildMappingJson(), 3600u);
                 }
             }
 
