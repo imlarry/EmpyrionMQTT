@@ -1,7 +1,7 @@
 ﻿using ESB.Interfaces;
 using static ESB.GameApi.EmpyrionModBase;
 
-namespace ESB
+namespace ESB.EventHandlers
 {
     public class EventManager
     {

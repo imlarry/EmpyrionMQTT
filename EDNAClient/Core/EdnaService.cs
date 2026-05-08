@@ -4,8 +4,9 @@ using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
-using EDNAClient.Scripting;
+using EDNAClient.Skills.Scripting;
 using EDNAClient.Tray;
+using EDNAClient.Workspace;
 using ESB.Messaging;
 using EDNAClient.Configuration;
 using Newtonsoft.Json.Linq;
@@ -17,30 +18,66 @@ namespace EDNAClient.Core
         private readonly EdnaContext        _ctx;
         private readonly IEdnaSkill[]       _skills;
         private readonly TrayIconManager    _tray;
-        private readonly EdnaSettings       _settings;
-        private readonly GameProcessWatcher _watcher;
         private readonly LuaScriptHost      _luaHost;
         private readonly HotkeyManager      _hotkeys;
+        private readonly WorkspaceWindow    _workspace;
 
-        private GameWindowEventHook?  _windowHook;
-        private HashSet<string>       _blockedByPolicy = new();
+        private EdnaInfo             _settings = new EdnaInfo();
+        private GameWindowEventHook? _windowHook;
 
-        public EdnaService(IEdnaSkill[] skills, TrayIconManager tray, EdnaSettings settings)
+        public EdnaService(IEdnaSkill[] skills, TrayIconManager tray, WorkspaceWindow workspace)
         {
-            _ctx      = new EdnaContext();
-            _skills   = skills;
-            _tray     = tray;
-            _settings = settings;
-            _watcher  = new GameProcessWatcher();
-            _luaHost  = new LuaScriptHost();
-            _hotkeys  = new HotkeyManager();
+            _ctx       = new EdnaContext();
+            _skills    = skills;
+            _tray      = tray;
+            _workspace = workspace;
+            _luaHost   = new LuaScriptHost();
+            _hotkeys   = new HotkeyManager();
+
+            foreach (var skill in _skills.OfType<IDocumentSkill>())
+            {
+                _workspace.RegisterDocumentSkill(skill);
+                EdnaLogger.Log($"[EdnaService] registered IDocumentSkill: {skill.Id}");
+            }
         }
 
-        public void Start()
+        public async Task StartAsync()
         {
-            _watcher.GameStarted += OnGameStarted;
-            _watcher.GameExited  += OnGameExited;
-            _watcher.Start();
+            try
+            {
+                var esbInfo = WellKnownPaths.LoadEsbInfo();
+                var mqtt    = esbInfo?.MQTThost ?? new MqttConnectionSettings();
+                _settings   = esbInfo?.EDNA ?? new EdnaInfo();
+
+                await _ctx.Messenger.ConnectAsync(_ctx, "EDNA",
+                    mqtt.WithTcpServer, mqtt.Port, mqtt.Username, mqtt.Password, mqtt.CAFilePath);
+                EdnaLogger.Log($"MQTT connected to {mqtt.WithTcpServer ?? "localhost"}");
+
+                WellKnownPaths.SaveEdnaSettings(_settings);
+
+                await _ctx.Messenger.SubscribeBrokerAsync(scope: "App",       msgType: MessageType.Evt, operation: "GameEnter",  callback: OnGameEnter);
+                await _ctx.Messenger.SubscribeBrokerAsync(scope: "App",       msgType: MessageType.Evt, operation: "GameExit",   callback: OnGameExit);
+                await _ctx.Messenger.SubscribeBrokerAsync(scope: "Playfield", msgType: MessageType.Evt, operation: "Loaded",     callback: OnPlayfieldLoaded);
+
+                foreach (var skill in EnabledSkills())
+                {
+                    await skill.StartAsync(_ctx.Messenger);
+                    EdnaLogger.Log($"Skill '{skill.Id}' started");
+                }
+
+                foreach (var skill in EnabledSkills())
+                    if (skill is IHotkeyProvider provider)
+                        foreach (var req in provider.GetHotkeyRequests())
+                            _hotkeys.Register(req);
+
+                _tray.SetConnected();
+                EdnaLogger.Log("EDNA connected and ready");
+            }
+            catch (Exception ex)
+            {
+                _tray.SetMqttDown();
+                EdnaLogger.Error("MQTT connect failed", ex);
+            }
         }
 
         public async Task StopAsync()
@@ -50,142 +87,140 @@ namespace EDNAClient.Core
             _luaHost.Stop();
             foreach (var skill in _skills) skill.Stop();
             _hotkeys.Dispose();
-            _watcher.Dispose();
             await _ctx.Messenger.DisconnectAsync();
         }
 
-        private void OnGameStarted()
+        private Task OnPlayfieldLoaded(string topic, string payload)
         {
-            Application.Current.Dispatcher.InvokeAsync(async () =>
+            try
             {
-                try
-                {
-                    var esbInfo = WellKnownPaths.LoadEsbInfo();
-                    var mqtt    = esbInfo?.MQTThost ?? new MqttConnectionSettings();
-                    await _ctx.Messenger.ConnectAsync(_ctx, "EDNA",
-                        mqtt.WithTcpServer, mqtt.Port, mqtt.Username, mqtt.Password, mqtt.CAFilePath);
+                var j      = JObject.Parse(payload);
+                var ss     = j["SolarSystemName"]?.ToString() ?? "";
+                var pf     = j["Name"]?.ToString() ?? "";
+                var coords = j["SolarSystemCoordinates"];
+                double x   = coords != null ? (double)(coords["X"] ?? 0) : 0;
+                double y   = coords != null ? (double)(coords["Y"] ?? 0) : 0;
+                double z   = coords != null ? (double)(coords["Z"] ?? 0) : 0;
 
-                    // Write EDNA_Info.yaml with current settings so other clients can discover our config
-                    WellKnownPaths.SaveInfo(WellKnownPaths.EdnaInfoFile, new EdnaInfo
-                    {
-                        EnabledSkillIds = _settings.EnabledSkillIds
-                    });
+                EdnaLogger.Log($"PlayfieldLoaded: system={ss} playfield={pf} coords=({x},{y},{z})");
+                _tray.UpdateLocation(ss, pf);
 
-                    await _ctx.Messenger.SubscribeEventAsync("+/E/Application.GameEnter/+/+", OnGameEnter);
-                    await _ctx.Messenger.SubscribeEventAsync("+/E/Application.GameExit/+/+",  OnGameExit);
-                    await _ctx.Messenger.SubscribeEventAsync("+/E/Application.EdnaPolicy/+/+", OnPolicyReceived);
-
-                    foreach (var skill in EnabledSkills())
-                        await skill.StartAsync(_ctx.Messenger);
-
-                    foreach (var skill in EnabledSkills())
-                        if (skill is IHotkeyProvider provider)
-                            foreach (var req in provider.GetHotkeyRequests())
-                                _hotkeys.Register(req);
-
-                    _tray.UpdateState(IndicatorState.Healthy, gameRunning: true);
-                    _tray.OnGameStarted();
-                    _tray.ShowBalloon("EDNA Active", "Game detected \u2014 overlay enabled.");
-
-                    EnsureHookInstalled();
-                }
-                catch (Exception ex)
-                {
-                    _tray.UpdateState(IndicatorState.Error, gameRunning: true);
-                    _tray.ShowBalloon("EDNA Error", ex.Message);
-                    System.Diagnostics.Debug.WriteLine($"[EDNA] OnGameStarted failed: {ex}");
-                }
-            });
-        }
-
-        private void OnGameExited()
-        {
-            Application.Current.Dispatcher.Invoke(async () =>
+                foreach (var skill in _skills.OfType<IPlayfieldObserver>())
+                    skill.OnPlayfieldLoaded(ss, pf, x, y, z);
+            }
+            catch (Exception ex)
             {
-                _windowHook?.Dispose();
-                _windowHook = null;
-
-                _hotkeys.UnregisterAll();
-                _luaHost.Stop();
-                foreach (var skill in _skills) skill.Stop();
-                _blockedByPolicy.Clear();
-
-                _tray.OnGameExited();
-
-                try { await _ctx.Messenger.DisconnectAsync(); } catch { }
-
-                _tray.UpdateState(IndicatorState.Offline, gameRunning: false);
-                _watcher.Start();
-            });
+                EdnaLogger.Error("OnPlayfieldLoaded failed", ex);
+            }
+            return Task.CompletedTask;
         }
 
         private async Task OnGameEnter(string topic, string payload)
         {
-            EnsureHookInstalled();
-            SnapWindows();
-
-            // Start Lua host with the game-specific scripts directory
             try
             {
                 var j            = JObject.Parse(payload);
                 var gameMode     = j["GameMode"]?.ToString();
-                var gameDataPath = j["GameDataPath"]?.ToString();
+                var saveGamePath = j["SaveGamePath"]?.ToString();
 
-                // Resolve which ESB instance owns authoritative game state.
-                // ApplicationName is captured at mod-load (lobby) so the SourceId is always
-                // "Client" for the player-side ESB. In SP that instance handles everything;
-                // in MP a separate DedicatedServer instance is the authority for V1 calls.
-                _ctx.AuthoritativeSource = gameMode == "SinglePlayer"
-                    ? topic.Split('/')[0]                          // "Client" in SP
-                    : "DedicatedServer";                           // separate Dedi in MP
-                if (!string.IsNullOrEmpty(gameDataPath))
+                EdnaLogger.Log($"GameEnter: mode={gameMode} path={saveGamePath}");
+
+                _ctx.AuthoritativeSource = topic.Split('/')[1];
+
+                await Application.Current.Dispatcher.InvokeAsync(() =>
                 {
-                    var ednaScriptsDir = Path.Combine(gameDataPath, "LUAscripts");
+                    EnsureHookInstalled();
+                    SnapWindows();
+                    if (!_workspace.IsVisible) _workspace.Show();
+                });
+
+                if (!string.IsNullOrEmpty(saveGamePath))
+                {
+                    var ednaScriptsDir = Path.Combine(saveGamePath, "Content", "Mods", "ESB", "EDNA", "skills", "scripting");
                     await _luaHost.StartAsync(_ctx.Messenger, ednaScriptsDir);
+                    EdnaLogger.Log($"Lua host started at {ednaScriptsDir}");
+
+                    foreach (var skill in _skills)
+                        if (skill is IGameContextReceiver receiver)
+                        {
+                            receiver.OnGameEnter(saveGamePath);
+                            EdnaLogger.Log($"Notified {skill.Id} of GameEnter");
+                        }
+
+                    await Application.Current.Dispatcher.InvokeAsync(() =>
+                    {
+                        foreach (var skill in _skills.OfType<IDocumentSkill>())
+                        {
+                            var ids = _workspace.GetSavedDocuments(skill.Id);
+                            if (ids.Count > 0)
+                            {
+                                EdnaLogger.Log($"[EdnaService] restoring {ids.Count} document(s) for '{skill.Id}'");
+                                skill.RestoreDocuments(ids);
+                            }
+                        }
+                    });
                 }
+
+                _tray.SetInGame();
             }
-            catch { }
+            catch (Exception ex)
+            {
+                EdnaLogger.Error("OnGameEnter failed", ex);
+            }
 
             _luaHost.Broadcast("on_game_enter", topic, payload);
         }
 
         private Task OnGameExit(string topic, string payload)
         {
-            _luaHost.Broadcast("on_game_exit", topic, payload);
+            EdnaLogger.Log("GameExit received (lobby)");
+            try
+            {
+                _luaHost.Broadcast("on_game_exit", topic, payload);
+                _luaHost.Stop();
+                Application.Current.Dispatcher.InvokeAsync(() =>
+                {
+                    _windowHook?.Dispose();
+                    _windowHook = null;
+                    _hotkeys.UnregisterAll();
+                    CloseGameSession();
+                    _tray.SetConnected();
+                });
+            }
+            catch (Exception ex)
+            {
+                EdnaLogger.Error("OnGameExit failed", ex);
+            }
             return Task.CompletedTask;
         }
 
-        private Task OnPolicyReceived(string topic, string payload)
+        private void CloseGameSession()
         {
-            try
-            {
-                var j       = JObject.Parse(payload);
-                var allowed = j["AllowedSkills"];
+            _tray.ClearLocation();
+            _workspace.SaveState();
 
-                if (allowed == null || allowed.Type == JTokenType.Null)
-                {
-                    // No restriction — clear any existing policy block
-                    _blockedByPolicy.Clear();
-                    return Task.CompletedTask;
-                }
-
-                var allowedIds = allowed.ToObject<HashSet<string>>() ?? new HashSet<string>();
-                _blockedByPolicy = _skills.Select(s => s.Id).Except(allowedIds).ToHashSet();
-
-                foreach (var skill in _skills.Where(s => _blockedByPolicy.Contains(s.Id)))
-                    skill.Stop();
-            }
-            catch { }
-            return Task.CompletedTask;
+            foreach (var skill in _skills)
+                if (skill is IGameContextReceiver receiver)
+                    try { receiver.OnGameExit(); }
+                    catch (Exception ex) { EdnaLogger.Error($"OnGameExit failed for '{skill.Id}'", ex); }
         }
 
         private void EnsureHookInstalled()
         {
             if (_windowHook != null) return;
             var hwnd = GameWindowLocator.GetWindowHandle();
-            if (hwnd == IntPtr.Zero) return;
+            if (hwnd == IntPtr.Zero)
+            {
+#if DEBUG
+                EdnaLogger.Log("EnsureHookInstalled: game window not found");
+#endif
+                return;
+            }
             _windowHook = new GameWindowEventHook(hwnd, () =>
                 Application.Current.Dispatcher.Invoke(SnapWindows));
+#if DEBUG
+            EdnaLogger.Log("Window event hook installed");
+#endif
         }
 
         private void SnapWindows()
@@ -194,7 +229,6 @@ namespace EDNAClient.Core
         }
 
         private IEnumerable<IEdnaSkill> EnabledSkills() =>
-            _skills.Where(s => _settings.EnabledSkillIds.Contains(s.Id)
-                            && !_blockedByPolicy.Contains(s.Id));
+            _skills.Where(s => _settings.EnabledSkillIds.Contains(s.Id));
     }
 }

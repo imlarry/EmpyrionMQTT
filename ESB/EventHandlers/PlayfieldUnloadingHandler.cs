@@ -3,7 +3,7 @@ using ESB.Interfaces;
 using ESB.Messaging;
 using Newtonsoft.Json.Linq;
 
-namespace ESB
+namespace ESB.EventHandlers
 {
     public class PlayfieldUnloadingHandler : HandlerBase, IPlayfieldUnloadingHandler
     {
@@ -19,15 +19,19 @@ namespace ESB
 
         public async void Handle(IPlayfield playfield)
         {
+            // unsubscribe and clear state synchronously -- must not defer into queue
+            _ctx.GameManager.CurrentPlayfield = null;
+            playfield.OnEntityLoaded -= _entityLoadedHandler.Handle;
+            playfield.OnEntityUnloaded -= _entityUnloadedHandler.Handle;
+            string name = playfield.Name;
+
             await Execute(async () =>
             {
-                playfield.OnEntityLoaded -= _entityLoadedHandler.Handle;
-                playfield.OnEntityUnloaded -= _entityUnloadedHandler.Handle;
-
                 JObject json = new JObject(
                     new JProperty("GameTicks", _ctx.ModApi.Application.GameTicks),
-                    new JProperty("Name", playfield.Name));
-                await _ctx.Messenger.SendAsync(MessageClass.Event, "Application.OnPlayfieldUnloading", json.ToString(Newtonsoft.Json.Formatting.None));
+                    new JProperty("Name", name));
+                string pfUnloadingJson = json.ToString(Newtonsoft.Json.Formatting.None);
+                await _ctx.Messenger.SendAsync("Playfield", MessageType.Evt, "Unloading", pfUnloadingJson);
             });
         }
     }

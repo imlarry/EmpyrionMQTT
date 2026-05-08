@@ -64,19 +64,16 @@ public static class KnownState
     /// Call before any test that uses GetDevicePositions or other IsReady-gated operations.
     /// </summary>
     public static async Task WaitForStructureReadyAsync(
-        MqttTestClient mqtt, int entityId, int maxWaitMs = 5000)
+        SBTestClient mqtt, int entityId, int maxWaitMs = 5000)
     {
         var deadline = DateTime.UtcNow.AddMilliseconds(maxWaitMs);
         while (DateTime.UtcNow < deadline)
         {
-            var (topic, payload) = await mqtt.RequestAsync(
-                "V2.Structure.Info",
+            var payload = await mqtt.RequestAsync(
+                "Structure", "Info",
                 $"{{\"EntityId\":{entityId}}}");
-            if (topic.StartsWith($"{AppId}/R/V2.Structure.Info/") &&
-                (bool?)payload["IsReady"] == true)
-            {
+            if ((bool?)payload["IsReady"] == true)
                 return;
-            }
             await Task.Delay(500);
         }
         throw new Exception($"Structure {entityId} not ready after {maxWaitMs}ms");

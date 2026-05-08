@@ -4,7 +4,17 @@ using System.Runtime.CompilerServices;
 
 namespace EDNAClient.Workspace
 {
-    public enum NavNodeType { Galaxy, System, Planet, Structure, Floor }
+    public enum NavNodeType { Galaxy, GalaxyFilter, System, Planet, Structure, Floor, ScriptFolder, ScriptFile,
+                              MapRoot, MapSolarSystem, MapPlayfield, MapEntity, MapFloor }
+
+    public class NavMenuItem
+    {
+        public string Header      { get; set; } = "";
+        public Action Execute     { get; set; } = () => { };
+        public bool   IsSeparator { get; set; }
+
+        public static NavMenuItem Separator() => new NavMenuItem { IsSeparator = true };
+    }
 
     public class NavNode : INotifyPropertyChanged
     {
@@ -13,8 +23,12 @@ namespace EDNAClient.Workspace
 
         public string      Name     { get; set; } = "";
         public NavNodeType NodeType { get; set; }
+        public object?     Tag      { get; set; }
 
         public ObservableCollection<NavNode> Children { get; } = new();
+
+        public Action?            OnSelected   { get; set; }
+        public List<NavMenuItem>? ContextItems { get; set; }
 
         public bool IsExpanded
         {
@@ -37,22 +51,53 @@ namespace EDNAClient.Workspace
     {
         public ObservableCollection<NavNode> RootNodes { get; } = new();
 
-        public NavigationViewModel()
+        public void AddRootSection(NavNode node)
         {
-            // Stub root -- replaced by live data as skills publish context.
-            // Future skills call UpdateStructureContext() to populate the tree.
-            RootNodes.Add(new NavNode
-            {
-                Name        = "Local Galaxy",
-                NodeType    = NavNodeType.Galaxy,
-                IsExpanded  = true,
-            });
+            RemoveRootSection(node.Name);
+            RootNodes.Add(node);
+        }
+
+        public void RemoveRootSection(string name)
+        {
+            for (int i = RootNodes.Count - 1; i >= 0; i--)
+                if (RootNodes[i].Name == name)
+                    RootNodes.RemoveAt(i);
+        }
+
+        // Returns "Root/Child/GrandChild" paths for every currently-expanded node.
+        public List<string> CollectExpandedPaths()
+        {
+            var result = new List<string>();
+            foreach (var root in RootNodes)
+                CollectExpanded(root, root.Name, result);
+            return result;
+        }
+
+        // Walks the current tree and expands any node whose path is in the saved set.
+        public void ApplyExpandedPaths(IEnumerable<string> paths)
+        {
+            var set = new HashSet<string>(paths, StringComparer.Ordinal);
+            foreach (var root in RootNodes)
+                ApplyExpanded(root, root.Name, set);
+        }
+
+        private static void CollectExpanded(NavNode node, string path, List<string> result)
+        {
+            if (node.IsExpanded) result.Add(path);
+            foreach (var child in node.Children)
+                CollectExpanded(child, path + "/" + child.Name, result);
+        }
+
+        private static void ApplyExpanded(NavNode node, string path, HashSet<string> expanded)
+        {
+            node.IsExpanded = expanded.Contains(path);
+            foreach (var child in node.Children)
+                ApplyExpanded(child, path + "/" + child.Name, expanded);
         }
 
         /// <summary>
         /// Called by map skills to upsert the Galaxy > System > Planet > Structure > Floor
-        /// hierarchy and select the active floor node. Designed additively: skills extend
-        /// the tree without replacing existing nodes.
+        /// hierarchy. Designed additively: skills extend the tree without replacing existing nodes.
         /// </summary>
         public void UpdateStructureContext(
             string   galaxy,
@@ -61,7 +106,7 @@ namespace EDNAClient.Workspace
             string   structure,
             string[] floors)
         {
-            // Stub -- full implementation added when LandMap/SystemMap skills are built.
+            // stub -- full implementation added when LandMap/SystemMap skills are built.
         }
 
         public event PropertyChangedEventHandler? PropertyChanged;

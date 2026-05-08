@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using System.Windows.Media;
 using Point = System.Windows.Point;
 using Rect  = System.Windows.Rect;

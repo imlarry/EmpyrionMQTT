@@ -1,11 +1,8 @@
 using EDNAClient.Core;
 using Microsoft.Win32;
-using System;
-using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Runtime.InteropServices;
-using System.Windows;
-using System.Windows.Forms;
+using System.Threading;
 
 namespace EDNAClient.Tray
 {
@@ -19,87 +16,61 @@ namespace EDNAClient.Tray
         private const int DWMWA_WINDOW_CORNER_PREFERENCE = 33;
         private const int DWMWCP_ROUNDSMALL              = 3;
 
-        // ── Colors (dark scheme) ───────────────────────────────────────────
-        private static readonly Color DarkBg      = Color.FromArgb(0x20, 0x20, 0x20);
-        private static readonly Color DarkHover   = Color.FromArgb(0x3A, 0x3A, 0x3A);
-        private static readonly Color DarkBorder  = Color.FromArgb(0x45, 0x45, 0x45);
-        private static readonly Color DarkFg      = Color.FromArgb(0xF3, 0xF3, 0xF3);
-        private static readonly Color DarkDisable = Color.FromArgb(0x86, 0x86, 0x86);
-
-        // ── Tray icon colors (matching HUD indicator) ──────────────────────
-        private static readonly Color TrayOffline = Color.FromArgb(0x66, 0x66, 0x66);
-        private static readonly Color TrayHealthy = Color.FromArgb(0x00, 0xFF, 0x88);
-        private static readonly Color TrayWarning = Color.FromArgb(0xFF, 0xA5, 0x00);
-        private static readonly Color TrayError   = Color.FromArgb(0xFF, 0x44, 0x44);
+        // ── Colors ─────────────────────────────────────────────────────────
+        private static readonly Color DarkBg     = Color.FromArgb(0x20, 0x20, 0x20);
+        private static readonly Color DarkHover  = Color.FromArgb(0x3A, 0x3A, 0x3A);
+        private static readonly Color DarkBorder = Color.FromArgb(0x45, 0x45, 0x45);
+        private static readonly Color DarkFg     = Color.FromArgb(0xF3, 0xF3, 0xF3);
+        private static readonly Color TrayGreen  = Color.FromArgb(0x00, 0xFF, 0x88);
+        private static readonly Color TrayRed    = Color.FromArgb(0xFF, 0x44, 0x44);
 
         // ── State ──────────────────────────────────────────────────────────
-        private readonly NotifyIcon        _notifyIcon;
-        private readonly ContextMenuStrip  _menu;
-        private readonly ToolStripMenuItem _statusItem;
-        private readonly Action            _openSettings;
-        private readonly bool              _dark;
+        private readonly NotifyIcon _notifyIcon;
+        private readonly bool       _dark;
+        private Timer?              _blinkTimer;
+        private Icon?               _blinkIconOn;
+        private Icon?               _blinkIconOff;
+        private volatile bool       _blinkOn;
 
-        public TrayIconManager(Action openSettings)
+        public TrayIconManager()
         {
-            _openSettings = openSettings;
-            _dark         = IsSystemDarkMode();
-
-            _statusItem = new ToolStripMenuItem("EDNA \u2014 Waiting for game") { Enabled = false };
-
-            var settingsItem = new ToolStripMenuItem("Settings\u2026");
-            settingsItem.Click += (_, _) => _openSettings();
+            _dark = IsSystemDarkMode();
 
             var exitItem = new ToolStripMenuItem("Exit");
             exitItem.Click += (_, _) =>
                 Application.Current.Dispatcher.Invoke(() => Application.Current.Shutdown());
 
-            _menu = new ContextMenuStrip { ShowImageMargin = false, ShowCheckMargin = false };
-            _menu.Items.Add(_statusItem);
-            _menu.Items.Add(new ToolStripSeparator());
-            _menu.Items.Add(settingsItem);
-            _menu.Items.Add(new ToolStripSeparator());
-            _menu.Items.Add(exitItem);
+            var menu = new ContextMenuStrip { ShowImageMargin = false, ShowCheckMargin = false };
+            menu.Items.Add(exitItem);
+            if (_dark) ApplyDarkTheme(menu);
 
-            if (_dark) ApplyDarkTheme(_menu);
-
-            // Apply DWM rounded corners + dark non-client area when the popup is first shown
-            _menu.Opening += (_, _) =>
+            menu.Opening += (_, _) =>
             {
-                if (_menu.Handle != IntPtr.Zero)
+                if (menu.Handle != IntPtr.Zero)
                 {
                     int dark = _dark ? 1 : 0;
-                    DwmSetWindowAttribute(_menu.Handle, DWMWA_USE_IMMERSIVE_DARK_MODE, ref dark, sizeof(int));
+                    DwmSetWindowAttribute(menu.Handle, DWMWA_USE_IMMERSIVE_DARK_MODE, ref dark, sizeof(int));
                     int corner = DWMWCP_ROUNDSMALL;
-                    DwmSetWindowAttribute(_menu.Handle, DWMWA_WINDOW_CORNER_PREFERENCE, ref corner, sizeof(int));
+                    DwmSetWindowAttribute(menu.Handle, DWMWA_WINDOW_CORNER_PREFERENCE, ref corner, sizeof(int));
                 }
             };
 
             _notifyIcon = new NotifyIcon
             {
-                Text             = "EDNA \u2014 Waiting for game",
-                Icon             = MakeIcon(TrayOffline),
-                ContextMenuStrip = _menu,
+                Text             = "EDNA - Connecting...",
+                Icon             = MakeIcon(TrayRed),
+                ContextMenuStrip = menu,
                 Visible          = true
             };
-            _notifyIcon.DoubleClick += (_, _) => _openSettings();
+
+            StartBlink(TrayRed, "EDNA - Connecting...");
         }
 
         // ── Public API ─────────────────────────────────────────────────────
 
-        public void UpdateState(IndicatorState state, bool gameRunning)
-        {
-            var (color, label) = state switch
-            {
-                IndicatorState.Healthy => (TrayHealthy, "EDNA \u2014 Active"),
-                IndicatorState.Warning => (TrayWarning, "EDNA \u2014 Warning"),
-                IndicatorState.Error   => (TrayError,   "EDNA \u2014 Error"),
-                _                      => (TrayOffline,  "EDNA \u2014 Waiting for game"),
-            };
-
-            _notifyIcon.Icon = MakeIcon(color);
-            _notifyIcon.Text = label;    // 63-char WinForms limit
-            SetItemText(_statusItem, label);
-        }
+        public void SetMqttDown()  => StartBlink(TrayRed,   "EDNA - No MQTT connection");
+        public void SetConnected() => StartBlink(TrayGreen, "EDNA - Connected");
+        public void SetInGame()    => SetSolid  (TrayGreen, "EDNA - In Game");
 
         public void ShowBalloon(string title, string message)
         {
@@ -109,51 +80,76 @@ namespace EDNAClient.Tray
             _notifyIcon.ShowBalloonTip(4000);
         }
 
-        public void OnGameStarted() { }
+        public void UpdateLocation(string solarSystem, string playfield)
+        {
+            string text = $"EDNA - {solarSystem} / {playfield}";
+            Dispatch(() => _notifyIcon.Text = Tip(text));
+        }
 
-        public void OnGameExited() { }
+        public void ClearLocation() { }
 
         public void Dispose()
         {
+            StopBlink();
+            _blinkIconOn?.Dispose();
+            _blinkIconOff?.Dispose();
             _notifyIcon.Visible = false;
             _notifyIcon.Dispose();
-            _menu.Dispose();
         }
 
-        // ── Private helpers ────────────────────────────────────────────────
+        // ── Private ────────────────────────────────────────────────────────
 
-        // SetItemText must marshal to UI thread because NotifyIcon callbacks fire on background threads
-        private static void SetItemText(ToolStripItem item, string text)
+        private void StartBlink(Color color, string tooltip)
         {
-            if (item.Owner?.InvokeRequired == true)
-                item.Owner.Invoke(() => item.Text = text);
-            else
-                item.Text = text;
+            StopBlink();
+            _blinkIconOn?.Dispose();
+            _blinkIconOff?.Dispose();
+            _blinkIconOn  = MakeIcon(color);
+            _blinkIconOff = MakeIcon(DarkBg);
+            _blinkOn = true;
+            Dispatch(() => { _notifyIcon.Icon = _blinkIconOn; _notifyIcon.Text = Tip(tooltip); });
+            _blinkTimer = new Timer(_ => Tick(), null, 800, 800);
         }
+
+        private void SetSolid(Color color, string tooltip)
+        {
+            StopBlink();
+            _blinkIconOn?.Dispose();
+            _blinkIconOff?.Dispose();
+            _blinkIconOn = _blinkIconOff = null;
+            var icon = MakeIcon(color);
+            Dispatch(() => { _notifyIcon.Icon = icon; _notifyIcon.Text = Tip(tooltip); });
+        }
+
+        private void StopBlink()
+        {
+            _blinkTimer?.Dispose();
+            _blinkTimer = null;
+        }
+
+        private void Tick()
+        {
+            _blinkOn = !_blinkOn;
+            var icon = _blinkOn ? _blinkIconOn : _blinkIconOff;
+            if (icon != null)
+                Dispatch(() => _notifyIcon.Icon = icon);
+        }
+
+        private static void Dispatch(Action a) =>
+            Application.Current?.Dispatcher.Invoke(a);
+
+        private static string Tip(string s) => s.Length > 63 ? s[..63] : s;
 
         private void ApplyDarkTheme(ContextMenuStrip menu)
         {
             menu.Renderer  = new DarkMenuRenderer();
             menu.BackColor = DarkBg;
             menu.ForeColor = DarkFg;
-
             foreach (ToolStripItem item in menu.Items)
             {
                 item.BackColor = DarkBg;
-                item.ForeColor = item.Enabled ? DarkFg : DarkDisable;
-
-                if (item is ToolStripSeparator sep)
-                    sep.Paint += PaintDarkSeparator;
+                item.ForeColor = DarkFg;
             }
-        }
-
-        private static void PaintDarkSeparator(object? sender, PaintEventArgs e)
-        {
-            if (sender is not ToolStripSeparator sep) return;
-            e.Graphics.Clear(DarkBg);
-            int mid = sep.Height / 2;
-            using var pen = new Pen(DarkBorder);
-            e.Graphics.DrawLine(pen, 8, mid, sep.Width - 8, mid);
         }
 
         private static bool IsSystemDarkMode()
@@ -188,21 +184,19 @@ namespace EDNAClient.Tray
 
             protected override void OnRenderItemText(ToolStripItemTextRenderEventArgs e)
             {
-                e.TextColor = e.Item.Enabled ? DarkFg : DarkDisable;
+                e.TextColor = DarkFg;
                 base.OnRenderItemText(e);
             }
 
             protected override void OnRenderMenuItemBackground(ToolStripItemRenderEventArgs e)
             {
                 var rect = new Rectangle(2, 1, e.Item.Width - 4, e.Item.Height - 2);
-                using var brush = new SolidBrush(e.Item.Selected && e.Item.Enabled ? DarkHover : DarkBg);
+                using var brush = new SolidBrush(e.Item.Selected ? DarkHover : DarkBg);
                 e.Graphics.FillRectangle(brush, rect);
             }
 
-            protected override void OnRenderToolStripBackground(ToolStripRenderEventArgs e)
-            {
+            protected override void OnRenderToolStripBackground(ToolStripRenderEventArgs e) =>
                 e.Graphics.Clear(DarkBg);
-            }
 
             protected override void OnRenderToolStripBorder(ToolStripRenderEventArgs e)
             {

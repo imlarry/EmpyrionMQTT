@@ -1,10 +1,9 @@
 using Eleon;
-using Eleon.Modding;
 using ESB.Interfaces;
 using ESB.Messaging;
 using Newtonsoft.Json.Linq;
 
-namespace ESB
+namespace ESB.EventHandlers
 {
     public class ChatMessageSentHandler : HandlerBase, IChatMessageSentHandler
     {
@@ -29,29 +28,8 @@ namespace ESB
                         new JProperty("Channel", chatMsgData.Channel.ToString()),
                 new JProperty("Text", chatMsgData.Text)
                         );
-                await _ctx.Messenger.SendAsync(MessageClass.Event, "Application.ChatMessageSent", json.ToString(Newtonsoft.Json.Formatting.None));
-
-                void DialogActionHandler(int buttonIdx, string linkId, string inputContent, int playerId, int customValue)
-                {
-                    _ = _ctx.Messenger.SendAsync(MessageClass.Exception, "Gui.ShowDialog", "Button:" + buttonIdx.ToString());
-                }
-
-                string[] bt = { "esc", "enter", "punt" };
-                var config = new DialogConfig
-                {
-                    TitleText = "TitleText",
-                    BodyText = "BodyText - This is a test",
-                    CloseOnLinkClick = true,
-                    ButtonTexts = bt,
-                    ButtonIdxForEsc = 0,
-                    ButtonIdxForEnter = 1,
-                    MaxChars = 0
-                    //Placeholder = "Placeholder",
-                    //InitialContent = "InitialContent"
-                };
-                var handler = new DialogActionHandler(DialogActionHandler);
-                var displayed = _ctx.ModApi.GUI.ShowDialog(config, handler, 0);
-                await _ctx.Messenger.SendAsync(MessageClass.Response, "FromChatHandler", "Displayed: " + displayed.ToString());
+                string chatJson = json.ToString(Newtonsoft.Json.Formatting.None);
+                await _ctx.Messenger.SendAsync("Chat", MessageType.Evt, "ChatMessageSent", chatJson);
             });
         }
     }

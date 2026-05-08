@@ -1,8 +1,5 @@
-using System;
-using System.Collections.Generic;
-using System.Threading;
-using System.Threading.Tasks;
-using System.Windows;
+using EDNAClient.Core;
+using EDNAClient.Helpers;
 using ESB.Messaging;
 using Newtonsoft.Json.Linq;
 
@@ -11,23 +8,19 @@ namespace EDNAClient.Skills.ThreatRadar
     /// <summary>
     /// Subscribes to ESB Feeds.Scan and keeps ThreatViewModel current with
     /// directional threat levels. Each snapshot atomically updates both the
-    /// player position and the threat entity set — no polling, no per-entity
+    /// player position and the threat entity set -- no polling, no per-entity
     /// TraceEntity subscriptions.
     /// </summary>
     public class ThreatTracker
     {
-        private const string EsbApp = "Client";
-
         private readonly IMessenger      _messenger;
         private readonly ThreatViewModel _viewModel;
 
         // Threat entities keyed by entity id; value is last-known XZ position
-        private readonly Dictionary<int, (float X, float Z)> _threats = new();
+        private readonly Dictionary<int, (float X, float Z)> _threats = new Dictionary<int, (float X, float Z)>();
 
         private float _playerX, _playerZ;
         private float _fwdX = 0f, _fwdZ = 1f;   // default: facing +Z (world north)
-
-        private int _seqId;
 
         public ThreatTracker(IMessenger messenger, ThreatViewModel viewModel)
         {
@@ -39,13 +32,17 @@ namespace EDNAClient.Skills.ThreatRadar
 
         public async Task StartAsync()
         {
-            await _messenger.SubscribeEventAsync("+/E/Feeds.Scan/+/+", OnScanSnapshot);
-            await _messenger.SubscribeEventAsync("+/E/GameEvent.PlayfieldEntered/+/+", OnPlayfieldEntered);
+            // App/evt/PlayfieldEntered published by GameEventHandler for GameEventType.PlayfieldEntered
+            await _messenger.SubscribeBrokerAsync(scope: "App", msgType: MessageType.Evt, operation: "PlayfieldEntered", callback: OnPlayfieldEntered);
+            // App/evt/Feeds.Scan: pending server implementation; subscribing now so it activates when available
+            await _messenger.SubscribeBrokerAsync(scope: "App", msgType: MessageType.Evt, operation: "Feeds.Scan", callback: OnScanSnapshot);
         }
 
         private Task OnPlayfieldEntered(string topic, string payload)
         {
-            _ = RequestScanAsync();
+            _ = RequestScanAsync().ContinueWith(t =>
+                EdnaLogger.Error("RequestScanAsync failed on PlayfieldEntered", t.Exception?.InnerException),
+                System.Threading.Tasks.TaskContinuationOptions.OnlyOnFaulted);
             return Task.CompletedTask;
         }
 
@@ -59,11 +56,8 @@ namespace EDNAClient.Skills.ThreatRadar
 
         private async Task RequestScanAsync()
         {
-            var seq = Interlocked.Increment(ref _seqId);
-            await _messenger.SendAsync(
-                MessageClass.Request,
-                $"{EsbApp}/Q/Feeds.Scan/*/{seq}",
-                "{\"Duration\":300,\"RefreshRate\":2}");
+            // App scope pending confirmation when Feeds.Scan is added to ESB server
+            await _messenger.SendAsync("App", MessageType.Req, "Feeds.Scan", "{\"Duration\":300,\"RefreshRate\":2}");
         }
 
         // ── Scan snapshot handler ──────────────────────────────────────────
@@ -77,7 +71,9 @@ namespace EDNAClient.Skills.ThreatRadar
                 // Terminal event — re-arm the feed
                 if (j["Status"] != null)
                 {
-                    _ = RequestScanAsync();
+                    _ = RequestScanAsync().ContinueWith(t =>
+                        EdnaLogger.Error("RequestScanAsync failed on re-arm", t.Exception?.InnerException),
+                        System.Threading.Tasks.TaskContinuationOptions.OnlyOnFaulted);
                     return Task.CompletedTask;
                 }
 
@@ -89,11 +85,7 @@ namespace EDNAClient.Skills.ThreatRadar
                     // Piloting — tacradar has it; clear EDNA display and yield
                     if (player["IsPilot"]?.Value<bool>() == true)
                     {
-                        Application.Current.Dispatcher.Invoke(() =>
-                        {
-                            _threats.Clear();
-                            _viewModel.ClearAll();
-                        });
+                        UI.Invoke(() => { _threats.Clear(); _viewModel.ClearAll(); });
                         return Task.CompletedTask;
                     }
 
@@ -127,8 +119,8 @@ namespace EDNAClient.Skills.ThreatRadar
                     }
                 }
 
-                // Apply to UI thread atomically
-                Application.Current.Dispatcher.Invoke(() =>
+                EdnaLogger.Detail($"[ThreatTracker] snapshot: {newThreats.Count} threats");
+                UI.Invoke(() =>
                 {
                     _playerX = px;
                     _playerZ = pz;
@@ -142,7 +134,12 @@ namespace EDNAClient.Skills.ThreatRadar
                     Recompute();
                 });
             }
-            catch { /* malformed payload — ignore */ }
+            catch (Exception ex)
+            {
+#if DEBUG
+                EdnaLogger.Warn($"OnScanSnapshot malformed payload: {ex.Message}");
+#endif
+            }
             return Task.CompletedTask;
         }
 

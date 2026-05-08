@@ -1,0 +1,18 @@
+<UserControl x:Class="EDNAClient.Skills.Scripting.ScriptEditor.ScriptEditorPanel"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:avalonEdit="http://icsharpcode.net/sharpdevelop/avalonedit">
+
+    <avalonEdit:TextEditor
+        x:Name="Editor"
+        FontFamily="Consolas"
+        FontSize="13"
+        Background="#1E1E1E"
+        Foreground="#D4D4D4"
+        LineNumbersForeground="#858585"
+        ShowLineNumbers="True"
+        WordWrap="False"
+        HorizontalScrollBarVisibility="Auto"
+        VerticalScrollBarVisibility="Auto" />
+
+</UserControl>

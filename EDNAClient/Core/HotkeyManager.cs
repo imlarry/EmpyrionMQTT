@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Windows.Interop;
 
@@ -41,9 +40,9 @@ namespace EDNAClient.Core
             int id = _nextId++;
             if (!RegisterHotKey(_source.Handle, id, request.Modifiers, request.VirtualKey))
             {
-                Debug.WriteLine($"[HotkeyManager] RegisterHotKey failed for id={id} " +
-                                $"modifiers=0x{request.Modifiers:X} vk=0x{request.VirtualKey:X} " +
-                                "(combo may be held by another app)");
+                EdnaLogger.Warn($"[HotkeyManager] RegisterHotKey failed for id={id} " +
+                               $"modifiers=0x{request.Modifiers:X} vk=0x{request.VirtualKey:X} " +
+                               "(combo may be held by another app)");
                 return false;
             }
             _callbacks[id] = request.Callback;

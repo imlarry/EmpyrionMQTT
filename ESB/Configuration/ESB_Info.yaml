@@ -9,3 +9,11 @@ GIThub: https://github.com/imlarry/EmpyrionMQTT
 ModTargets: Client, Dedi, PfServer
 
 MQTThost: { WithTcpServer: "localhost" , Port: 1883, Username: "esbuser", Password: "esbpass"} #, CAFilePath: "c:\\mosquitto\\certs\\ca.crt" }
+
+EDNA:
+  EnabledSkillIds:
+  - ThreatRadar
+  - FloorMap
+  - ScriptEditor
+  - GalaxyMap
+  DetailEnabled: false

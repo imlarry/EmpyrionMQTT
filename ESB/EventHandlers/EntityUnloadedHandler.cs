@@ -3,7 +3,7 @@ using ESB.Interfaces;
 using ESB.Messaging;
 using Newtonsoft.Json.Linq;
 
-namespace ESB
+namespace ESB.EventHandlers
 {
     public class EntityUnloadedHandler : HandlerBase, IEntityUnloadedHandler
     {
@@ -11,14 +11,19 @@ namespace ESB
 
         public async void Handle(IEntity entity)
         {
+            // snapshot before enqueue -- bridge object is freed as part of the unload sequence
+            int id = entity.Id;
+            string name = entity.Name;
             await Execute(async () =>
             {
+
                 JObject json = new JObject(
                         new JProperty("GameTicks", _ctx.ModApi.Application.GameTicks),
-                        new JProperty("Id", entity.Id),
-                        new JProperty("Name", entity.Name)
+                        new JProperty("Id", id),
+                        new JProperty("Name", name)
                         );
-                await _ctx.Messenger.SendAsync(MessageClass.Event, "Playfield.OnEntityUnloaded", json.ToString(Newtonsoft.Json.Formatting.None));
+                string unloadedJson = json.ToString(Newtonsoft.Json.Formatting.None);
+                await _ctx.Messenger.SendAsync("Entity", MessageType.Evt, "EntityUnloaded", unloadedJson);
             });
         }
     }

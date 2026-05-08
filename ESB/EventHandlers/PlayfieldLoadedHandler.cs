@@ -3,7 +3,7 @@ using ESB.Interfaces;
 using ESB.Messaging;
 using Newtonsoft.Json.Linq;
 
-namespace ESB
+namespace ESB.EventHandlers
 {
     public class PlayfieldLoadedHandler : HandlerBase, IPlayfieldLoadedHandler
     {
@@ -21,6 +21,7 @@ namespace ESB
         {
             await Execute(async () =>
             {
+                _ctx.GameManager.CurrentPlayfield = playfield;
                 playfield.OnEntityLoaded += _entityLoadedHandler.Handle;
                 playfield.OnEntityUnloaded += _entityUnloadedHandler.Handle;
 
@@ -52,7 +53,8 @@ namespace ESB
                 new JProperty("IsPvP", playfield.IsPvP)
                 );
 
-                await _ctx.Messenger.SendAsync(MessageClass.Event, "Application.OnPlayfieldLoaded", json.ToString(Newtonsoft.Json.Formatting.None));
+                string pfLoadedJson = json.ToString(Newtonsoft.Json.Formatting.None);
+                await _ctx.Messenger.SendAsync("Playfield", MessageType.Evt, "Loaded", pfLoadedJson);
             });
         }
     }

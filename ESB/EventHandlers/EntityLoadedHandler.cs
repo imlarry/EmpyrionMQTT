@@ -1,9 +1,10 @@
 using Eleon.Modding;
+using ESB.Helpers;
 using ESB.Interfaces;
 using ESB.Messaging;
 using Newtonsoft.Json.Linq;
 
-namespace ESB
+namespace ESB.EventHandlers
 {
     public class EntityLoadedHandler : HandlerBase, IEntityLoadedHandler
     {
@@ -13,6 +14,7 @@ namespace ESB
         {
             await Execute(async () =>
             {
+
                 JObject json = new JObject(
                     new JProperty("GameTicks", _ctx.ModApi.Application.GameTicks),
                     new JProperty("Id", entity.Id),
@@ -35,10 +37,10 @@ namespace ESB
                     new JProperty("IsPoi", entity.IsPoi),
                     new JProperty("BelongsTo", entity.BelongsTo),
                     new JProperty("DockedTo", entity.DockedTo),
-                    new JProperty("Type", entity.Type.ToString()),
-                    new JProperty("Structure", null)
+                    new JProperty("Type", entity.Type.ToString())
                 );
-                await _ctx.Messenger.SendAsync(MessageClass.Event, "Playfield.EntityLoaded", json.ToString(Newtonsoft.Json.Formatting.None));
+                string loadedJson = json.ToString(Newtonsoft.Json.Formatting.None);
+                await _ctx.Messenger.SendAsync("Entity", MessageType.Evt, "EntityLoaded", loadedJson);
             });
         }
     }

@@ -1,8 +1,7 @@
 using System;
 using System.Threading.Tasks;
-using ESB.Messaging;
 
-namespace ESB
+namespace ESB.EventHandlers
 {
     public abstract class HandlerBase
     {
@@ -13,19 +12,10 @@ namespace ESB
             _ctx = context;
         }
 
-        protected async Task Execute(Func<Task> work)
+        protected Task Execute(Func<Task> work)
         {
-            try
-            {
-                await work();
-            }
-            catch (Exception ex)
-            {
-                await _ctx.Messenger.SendAsync(
-                    MessageClass.Exception,
-                    GetType().Name,
-                    ex.ToString());
-            }
+            _ctx.EventQueue.Enqueue(work);
+            return Task.CompletedTask;
         }
     }
 }

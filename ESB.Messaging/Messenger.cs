@@ -1,7 +1,7 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
-using System.Net.NetworkInformation;
-using System.Security.Cryptography;
+using System.IO;
+using System.IO.Compression;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Threading;
@@ -16,77 +16,87 @@ namespace ESB.Messaging
 {
     public class Messenger : IMessenger
     {
+        public int CompressionThreshold { get; set; } = 2048;
+
         private BaseContextData _ctx;
-        private string _applicationId;
         private string _machineId;
         private string _clientId;
-        private int _pubSeqId = 0;
+        private string _participantType;
         private MqttFactory _mqttFactory;
         private IMqttClient _mqttClient;
-        private readonly Dictionary<string, Func<string, string, Task>> _methods = new Dictionary<string, Func<string, string, Task>>();    // topic-to-action lookup
+        private readonly Dictionary<string, Func<MessageContext, Task>> _handlers = new Dictionary<string, Func<MessageContext, Task>>();
+        private readonly Dictionary<string, Func<string, string, Task>> _eventCallbacks = new Dictionary<string, Func<string, string, Task>>();
+        private readonly Dictionary<string, TaskCompletionSource<string>> _pendingResponses = new Dictionary<string, TaskCompletionSource<string>>();
+        private readonly object _callbackLock = new object();
 
-        // ApplicationId ... returns the ApplicationId associated with the connection
-        public string ApplicationId()
-        {
-            return _applicationId;
-        }
-        
         // MachineId ... returns the MachineId associated with the connection
         public string MachineId()
         {
             return _machineId;
         }
 
-        // ClientId ... returns the ClintId associated with the connection
+        // ClientId ... returns the ClientId associated with the connection
         public string ClientId()
         {
             return _clientId;
         }
 
-        // AvailableTopics ... returns topic methods that have been registered as a CSV string
+        // ParticipantType ... returns the participant type token used in ESB/ topics
+        public string ParticipantType()
+        {
+            return _participantType;
+        }
+
+        // AvailableTopics ... returns registered dispatch keys as a CSV string
         public string AvailableTopics()
         {
-            return string.Join(", ", _methods.Keys);
+            return string.Join(", ", _handlers.Keys);
         }
 
-        // ParseTopic .. used to parse a topic string and return a ParsedTopic object
+        // ParseTopic ... parses an ESB/ schema topic into a ParsedTopic.
+        // Fixed 6-segment form: ESB/{participantType}/{connectionId}/{scope}/{msgType}/{operation}
         internal ParsedTopic ParseTopic(string topic)
         {
-            var parts = topic.Split('/');
-            var parsedTopic = new ParsedTopic
+            var p  = topic.Split('/');
+            var op = p[5];
+            string metaOp = null;
+            var dot = op.IndexOf('.');
+            if (dot >= 0)
             {
-                SourceId = parts[0],
-                MessageClass = parts[1],
-                SubjectId = parts[2],
-                ClientId = parts[3],
-                PubSeqId = parts[4]
+                metaOp = op.Substring(dot + 1);
+                op     = op.Substring(0, dot);
+            }
+            return new ParsedTopic
+            {
+                ParticipantType = p[1],
+                ConnectionId    = p[2],
+                Scope           = p[3],
+                MsgType         = p[4],
+                Operation       = op,
+                MetaOperation   = metaOp,
+                DispatchKey     = $"{p[3]}/{p[4]}/{op}"
             };
-            return parsedTopic;
         }
 
-        // MsgClass ... function used to convert MessageClass enum into topic encoding
-        public char MsgClass(MessageClass messageClass)
+        // BuildTopic ... assembles an ESB/ topic; null segment -> "+"
+        private string BuildTopic(string participantType, string connectionId, string scope, MessageType? msgType, string operation)
         {
-            switch (messageClass)
-            {
-                case MessageClass.Request: return 'Q';
-                case MessageClass.Response: return 'R';
-                case MessageClass.Event: return 'E';
-                case MessageClass.Information: return 'I';
-                case MessageClass.Exception: return 'X';
-                default:
-                    throw new ArgumentException(message: "Invalid enum value", paramName: nameof(messageClass));
-            }
+            return string.Format("ESB/{0}/{1}/{2}/{3}/{4}",
+                participantType ?? "+",
+                connectionId    ?? "+",
+                scope           ?? "+",
+                msgType.HasValue ? msgType.Value.ToString().ToLower() : "+",
+                operation       ?? "+");
         }
 
         // MqttClientOptions ... function used to create an MQTT client options object
-        public MqttClientOptions CreateMqttClientOptions(string withTcpServer = "localhost", int port = 0, string username = null, string password = null, string caFilePath = null)
+        public MqttClientOptions CreateMqttClientOptions(string withTcpServer = "localhost", int port = 0, string username = null, string password = null, string caFilePath = null, string willTopic = null)
         {
             int defaultPort = caFilePath != null ? 8883 : 1883;
             int resolvedPort = port > 0 ? port : defaultPort;
             var optionsBuilder = new MqttClientOptionsBuilder()
                 .WithTcpServer(withTcpServer ?? "localhost", resolvedPort)
-                .WithProtocolVersion(MqttProtocolVersion.V500); // Use MQTT v5.0
+                .WithProtocolVersion(MqttProtocolVersion.V500);
 
             if (!string.IsNullOrEmpty(username) && !string.IsNullOrEmpty(password))
             {
@@ -107,47 +117,38 @@ namespace ESB.Messaging
                 optionsBuilder.WithTlsOptions(tlsOptions);
             }
 
+            // Will message clears the registry entry if the client disconnects unexpectedly.
+            if (!string.IsNullOrEmpty(willTopic))
+            {
+                optionsBuilder.WithWillTopic(willTopic)
+                    .WithWillPayload("")
+                    .WithWillRetain(true);
+            }
+
             return optionsBuilder.Build();
         }
 
-        // GetMacAddress ... function used to get the MAC address of the first active network interface
-        public static string GetMacAddress()
-        {
-            foreach (NetworkInterface nic in NetworkInterface.GetAllNetworkInterfaces())
-            {
-                if (nic.OperationalStatus == OperationalStatus.Up)
-                {
-                    return nic.GetPhysicalAddress().ToString();
-                }
-            }
-            return String.Empty;
-        }
-
-        // GenerateMachineId ... function used to generate a machine id from MAC address and a secret key
-        public static string GenerateMachineId(string secretKey)
-        {
-            string macAddress = GetMacAddress();
-            string rawId = macAddress + (secretKey ?? ""); 
-
-            using (SHA256 sha256Hash = SHA256.Create())
-            {
-                byte[] bytes = sha256Hash.ComputeHash(Encoding.UTF8.GetBytes(rawId));
-                StringBuilder builder = new StringBuilder();
-                for (int i = 0; i < bytes.Length; i++)
-                {
-                    builder.Append(bytes[i].ToString("x2"));
-                }
-                return builder.ToString();
-            }
-        }
-
         // ConnectAsync ... build client and connect to broker
-        public async Task ConnectAsync(BaseContextData ctx, string applicationId, string withTcpServer = "localhost", int port = 1883, string username = null, string password = null, string caFilePath = null)
+        public async Task ConnectAsync(BaseContextData ctx, string participantType, string withTcpServer = "localhost", int port = 1883, string username = null, string password = null, string caFilePath = null)
         {
+            string tokenDir  = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "EmpyrionESB");
+            Directory.CreateDirectory(tokenDir);
+            string tokenPath = Path.Combine(tokenDir, "bus.token");
+            string token;
+            if (!File.Exists(tokenPath))
+            {
+                token = Guid.NewGuid().ToString();
+                File.WriteAllText(tokenPath, token);
+            }
+            else
+            {
+                token = File.ReadAllText(tokenPath).Trim();
+            }
+
             _ctx = ctx;
-            _applicationId = applicationId;
-            _machineId = GenerateMachineId(password);
-            _clientId = Guid.NewGuid().ToString().Substring(25);
+            _participantType = participantType;
+            _machineId = IdentifierHelper.GenerateIdentifier(token, 6);
+            _clientId  = IdentifierHelper.GenerateIdentifier(participantType + token, 4);
             _mqttFactory = new MqttFactory();
             _mqttClient = _mqttFactory.CreateMqttClient();
             _mqttClient.ApplicationMessageReceivedAsync += ProcessMessageAsync;
@@ -166,170 +167,374 @@ namespace ESB.Messaging
                 mqttClientOptions = CreateMqttClientOptions(withTcpServer, port, username, password, caFilePath);
             }
 
+            // Perform and report connection
             await _mqttClient.ConnectAsync(mqttClientOptions, CancellationToken.None);
-
             var now = DateTime.Now.ToString("s");
-            JObject json = new JObject(
-                    new JProperty("WithTcpServer", withTcpServer),
-                    new JProperty("Application", _applicationId),
-                    new JProperty("MachineId", _machineId),
-                    new JProperty("ClientId", _clientId),
-                    new JProperty("ConnectedAt", now)
-                    );
-            await _ctx.Messenger.SendAsync(MessageClass.Information, "Messenger.ConnectAsync", json.ToString(Newtonsoft.Json.Formatting.None));
+            var json = new JObject(
+                new JProperty("WithTcpServer",   withTcpServer),
+                new JProperty("ParticipantType", _participantType),
+                new JProperty("MachineId",       _machineId),
+                new JProperty("ClientId",        _clientId),
+                new JProperty("ConnectedAt",     now));
+            await LogAsync("ConnectAsync", json.ToString(Newtonsoft.Json.Formatting.None));
+
+            // Subscribe once for all responses directed to this participant.
+            await SubscribeBrokerAsync(participantType: _participantType, connectionId: _clientId, msgType: MessageType.Res);
         }
 
         // DisconnectAsync ... disconnect from broker
         public async Task DisconnectAsync()
         {
-            var now = DateTime.Now.ToString("s");
-            JObject json = new JObject(
-                    new JProperty("ClientId", _ctx.Messenger.ClientId()),
-                    new JProperty("DisconnectedAt", now)
-                    );
-            await SendAsync(MessageClass.Information, "Messenger.DisconnectAsync", json.ToString(Newtonsoft.Json.Formatting.None));
+            var json = new JObject(
+                new JProperty("ClientId",       _clientId),
+                new JProperty("DisconnectedAt", DateTime.Now.ToString("s")));
+            await LogAsync("DisconnectAsync", json.ToString(Newtonsoft.Json.Formatting.None));
             await _mqttClient.DisconnectAsync();
         }
 
-        // RegisterHandler ... register a local dispatch handler by subject ID (no broker round-trip)
-        public void RegisterHandler(string subjectId, Func<string, string, Task> handler)
+        // RegisterHandler ... register a handler by dispatch key
+        public void RegisterHandler(string dispatchKey, Func<MessageContext, Task> handler)
         {
             if (handler != null)
-                _methods[subjectId] = handler;
+                _handlers[dispatchKey] = handler;
         }
 
-        // SubscribeRequestsAsync ... single broker subscription covering all registered handlers
-        // Matches: {appId}/Q/{anyHandler}/{myClientId}/{seqNum}  (targeted)
-        //      and {appId}/Q/{anyHandler}/*/{seqNum}             (multicast)
-        public async Task SubscribeRequestsAsync()
+        // SubscribeBrokerAsync ... subscribe using structured ESB topic segments; null -> "+"
+        // Optional callback registers a direct (topic, payload) handler for wildcard-matched delivery.
+        public async Task SubscribeBrokerAsync(string participantType = null, string connectionId = null, string scope = null, MessageType? msgType = null, string operation = null, Func<string, string, Task> callback = null)
         {
-            var mqttSubscribeOptions = _mqttFactory.CreateSubscribeOptionsBuilder()
-                .WithTopicFilter(f => f.WithTopic($"{_applicationId}/Q/+/{_clientId}/#"))
-                .WithTopicFilter(f => f.WithTopic($"{_applicationId}/Q/+/*/#"))
-                .Build();
-            await _mqttClient.SubscribeAsync(mqttSubscribeOptions, CancellationToken.None);
-            var json = new JObject(
-                new JProperty("TargetedFilter",  $"{_applicationId}/Q/+/{_clientId}/#"),
-                new JProperty("MulticastFilter", $"{_applicationId}/Q/+/*/#"),
-                new JProperty("RegisteredHandlers", AvailableTopics()));
-            await SendAsync(MessageClass.Information, "Messenger.Subscribed", json.ToString(Newtonsoft.Json.Formatting.None));
+            var topicFilter = BuildTopic(participantType, connectionId, scope, msgType, operation);
+            if (callback != null)
+            {
+                lock (_callbackLock)
+                {
+                    _eventCallbacks[topicFilter] = callback;
+                }
+            }
+            await SubscribeRawAsync(topicFilter);
         }
 
-        // SubscribeEventAsync ... subscribe directly to a broker topic filter (for event consumers
-        // such as EDNA). Registers the callback by SubjectId for local dispatch, then subscribes
-        // to the broker. Use this for E/I class topics, not for Q (request) handlers.
+        // SubscribeEventAsync ... raw-filter subscription for LuaMqttApi (Lua-supplied filter strings)
         public async Task SubscribeEventAsync(string topicFilter, Func<string, string, Task> callback)
         {
-            var pt = ParseTopic(topicFilter);
-            if (callback != null)
-                _methods[pt.SubjectId] = callback;
-            var options = _mqttFactory.CreateSubscribeOptionsBuilder()
+            lock (_callbackLock)
+            {
+                _eventCallbacks[topicFilter] = callback;
+            }
+            await SubscribeRawAsync(topicFilter);
+        }
+
+        // SubscribeRawAsync ... shared broker subscription implementation
+        private async Task SubscribeRawAsync(string topicFilter)
+        {
+            var mqttSubscribeOptions = _mqttFactory.CreateSubscribeOptionsBuilder()
                 .WithTopicFilter(f => f.WithTopic(topicFilter))
                 .Build();
-            await _mqttClient.SubscribeAsync(options, CancellationToken.None);
+            await _mqttClient.SubscribeAsync(mqttSubscribeOptions, CancellationToken.None);
+            var logJson = new JObject(
+                new JProperty("TopicFilter",        topicFilter),
+                new JProperty("RegisteredHandlers", AvailableTopics()));
+            await LogAsync("Subscribed", logJson.ToString(Newtonsoft.Json.Formatting.None));
         }
 
-        // Unsubscribe ... unsubscribe from a topic
-        public async Task UnsubscribeAsync(string topic)
+        // UnsubscribeAsync ... unsubscribe using structured ESB topic segments; null -> "+"
+        public async Task UnsubscribeAsync(string participantType = null, string connectionId = null, string scope = null, MessageType? msgType = null, string operation = null)
         {
+            var topic = BuildTopic(participantType, connectionId, scope, msgType, operation);
             await _mqttClient.UnsubscribeAsync(topic);
-            JObject json = new JObject(new JProperty("Topic", topic));
-            await SendAsync(MessageClass.Information, "Messenger.Unsubscribe", json.ToString(Newtonsoft.Json.Formatting.None));
+            var json = new JObject(new JProperty("Topic", topic));
+            await LogAsync("Unsubscribe", json.ToString(Newtonsoft.Json.Formatting.None));
         }
 
-        // SendAsync ... publish a message to the bus (three flavors)
-        public async Task SendAsync(MessageClass messageClass, string topicOrSubjectId, string payload)    // form topic from the parts or alter the message class
+        // ReplyAsync ... publish a response using MQTT5 ResponseTopic + CorrelationData
+        public async Task ReplyAsync(string responseTopic, byte[] correlationData, string payload)
         {
-            string topic;
-            if (topicOrSubjectId.Contains("/"))
+            var builder = new MqttApplicationMessageBuilder()
+                .WithTopic(responseTopic)
+                .WithCorrelationData(correlationData);
+            bool shouldCompress = CompressionThreshold > 0 && payload != null && payload.Length >= CompressionThreshold;
+            if (shouldCompress && payload != null)
             {
-                var topicParts = topicOrSubjectId.Split('/');
-                topicParts[1] = MsgClass(messageClass).ToString();
-                topic = string.Join("/", topicParts);
+                int originalLen = Encoding.UTF8.GetByteCount(payload);
+                var compressed = CompressPayload(payload);
+                builder = builder.WithPayload(compressed);
+                var logJson = new JObject(
+                    new JProperty("Topic", responseTopic),
+                    new JProperty("OriginalBytes", originalLen),
+                    new JProperty("CompressedBytes", compressed.Length),
+                    new JProperty("Ratio", (int)((1.0 - (double)compressed.Length / originalLen) * 100) + "%"));
+                await LogAsync("Compress", logJson.ToString(Newtonsoft.Json.Formatting.None));
             }
             else
             {
-                topic = $"{_applicationId}/{MsgClass(messageClass)}/{topicOrSubjectId}/{_clientId}/{Interlocked.Increment(ref _pubSeqId)}";
+                builder = builder.WithPayload(payload);
             }
-
-            var applicationMessage = new MqttApplicationMessageBuilder()
-                    .WithTopic(topic)
-                    .WithPayload(payload)
-                    .Build();
-            await _mqttClient.PublishAsync(applicationMessage, CancellationToken.None);
+            await _mqttClient.PublishAsync(builder.Build(), CancellationToken.None);
         }
 
-        public async Task SendAsync(string topic, string payload)                                   // send a message and assume the topic is fully formed
+        // PublishRetainedAsync ... publish a retained message to a structured ESB topic
+        public async Task PublishRetainedAsync(string scope, MessageType msgType, string operation, string payload, uint expirySeconds = 0u, string connectionId = null, bool compress = false)
         {
-            var applicationMessage = new MqttApplicationMessageBuilder()
-                    .WithTopic(topic)
-                    .WithPayload(payload)
-                    .Build();
-            await _mqttClient.PublishAsync(applicationMessage, CancellationToken.None);
-
-            var pt = ParseTopic(topic);
-            if (pt.SourceId == "Self")
+            var topic = BuildTopic(_participantType, connectionId ?? _clientId, scope, msgType, operation);
+            var builder = new MqttApplicationMessageBuilder()
+                .WithTopic(topic)
+                .WithRetainFlag(true);
+            bool shouldCompress = compress || (CompressionThreshold > 0 && payload != null && payload.Length >= CompressionThreshold);
+            if (shouldCompress && payload != null)
             {
-                await Task.Run(() => ProcessMessageAsync(topic, payload));
-            }
-        }
-
-        private async Task ProcessMessageAsync(string topic, string payload)
-        {
-            JObject json;
-
-#if DEBUG 
-            // echo everything we get (debug output) 
-            json = new JObject( new JProperty("Topic", topic), new JProperty("Payload", payload) ); 
-            await SendAsync(MessageClass.Information, "Messenger.ProcessMessageAsync", json.ToString(Newtonsoft.Json.Formatting.None)); 
-#endif
-            var pt = ParseTopic(topic);
-
-            if (_methods.TryGetValue(pt.SubjectId, out var method))
-            {
-                await method(topic, payload);
+                int originalLen = Encoding.UTF8.GetByteCount(payload);
+                var compressed = CompressPayload(payload);
+                builder = builder.WithPayload(compressed);
+                var logJson = new JObject(
+                    new JProperty("Op", scope + "/" + msgType.ToString().ToLower() + "/" + operation),
+                    new JProperty("OriginalBytes", originalLen),
+                    new JProperty("CompressedBytes", compressed.Length),
+                    new JProperty("Ratio", (int)((1.0 - (double)compressed.Length / originalLen) * 100) + "%"));
+                await LogAsync("Compress", logJson.ToString(Newtonsoft.Json.Formatting.None));
             }
             else
             {
-                json = new JObject(
-                    new JProperty("Topic", topic),
-                    new JProperty("Exception", "No handler " + pt.SubjectId + " defined"));
-                await SendAsync(MessageClass.Information, "Messenger.ProcessMessageAsync", json.ToString(Newtonsoft.Json.Formatting.None));
+                builder = builder.WithPayload(payload);
+            }
+            if (expirySeconds > 0u)
+                builder = builder.WithMessageExpiryInterval(expirySeconds);
+            await _mqttClient.PublishAsync(builder.Build(), CancellationToken.None);
+        }
+
+        // SendAsync ... publish to ESB/{participantType}/{connectionId}/{scope}/{msgType}/{operation}
+        public async Task SendAsync(string scope, MessageType msgType, string operation, string payload, List<KeyValuePair<string, string>> userProperties = null, bool compress = false)
+        {
+            var topic = BuildTopic(_participantType, _clientId, scope, msgType, operation);
+            var builder = new MqttApplicationMessageBuilder().WithTopic(topic);
+            bool shouldCompress = compress || (CompressionThreshold > 0 && payload != null && payload.Length >= CompressionThreshold);
+            if (shouldCompress && payload != null)
+            {
+                int originalLen = Encoding.UTF8.GetByteCount(payload);
+                var compressed = CompressPayload(payload);
+                builder = builder.WithPayload(compressed);
+                var logJson = new JObject(
+                    new JProperty("Op", scope + "/" + msgType.ToString().ToLower() + "/" + operation),
+                    new JProperty("OriginalBytes", originalLen),
+                    new JProperty("CompressedBytes", compressed.Length),
+                    new JProperty("Ratio", (int)((1.0 - (double)compressed.Length / originalLen) * 100) + "%"));
+                await LogAsync("Compress", logJson.ToString(Newtonsoft.Json.Formatting.None));
+            }
+            else
+            {
+                builder = builder.WithPayload(payload);
+            }
+            if (userProperties != null)
+            {
+                foreach (var kv in userProperties)
+                    builder = builder.WithUserProperty(kv.Key, kv.Value);
+            }
+            await _mqttClient.PublishAsync(builder.Build(), CancellationToken.None);
+        }
+
+        // RequestAsync ... publish a req with MQTT5 ResponseTopic; awaits and returns the reply payload.
+        // Not on IMessenger -- no production callers; kept for integration tests on the concrete type.
+        public async Task<string> RequestAsync(string scope, string operation, string payload, TimeSpan timeout)
+        {
+            var shortId       = Guid.NewGuid().ToString("N").Substring(0, 8);
+            var responseTopic = BuildTopic(_participantType, _clientId, scope, MessageType.Res, operation);
+            var tcs           = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+            lock (_callbackLock)
+            {
+                _pendingResponses[shortId] = tcs;
+            }
+
+            var topic = BuildTopic(_participantType, _clientId, scope, MessageType.Req, operation);
+            var builder = new MqttApplicationMessageBuilder()
+                .WithTopic(topic)
+                .WithResponseTopic(responseTopic)
+                .WithCorrelationData(Encoding.ASCII.GetBytes(shortId));
+            bool shouldCompress = CompressionThreshold > 0 && payload != null && payload.Length >= CompressionThreshold;
+            if (shouldCompress && payload != null)
+            {
+                int originalLen = Encoding.UTF8.GetByteCount(payload);
+                var compressed = CompressPayload(payload);
+                builder = builder.WithPayload(compressed);
+                var logJson = new JObject(
+                    new JProperty("Op", scope + "/req/" + operation),
+                    new JProperty("OriginalBytes", originalLen),
+                    new JProperty("CompressedBytes", compressed.Length),
+                    new JProperty("Ratio", (int)((1.0 - (double)compressed.Length / originalLen) * 100) + "%"));
+                await LogAsync("Compress", logJson.ToString(Newtonsoft.Json.Formatting.None));
+            }
+            else
+            {
+                builder = builder.WithPayload(payload);
+            }
+            await _mqttClient.PublishAsync(builder.Build(), CancellationToken.None);
+
+            using (var cts = new CancellationTokenSource(timeout))
+            {
+                cts.Token.Register(() => tcs.TrySetCanceled());
+                try
+                {
+                    return await tcs.Task;
+                }
+                catch (OperationCanceledException)
+                {
+                    throw new TimeoutException($"RequestAsync {scope}/{operation}: no response within {(int)timeout.TotalSeconds}s");
+                }
+                finally
+                {
+                    lock (_callbackLock)
+                    {
+                        _pendingResponses.Remove(shortId);
+                    }
+                }
             }
         }
 
-        // ProcessMessageAsync ... invoked in response to the broker delivering a publication on a subscribed topic
+        // PublishAsync ... raw publish to a fully-formed topic (internal escape hatch only)
+        internal async Task PublishAsync(string topic, string payload)
+        {
+            var message = new MqttApplicationMessageBuilder()
+                .WithTopic(topic)
+                .WithPayload(payload)
+                .Build();
+            await _mqttClient.PublishAsync(message, CancellationToken.None);
+        }
+
+        // CompressPayload ... GZip-compress a string payload; returns raw bytes.
+        private static byte[] CompressPayload(string payload)
+        {
+            var bytes = Encoding.UTF8.GetBytes(payload);
+            using (var ms = new MemoryStream())
+            {
+                using (var gz = new GZipStream(ms, CompressionMode.Compress))
+                    gz.Write(bytes, 0, bytes.Length);
+                return ms.ToArray();
+            }
+        }
+
+        // DecompressPayload ... decompress GZip bytes back to a string.
+        private static string DecompressPayload(byte[] bytes)
+        {
+            using (var input = new MemoryStream(bytes))
+            using (var gz = new GZipStream(input, CompressionMode.Decompress))
+            using (var output = new MemoryStream())
+            {
+                gz.CopyTo(output);
+                return Encoding.UTF8.GetString(output.ToArray());
+            }
+        }
+
+        // LogAsync ... emit an ESB/{participantType}/{connectionId}/App/log/{operation} message
+        private Task LogAsync(string operation, string payload)
+        {
+            return SendAsync("App", MessageType.Log, operation, payload);
+        }
+
+        // ProcessMessageAsync ... invoked by MQTTnet on receipt of a subscribed message
         private async Task ProcessMessageAsync(MqttApplicationMessageReceivedEventArgs e)
         {
             string topic = e.ApplicationMessage.Topic;
             string payload = null;
-            JObject json;
 
-            // if there is a payload then encode it as a string
             if (e.ApplicationMessage.PayloadSegment.Count != 0)
             {
-                var payloadSegment = e.ApplicationMessage.PayloadSegment;
-                var payloadArray = new byte[payloadSegment.Count];
-                Array.Copy(payloadSegment.Array, payloadSegment.Offset, payloadArray, 0, payloadSegment.Count);
-                payload = Encoding.Default.GetString(payloadArray);
+                var seg = e.ApplicationMessage.PayloadSegment;
+                var buf = new byte[seg.Count];
+                Array.Copy(seg.Array, seg.Offset, buf, 0, seg.Count);
+                if (buf.Length >= 2 && buf[0] == 0x1F && buf[1] == 0x8B)
+                {
+                    int compressedLen = buf.Length;
+                    payload = DecompressPayload(buf);
+                    int originalLen = Encoding.UTF8.GetByteCount(payload);
+                    var logJson = new JObject(
+                        new JProperty("Topic", topic),
+                        new JProperty("CompressedBytes", compressedLen),
+                        new JProperty("OriginalBytes", originalLen),
+                        new JProperty("Ratio", (int)((1.0 - (double)compressedLen / originalLen) * 100) + "%"));
+                    await LogAsync("Decompress", logJson.ToString(Newtonsoft.Json.Formatting.None));
+                }
+                else
+                {
+                    payload = Encoding.Default.GetString(buf);
+                }
             }
-#if DEBUG 
-            // echo everything we get (debug output) 
-            json = new JObject( new JProperty("Topic", topic), new JProperty("Payload", payload) ); 
-            await SendAsync(MessageClass.Information, "Messenger.ProcessingMessage", json.ToString(Newtonsoft.Json.Formatting.None)); 
+#if DEBUG
+            var dbg = new JObject(new JProperty("Topic", topic), new JProperty("Payload", payload));   // "[not included in this log]"
+            await LogAsync("ProcessingMessage", dbg.ToString(Newtonsoft.Json.Formatting.None));
 #endif
+
+            // Demux RequestAsync responses by correlation data before any other dispatch.
+            string[] parts = topic.Split('/');
+            if (parts.Length == 6 && parts[0] == "ESB" && parts[4] == "res")
+            {
+                var cd = e.ApplicationMessage.CorrelationData;
+                if (cd != null && cd.Length > 0)
+                {
+                    string shortId = Encoding.ASCII.GetString(cd);
+                    TaskCompletionSource<string> pendingTcs = null;
+                    lock (_callbackLock)
+                    {
+                        if (_pendingResponses.TryGetValue(shortId, out pendingTcs))
+                        {
+                            _pendingResponses.Remove(shortId);
+                        }
+                    }
+                    if (pendingTcs != null)
+                    {
+                        pendingTcs.TrySetResult(payload ?? "");
+                        return;
+                    }
+                }
+            }
+
+            // Dispatch to raw event callbacks (registered via SubscribeBrokerAsync with callback)
+            KeyValuePair<string, Func<string, string, Task>>[] callbacks;
+            lock (_callbackLock)
+            {
+                callbacks = new KeyValuePair<string, Func<string, string, Task>>[_eventCallbacks.Count];
+                int i = 0;
+                foreach (var kv in _eventCallbacks) callbacks[i++] = kv;
+            }
+            foreach (var kv in callbacks)
+            {
+                if (MqttTopicFilterComparer.Compare(topic, kv.Key) == MqttTopicFilterCompareResult.IsMatch)
+                {
+                    await kv.Value(topic, payload);
+                }
+            }
+
+            // ESB dispatch-key routing for well-formed ESB/{type}/{id}/{scope}/{msgType}/{op} topics
+            if (parts.Length != 6 || parts[0] != "ESB") return;
+
             var pt = ParseTopic(topic);
 
-            if (_methods.TryGetValue(pt.SubjectId, out var method))
+            List<KeyValuePair<string, string>> userProps = null;
+            if (e.ApplicationMessage.UserProperties != null && e.ApplicationMessage.UserProperties.Count > 0)
             {
-                await method(topic, payload);
+                userProps = new List<KeyValuePair<string, string>>(e.ApplicationMessage.UserProperties.Count);
+                foreach (var up in e.ApplicationMessage.UserProperties)
+                    userProps.Add(new KeyValuePair<string, string>(up.Name, up.Value));
+            }
+
+            Func<MessageContext, Task> handler;
+            _handlers.TryGetValue(pt.DispatchKey, out handler);
+
+            if (handler != null)
+            {
+                await handler(new MessageContext
+                {
+                    ParsedTopic     = pt,
+                    Payload         = payload,
+                    ResponseTopic   = e.ApplicationMessage.ResponseTopic,
+                    CorrelationData = e.ApplicationMessage.CorrelationData,
+                    UserProperties  = userProps
+                });
             }
             else
             {
-                json = new JObject(
-                    new JProperty("Topic", topic),
-                    new JProperty("Exception", "No handler " + pt.SubjectId + " defined"));
-                await SendAsync(MessageClass.Information, "Messenger.ProcessMessageAsync", json.ToString(Newtonsoft.Json.Formatting.None));
+                var json = new JObject(
+                    new JProperty("Topic",     topic),
+                    new JProperty("Exception", "No handler for " + pt.DispatchKey));
+                await LogAsync("ProcessMessageAsync", json.ToString(Newtonsoft.Json.Formatting.None));
             }
         }
     }

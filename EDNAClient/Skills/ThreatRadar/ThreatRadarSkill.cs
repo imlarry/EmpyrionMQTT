@@ -1,4 +1,3 @@
-using System.Threading.Tasks;
 using EDNAClient.Core;
 using ESB.Messaging;
 
