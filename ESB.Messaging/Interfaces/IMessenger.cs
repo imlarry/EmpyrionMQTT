@@ -7,6 +7,7 @@ namespace ESB.Messaging
 {
     public interface IMessenger
     {
+        int CompressionThreshold { get; set; }
         string MachineId();
         string ClientId();
         string ParticipantType();
@@ -19,8 +20,8 @@ namespace ESB.Messaging
         Task SubscribeEventAsync(string topicFilter, Func<string, string, Task> callback);  // raw-filter path for LuaMqttApi (Lua-supplied filters)
         Task UnsubscribeAsync(string participantType = null, string connectionId = null, string scope = null, MessageType? msgType = null, string operation = null);
         Task ReplyAsync(string responseTopic, byte[] correlationData, string payload);
-        Task PublishRetainedAsync(string scope, MessageType msgType, string operation, string payload, uint expirySeconds = 0u);
-        Task SendAsync(string scope, MessageType msgType, string operation, string payload, List<KeyValuePair<string, string>> userProperties = null);
+        Task PublishRetainedAsync(string scope, MessageType msgType, string operation, string payload, uint expirySeconds = 0u, string connectionId = null, bool compress = false);
+        Task SendAsync(string scope, MessageType msgType, string operation, string payload, List<KeyValuePair<string, string>> userProperties = null, bool compress = false);
         Task<string> RequestAsync(string scope, string operation, string payload, TimeSpan timeout);
     }
 }

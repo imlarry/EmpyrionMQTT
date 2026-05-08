@@ -18,16 +18,8 @@ namespace ESB.TopicHandlers
         // Before game entry, buffers by gameId; applies immediately once GameIdentifier is known.
         private Task BlockAndIdtemMapping(MessageContext mc)
         {
-            string topicGameId = mc.ParsedTopic.ConnectionId;
-            GameManager gm = _ctx.GameManager;
-            if (gm == null || gm.GameIdentifier == null)
-            {
-                if (gm != null)
-                    gm.StorePendingRetained(topicGameId, "Registry", "BlockAndIdtemMapping", mc.Payload);
-                return Task.CompletedTask;
-            }
-            if (topicGameId == gm.GameIdentifier)
-                gm.ApplyMappingFromJson(mc.Payload);
+            if (_ctx.GameManager != null)
+                _ctx.GameManager.ApplyMappingFromJson(mc.Payload);
             return Task.CompletedTask;
         }
     }

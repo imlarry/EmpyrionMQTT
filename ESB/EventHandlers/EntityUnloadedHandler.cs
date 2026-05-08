@@ -16,6 +16,7 @@ namespace ESB.EventHandlers
             string name = entity.Name;
             await Execute(async () =>
             {
+
                 JObject json = new JObject(
                         new JProperty("GameTicks", _ctx.ModApi.Application.GameTicks),
                         new JProperty("Id", id),

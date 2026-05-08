@@ -1,44 +1,274 @@
 using Eleon.Modding;
-using ESB.Helpers;
 using Newtonsoft.Json.Linq;
 using System.Collections.Generic;
-using UnityEngine;
 
 namespace ESB.TopicHandlers
 {
     public partial class StructureHandler
     {
+        static readonly Dictionary<string, HandlerHelper.OpDef> _opDefs =
+            new Dictionary<string, HandlerHelper.OpDef>
+        {
+            ["Info"] = new HandlerHelper.OpDef(
+                summary: "Returns detailed info for a structure entity on the current playfield.",
+                input: new[] { new HandlerHelper.FieldDef("EntityId", "int", required: true) },
+                output: new[]
+                {
+                    new HandlerHelper.FieldDef("EntityId",             "int"),
+                    new HandlerHelper.FieldDef("Id",                   "int"),
+                    new HandlerHelper.FieldDef("IsReady",              "bool"),
+                    new HandlerHelper.FieldDef("CoreType",             "string"),
+                    new HandlerHelper.FieldDef("SizeClass",            "int"),
+                    new HandlerHelper.FieldDef("LastVisitedTicks",     "long"),
+                    new HandlerHelper.FieldDef("PlayerCreatedSteamId", "string"),
+                    new HandlerHelper.FieldDef("MinPos",               "Vec3 {X,Y,Z}"),
+                    new HandlerHelper.FieldDef("MaxPos",               "Vec3 {X,Y,Z}"),
+                    new HandlerHelper.FieldDef("IsPowered",            "bool",   note: "present when IsReady"),
+                    new HandlerHelper.FieldDef("IsOfflineProtectable", "bool",   note: "present when IsReady"),
+                    new HandlerHelper.FieldDef("DamageLevel",          "float",  note: "present when IsReady"),
+                    new HandlerHelper.FieldDef("BlockCount",           "int",    note: "present when IsReady"),
+                    new HandlerHelper.FieldDef("DeviceCount",          "int",    note: "present when IsReady"),
+                    new HandlerHelper.FieldDef("LightCount",           "int",    note: "present when IsReady"),
+                    new HandlerHelper.FieldDef("TriangleCount",        "int",    note: "present when IsReady"),
+                    new HandlerHelper.FieldDef("Fuel",                 "float",  note: "present when IsReady"),
+                    new HandlerHelper.FieldDef("PowerOutCapacity",     "float",  note: "present when IsReady"),
+                    new HandlerHelper.FieldDef("PowerConsumption",     "float",  note: "present when IsReady"),
+                    new HandlerHelper.FieldDef("IsShieldActive",       "bool",   note: "present when IsReady"),
+                    new HandlerHelper.FieldDef("ShieldLevel",          "float",  note: "present when IsReady"),
+                    new HandlerHelper.FieldDef("TotalMass",            "float",  note: "present when IsReady"),
+                    new HandlerHelper.FieldDef("HasLandClaimDevice",   "bool",   note: "present when IsReady"),
+                    new HandlerHelper.FieldDef("PilotEntityId",        "int?",   note: "present when IsReady; null if no pilot"),
+                }),
+
+            ["Tanks"] = new HandlerHelper.OpDef(
+                summary: "Returns fuel, oxygen, and pentaxid tank state for a structure.",
+                input: new[] { new HandlerHelper.FieldDef("EntityId", "int", required: true) },
+                output: new[]
+                {
+                    new HandlerHelper.FieldDef("EntityId",     "int"),
+                    new HandlerHelper.FieldDef("FuelTank",     "object {Capacity, Content, UsesIntegerAmounts}"),
+                    new HandlerHelper.FieldDef("OxygenTank",   "object {Capacity, Content, UsesIntegerAmounts}"),
+                    new HandlerHelper.FieldDef("PentaxidTank", "object {Capacity, Content, UsesIntegerAmounts}"),
+                }),
+
+            ["GetAllCustomDeviceNames"] = new HandlerHelper.OpDef(
+                summary: "Returns all custom device names defined on a structure.",
+                input: new[] { new HandlerHelper.FieldDef("EntityId", "int", required: true) },
+                output: new[]
+                {
+                    new HandlerHelper.FieldDef("EntityId",    "int"),
+                    new HandlerHelper.FieldDef("DeviceNames", "string[]"),
+                }),
+
+            ["GetDevicePositions"] = new HandlerHelper.OpDef(
+                summary: "Returns all block positions for a named device on a structure.",
+                input: new[]
+                {
+                    new HandlerHelper.FieldDef("EntityId",   "int",    required: true),
+                    new HandlerHelper.FieldDef("DeviceName", "string", required: true),
+                },
+                output: new[]
+                {
+                    new HandlerHelper.FieldDef("EntityId",   "int"),
+                    new HandlerHelper.FieldDef("DeviceName", "string"),
+                    new HandlerHelper.FieldDef("Positions",  "array of Vec3 {X,Y,Z}"),
+                }),
+
+            ["GetDockedVessels"] = new HandlerHelper.OpDef(
+                summary: "Returns all vessels currently docked to a structure.",
+                input: new[] { new HandlerHelper.FieldDef("EntityId", "int", required: true) },
+                output: new[]
+                {
+                    new HandlerHelper.FieldDef("EntityId",      "int"),
+                    new HandlerHelper.FieldDef("[]",            "array"),
+                    new HandlerHelper.FieldDef("Id",            "int"),
+                    new HandlerHelper.FieldDef("Name",          "string"),
+                    new HandlerHelper.FieldDef("IsReady",       "bool"),
+                }),
+
+            ["GetPassengers"] = new HandlerHelper.OpDef(
+                summary: "Returns all passengers currently inside a structure.",
+                input: new[] { new HandlerHelper.FieldDef("EntityId", "int", required: true) },
+                output: new[]
+                {
+                    new HandlerHelper.FieldDef("EntityId",   "int"),
+                    new HandlerHelper.FieldDef("[]",         "array"),
+                    new HandlerHelper.FieldDef("Id",         "int"),
+                    new HandlerHelper.FieldDef("Name",       "string"),
+                    new HandlerHelper.FieldDef("SteamId",    "string"),
+                }),
+
+            ["GetBlockSignals"] = new HandlerHelper.OpDef(
+                summary: "Returns block-level signals for a structure, optionally filtered by name prefix.",
+                input: new[]
+                {
+                    new HandlerHelper.FieldDef("EntityId", "int",    required: true),
+                    new HandlerHelper.FieldDef("Filter",   "string", note: "Optional name prefix filter"),
+                },
+                output: new[]
+                {
+                    new HandlerHelper.FieldDef("EntityId", "int"),
+                    new HandlerHelper.FieldDef("[]",       "array"),
+                    new HandlerHelper.FieldDef("Name",     "string"),
+                    new HandlerHelper.FieldDef("BlockPos", "Vec3 {X,Y,Z} or null"),
+                    new HandlerHelper.FieldDef("Index",    "int"),
+                }),
+
+            ["GetControlPanelSignals"] = new HandlerHelper.OpDef(
+                summary: "Returns control-panel signals for a structure.",
+                input: new[] { new HandlerHelper.FieldDef("EntityId", "int", required: true) },
+                output: new[]
+                {
+                    new HandlerHelper.FieldDef("EntityId", "int"),
+                    new HandlerHelper.FieldDef("[]",       "array"),
+                    new HandlerHelper.FieldDef("Name",     "string"),
+                    new HandlerHelper.FieldDef("BlockPos", "Vec3 {X,Y,Z} or null"),
+                    new HandlerHelper.FieldDef("Index",    "int"),
+                }),
+
+            ["GetSignalState"] = new HandlerHelper.OpDef(
+                summary: "Returns the current on/off state of a named signal on a structure.",
+                input: new[]
+                {
+                    new HandlerHelper.FieldDef("EntityId",   "int",    required: true),
+                    new HandlerHelper.FieldDef("SignalName", "string", required: true),
+                },
+                output: new[]
+                {
+                    new HandlerHelper.FieldDef("EntityId",   "int"),
+                    new HandlerHelper.FieldDef("SignalName", "string"),
+                    new HandlerHelper.FieldDef("State",      "bool"),
+                }),
+
+            ["GetSignalReceivers"] = new HandlerHelper.OpDef(
+                summary: "Returns all signal receiver blocks wired to a named signal on a structure.",
+                input: new[]
+                {
+                    new HandlerHelper.FieldDef("EntityId",   "int",    required: true),
+                    new HandlerHelper.FieldDef("SignalName", "string", required: true),
+                },
+                output: new[]
+                {
+                    new HandlerHelper.FieldDef("EntityId",   "int"),
+                    new HandlerHelper.FieldDef("SignalName", "string"),
+                    new HandlerHelper.FieldDef("[]",         "array"),
+                    new HandlerHelper.FieldDef("Func",       "string"),
+                    new HandlerHelper.FieldDef("Behavior",   "string"),
+                    new HandlerHelper.FieldDef("BlockPos",   "Vec3 {X,Y,Z}"),
+                    new HandlerHelper.FieldDef("IsInverting","bool"),
+                }),
+
+            ["GetSendSignalName"] = new HandlerHelper.OpDef(
+                summary: "Returns the signal name emitted by the block at a given position.",
+                input: new[]
+                {
+                    new HandlerHelper.FieldDef("EntityId", "int",          required: true),
+                    new HandlerHelper.FieldDef("Pos",      "Vec3 {X,Y,Z}", required: true),
+                },
+                output: new[]
+                {
+                    new HandlerHelper.FieldDef("EntityId",   "int"),
+                    new HandlerHelper.FieldDef("Pos",        "Vec3 {X,Y,Z}"),
+                    new HandlerHelper.FieldDef("SignalName", "string"),
+                }),
+
+            ["AddTankContent"] = new HandlerHelper.OpDef(
+                summary: "Adds fuel, oxygen, or pentaxid to a tank on a structure.",
+                input: new[]
+                {
+                    new HandlerHelper.FieldDef("EntityId", "int",    required: true),
+                    new HandlerHelper.FieldDef("TankType", "string", required: true, note: "Fuel | Oxygen | Pentaxid"),
+                    new HandlerHelper.FieldDef("Amount",   "float",  required: true),
+                },
+                output: new[]
+                {
+                    new HandlerHelper.FieldDef("EntityId", "int"),
+                    new HandlerHelper.FieldDef("TankType", "string"),
+                    new HandlerHelper.FieldDef("Amount",   "float"),
+                    new HandlerHelper.FieldDef("Content",  "float"),
+                    new HandlerHelper.FieldDef("Capacity", "float"),
+                }),
+
+            ["SetFaction"] = new HandlerHelper.OpDef(
+                summary: "Changes the faction ownership of a structure.",
+                input: new[]
+                {
+                    new HandlerHelper.FieldDef("EntityId",        "int",    required: true),
+                    new HandlerHelper.FieldDef("FactionGroup",    "string", required: true, note: "Faction | Alliance | ..."),
+                    new HandlerHelper.FieldDef("FactionEntityId", "int",    required: true),
+                },
+                output: new[]
+                {
+                    new HandlerHelper.FieldDef("EntityId",        "int"),
+                    new HandlerHelper.FieldDef("FactionGroup",    "string"),
+                    new HandlerHelper.FieldDef("FactionEntityId", "int"),
+                }),
+
+            ["StructToGlobalPos"] = new HandlerHelper.OpDef(
+                summary: "Converts a structure-local block position to a global world position.",
+                input: new[]
+                {
+                    new HandlerHelper.FieldDef("EntityId",  "int",          required: true),
+                    new HandlerHelper.FieldDef("StructPos", "Vec3 {X,Y,Z}", required: true),
+                },
+                output: new[]
+                {
+                    new HandlerHelper.FieldDef("EntityId",  "int"),
+                    new HandlerHelper.FieldDef("StructPos", "Vec3 {X,Y,Z}"),
+                    new HandlerHelper.FieldDef("GlobalPos", "Vec3 {X,Y,Z}"),
+                }),
+
+            ["GlobalToStructPos"] = new HandlerHelper.OpDef(
+                summary: "Converts a global world position to a structure-local block position.",
+                input: new[]
+                {
+                    new HandlerHelper.FieldDef("EntityId", "int",          required: true),
+                    new HandlerHelper.FieldDef("Pos",      "Vec3 {X,Y,Z}", required: true),
+                },
+                output: new[]
+                {
+                    new HandlerHelper.FieldDef("EntityId",  "int"),
+                    new HandlerHelper.FieldDef("GlobalPos", "Vec3 {X,Y,Z}"),
+                    new HandlerHelper.FieldDef("StructPos", "Vec3 {X,Y,Z}"),
+                }),
+
+            ["ScanFloor"] = new HandlerHelper.OpDef(
+                summary: "Returns all non-air blocks at a given Y layer of a structure.",
+                input: new[]
+                {
+                    new HandlerHelper.FieldDef("EntityId", "int", required: true),
+                    new HandlerHelper.FieldDef("Y",        "int", required: true),
+                },
+                output: new[]
+                {
+                    new HandlerHelper.FieldDef("EntityId", "int"),
+                    new HandlerHelper.FieldDef("Y",        "int"),
+                    new HandlerHelper.FieldDef("MinPos",   "Vec3 {X,Y,Z}"),
+                    new HandlerHelper.FieldDef("MaxPos",   "Vec3 {X,Y,Z}"),
+                    new HandlerHelper.FieldDef("[]",       "array"),
+                    new HandlerHelper.FieldDef("X",        "int"),
+                    new HandlerHelper.FieldDef("Z",        "int"),
+                    new HandlerHelper.FieldDef("Type",     "int"),
+                    new HandlerHelper.FieldDef("Shape",    "int"),
+                    new HandlerHelper.FieldDef("Rotation", "int"),
+                }),
+
+            ["GetAllBlocks"] = new HandlerHelper.OpDef(
+                summary: "Returns every non-air block in a structure as a compact row-array.",
+                input: new[] { new HandlerHelper.FieldDef("EntityId", "int", required: true) },
+                output: new[]
+                {
+                    new HandlerHelper.FieldDef("EntityId", "int"),
+                    new HandlerHelper.FieldDef("Blocks",   "array; first row is header [\"X\",\"Y\",\"Z\",\"Type\",\"Shape\",\"Rotation\",\"Active\"]"),
+                }),
+
+            ["Describe"] = new HandlerHelper.OpDef(
+                summary: "Returns the catalog of all Structure scope operations with names and summaries."),
+        };
+
         // -------------------------------------------------------------------------
         // Shared serialization helpers
         // -------------------------------------------------------------------------
-
-        static JObject ColorJson(Color c) => new JObject(
-            new JProperty("R", c.r),
-            new JProperty("G", c.g),
-            new JProperty("B", c.b),
-            new JProperty("A", c.a));
-
-        static Color ParseColor(JToken t) => new Color(
-            t["R"]?.Value<float>() ?? 0f,
-            t["G"]?.Value<float>() ?? 0f,
-            t["B"]?.Value<float>() ?? 0f,
-            t["A"]?.Value<float>() ?? 1f);
-
-        static JObject ItemStackJson(ItemStack s) => new JObject(
-            new JProperty("Id",      s.id),
-            new JProperty("Count",   s.count),
-            new JProperty("SlotIdx", s.slotIdx),
-            new JProperty("Ammo",    s.ammo),
-            new JProperty("Decay",   s.decay));
-
-        static ItemStack ParseItemStack(JToken t)
-        {
-            var stack    = new ItemStack(t["Id"].Value<int>(), t["Count"].Value<int>());
-            stack.slotIdx = t["SlotIdx"]?.Value<byte>() ?? 0;
-            stack.ammo    = t["Ammo"]?.Value<int>()    ?? 0;
-            stack.decay   = t["Decay"]?.Value<int>()   ?? 0;
-            return stack;
-        }
 
         static JObject TankJson(IStructureTank tank)
         {
@@ -49,31 +279,5 @@ namespace ESB.TopicHandlers
                 new JProperty("UsesIntegerAmounts", tank.UsesIntegerAmounts));
         }
 
-        static JObject BuildStructureJson(GlobalStructureInfo s) =>
-            new JObject(
-                new JProperty("Id",             s.id),
-                new JProperty("Name",           s.name),
-                new JProperty("FactionId",      s.factionId),
-                new JProperty("FactionGroup",   s.factionGroup),
-                new JProperty("ClassNr",        s.classNr),
-                new JProperty("CoreType",       s.coreType),
-                new JProperty("Type",           s.type),
-                new JProperty("PlayfieldName",  s.PlayfieldName),
-                new JProperty("Pos",            MessageHelpers.Vec(new Vector3(s.pos.x, s.pos.y, s.pos.z))),
-                new JProperty("Rot",            MessageHelpers.Vec(new Vector3(s.rot.x, s.rot.y, s.rot.z))),
-                new JProperty("LastVisitedUtc", s.lastVisitedUTC),
-                new JProperty("Powered",        s.powered),
-                new JProperty("DockedShips",    s.dockedShips != null
-                                                    ? (JToken)new JArray(s.dockedShips)
-                                                    : JValue.CreateNull()));
-
-        static JArray ItemStacksJson(List<ItemStack> stacks)
-        {
-            var arr = new JArray();
-            if (stacks == null) return arr;
-            foreach (var s in stacks)
-                arr.Add(ItemStackJson(s));
-            return arr;
-        }
     }
 }

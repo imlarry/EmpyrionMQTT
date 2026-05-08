@@ -1,11 +1,13 @@
 using System.ComponentModel;
 using System.IO;
+using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using EDNAClient.Core;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using Color         = System.Windows.Media.Color;
 using FlowDirection = System.Windows.FlowDirection;
 using Point         = System.Windows.Point;
@@ -23,8 +25,9 @@ namespace EDNAClient.Skills.FloorMap
         public int Rotation { get; set; }
     }
 
-    // One captured floor level: raw scan data + metadata + rendered bitmap.
-    // Serialised to / deserialised from JSON; BitmapSource is rebuilt on load.
+    // One captured structure: raw GetAllBlocks data + metadata + rendered bitmap.
+    // Blocks is the exact Blocks array from the GetAllBlocks response (header + data rows).
+    // Render() filters to Y (walls) and Y-1 (floors) from that array.
     public sealed class FloorMapDocument : INotifyPropertyChanged
     {
         // ── Tile rendering constants ──────────────────────────────────────────
@@ -67,23 +70,19 @@ namespace EDNAClient.Skills.FloorMap
 
         public int    EntityId    { get; set; }
         public int    Y           { get; set; }
+        public int    PlayerX     { get; set; }
+        public int    PlayerZ     { get; set; }
         public string Playfield   { get; set; } = "";
         public string SolarSystem { get; set; } = "";
         public string CapturedAt  { get; set; } = "";
-        public int    MinX        { get; set; }
-        public int    MinZ        { get; set; }
-        public int    Width       { get; set; }
-        public int    Height      { get; set; }
-        public int    PlayerX     { get; set; }
-        public int    PlayerZ     { get; set; }
 
-        public List<BlockEntry> WallBlocks  { get; set; } = new List<BlockEntry>();
-        public List<BlockEntry> FloorBlocks { get; set; } = new List<BlockEntry>();
+        // Raw Blocks array from GetAllBlocks: row 0 is the header, remaining rows are data.
+        public JArray Blocks { get; set; } = new JArray();
 
         // ── Runtime-only properties ───────────────────────────────────────────
 
-        [JsonIgnore] public string DocumentId => $"{EntityId}_{Y}";
-        [JsonIgnore] public string ShortTitle => $"Y={Y}";
+        [JsonIgnore] public string DocumentId => EntityId.ToString();
+        [JsonIgnore] public string ShortTitle => $"Entity {EntityId}";
 
         [JsonIgnore] private BitmapSource? _mapImage;
         [JsonIgnore] public BitmapSource? MapImage
@@ -101,42 +100,30 @@ namespace EDNAClient.Skills.FloorMap
 
         // ── Factory ───────────────────────────────────────────────────────────
 
-        public static FloorMapDocument FromScan(
-            int entityId, int y,
-            string playfield, string solarSystem,
-            int minX, int minZ, int width, int height,
-            int playerX, int playerZ,
-            IEnumerable<BlockEntry> wallBlocks,
-            IEnumerable<BlockEntry> floorBlocks)
+        public static FloorMapDocument FromAllBlocks(
+            int entityId, string playfield, string solarSystem, JArray blocks)
         {
-            var doc = new FloorMapDocument
+            return new FloorMapDocument
             {
                 EntityId    = entityId,
-                Y           = y,
                 Playfield   = playfield,
                 SolarSystem = solarSystem,
                 CapturedAt  = DateTime.UtcNow.ToString("o"),
-                MinX        = minX,  MinZ   = minZ,
-                Width       = width, Height = height,
-                PlayerX     = playerX, PlayerZ = playerZ,
-                WallBlocks  = wallBlocks.ToList(),
-                FloorBlocks = floorBlocks.ToList(),
+                Blocks      = blocks ?? new JArray(),
             };
-            return doc;
         }
 
-        // Copies all scan data from source and re-renders.
-        // Used when Ctrl+Shift+R refreshes an already-open document tab.
+        // Copies all data from source and re-renders at source.Y.
         public void UpdateFrom(FloorMapDocument source)
         {
-            EntityId    = source.EntityId;    Y           = source.Y;
-            Playfield   = source.Playfield;   SolarSystem = source.SolarSystem;
+            EntityId    = source.EntityId;
+            Playfield   = source.Playfield;
+            SolarSystem = source.SolarSystem;
             CapturedAt  = source.CapturedAt;
-            MinX        = source.MinX;        MinZ    = source.MinZ;
-            Width       = source.Width;       Height  = source.Height;
-            PlayerX     = source.PlayerX;     PlayerZ = source.PlayerZ;
-            WallBlocks  = source.WallBlocks;
-            FloorBlocks = source.FloorBlocks;
+            Y           = source.Y;
+            PlayerX     = source.PlayerX;
+            PlayerZ     = source.PlayerZ;
+            Blocks      = source.Blocks;
             Render();
         }
 
@@ -159,19 +146,59 @@ namespace EDNAClient.Skills.FloorMap
 
         public void Save(string path)
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            Directory.CreateDirectory(Path.GetDirectoryName(path) ?? string.Empty);
             File.WriteAllText(path, JsonConvert.SerializeObject(this, Formatting.Indented));
         }
 
         // ── Render ────────────────────────────────────────────────────────────
 
-        // Rebuilds MapImage and StatusText from the stored block lists.
+        // Filters Blocks to Y (walls) and Y-1 (floors) then draws the map.
         public void Render()
         {
-            if (Width <= 0 || Height <= 0) { StatusText = "No data"; return; }
+            if (Blocks == null || Blocks.Count <= 1) { StatusText = "No data"; return; }
 
-            var wallDict  = WallBlocks .ToDictionary(b => (b.X, b.Z));
-            var floorDict = FloorBlocks.ToDictionary(b => (b.X, b.Z));
+            var wallBlocks  = new List<BlockEntry>();
+            var floorBlocks = new List<BlockEntry>();
+
+            bool isHeader = true;
+            foreach (JToken row in Blocks)
+            {
+                if (isHeader) { isHeader = false; continue; }
+                var arr  = row as JArray;
+                if (arr == null || arr.Count < 6) continue;
+                int bx   = (int)(arr[0] ?? 0);
+                int by   = (int)(arr[1] ?? 0);
+                int bz   = (int)(arr[2] ?? 0);
+                int type = (int)(arr[3] ?? 0);
+                if (type == 0 || SkippedTypes.Contains(type)) continue;
+                int shape = (int)(arr[4] ?? 0);
+                int rot   = (int)(arr[5] ?? 0);
+
+                var entry = new BlockEntry { X = bx, Z = bz, Type = type, Shape = shape, Rotation = rot };
+                if      (by == Y)     wallBlocks .Add(entry);
+                else if (by == Y - 1) floorBlocks.Add(entry);
+            }
+
+            if (wallBlocks.Count == 0 && floorBlocks.Count == 0)
+            {
+                StatusText = $"No blocks at Y={Y}";
+                return;
+            }
+
+            int minX = int.MaxValue, minZ = int.MaxValue;
+            int maxX = int.MinValue, maxZ = int.MinValue;
+            foreach (var b in wallBlocks.Concat(floorBlocks))
+            {
+                if (b.X < minX) minX = b.X;
+                if (b.X > maxX) maxX = b.X;
+                if (b.Z < minZ) minZ = b.Z;
+                if (b.Z > maxZ) maxZ = b.Z;
+            }
+            int width  = maxX - minX + 1;
+            int height = maxZ - minZ + 1;
+
+            var wallDict  = wallBlocks .ToDictionary(b => (b.X, b.Z));
+            var floorDict = floorBlocks.ToDictionary(b => (b.X, b.Z));
 
             // Block coords -> canvas coords: transpose (swap X and Z axes).
             //   canvas_x = gz * TileSize
@@ -181,12 +208,12 @@ namespace EDNAClient.Skills.FloorMap
             var dv = new DrawingVisual();
             using (var dc = dv.RenderOpen())
             {
-                for (int gz = 0; gz < Height; gz++)
+                for (int gz = 0; gz < height; gz++)
                 {
-                    for (int gx = 0; gx < Width; gx++)
+                    for (int gx = 0; gx < width; gx++)
                     {
-                        int bx  = gx + MinX;
-                        int bz  = gz + MinZ;
+                        int bx  = gx + minX;
+                        int bz  = gz + minZ;
                         var key = (bx, bz);
 
                         bool hasWall  = wallDict .ContainsKey(key);
@@ -222,36 +249,36 @@ namespace EDNAClient.Skills.FloorMap
                 }
 
                 // Top labels: Z values (horizontal axis)
-                for (int gz = 0; gz < Height; gz++)
+                for (int gz = 0; gz < height; gz++)
                 {
-                    var lbl = MakeLabel((gz + MinZ).ToString());
+                    var lbl = MakeLabel((gz + minZ).ToString());
                     dc.DrawText(lbl, new Point(gz * TileSize + (TileSize - lbl.Width) / 2.0,
                                                (LabelTop - lbl.Height) / 2.0));
                 }
                 // Right labels: X values (vertical axis)
-                for (int gx = 0; gx < Width; gx++)
+                for (int gx = 0; gx < width; gx++)
                 {
-                    var lbl = MakeLabel((gx + MinX).ToString());
-                    dc.DrawText(lbl, new Point(Height * TileSize + 4,
+                    var lbl = MakeLabel((gx + minX).ToString());
+                    dc.DrawText(lbl, new Point(height * TileSize + 4,
                                                LabelTop + gx * TileSize + (TileSize - lbl.Height) / 2.0));
                 }
 
-                int pgx = PlayerX - MinX;
-                int pgz = PlayerZ - MinZ;
-                if (pgx >= 0 && pgx < Width && pgz >= 0 && pgz < Height)
+                int pgx = PlayerX - minX;
+                int pgz = PlayerZ - minZ;
+                if (pgx >= 0 && pgx < width && pgz >= 0 && pgz < height)
                     dc.DrawEllipse(PlayerBrush, null,
                         new Point(pgz * TileSize + TileSize / 2.0,
                                   LabelTop + pgx * TileSize + TileSize / 2.0), 4, 4);
             }
 
-            int pixW = Height * TileSize + LabelRight;
-            int pixH = LabelTop + Width  * TileSize;
+            int pixW = height * TileSize + LabelRight;
+            int pixH = LabelTop + width  * TileSize;
             var rtb  = new RenderTargetBitmap(pixW, pixH, 96, 96, PixelFormats.Pbgra32);
             rtb.Render(dv);
             rtb.Freeze();
 
             MapImage   = rtb;
-            StatusText = $"Entity {EntityId}  Y={Y}  {Width}x{Height}  {WallBlocks.Count + FloorBlocks.Count} blocks";
+            StatusText = $"Entity {EntityId}  Y={Y}  {width}x{height}  {wallBlocks.Count + floorBlocks.Count} blocks";
         }
 
         private static FormattedText MakeLabel(string text) =>

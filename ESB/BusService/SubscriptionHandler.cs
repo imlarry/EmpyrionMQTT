@@ -22,9 +22,6 @@ namespace ESB
             // ESB/{requesterType}/{requesterId}/{scope}/req/{op}
             await _ctx.Messenger.SubscribeBrokerAsync(msgType: ESB.Messaging.MessageType.Req);
 
-            // Game-scoped retained topics published by any Client under the Registry dir.
-            if (_ctx.BusManager.ParticipantType != "Ds")
-                await _ctx.Messenger.SubscribeBrokerAsync(participantType: "Client", scope: "Registry", msgType: ESB.Messaging.MessageType.Evt, operation: "#");
         }
     }
 }

@@ -1,13 +1,15 @@
+using System.IO;
 using EDNAClient.Core;
 using ESB.Messaging;
 using Newtonsoft.Json.Linq;
 
 namespace EDNAClient.Skills.FloorMap
 {
-    // Orchestrates the three-step MQTT sequence that produces a floor map:
-    //   1. Player/GetProperties -- get player world position, current structure, and playfield
-    //   2. Structure/GlobalToStructPos -- convert world pos -> struct block pos (gives Y)
-    //   3. Structure/ScanFloor x2 -- scan Y (walls) and Y-1 (floor) in parallel
+    // Orchestrates the MQTT sequence that produces a floor map:
+    //   1. Player/GetProperties -- get player world position and current structure entity id
+    //   2. Structure/GetAllBlocks (if not cached) -- full block data saved to disk
+    //   3. Structure/GlobalToStructPos (parallel with step 2) -- player Y in block space
+    // On subsequent captures the cached file is used; only GlobalToStructPos is called.
     internal class FloorMapper
     {
         private static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(15);
@@ -22,17 +24,18 @@ namespace EDNAClient.Skills.FloorMap
 
         public void Stop() => _messenger = null;
 
-        // Returns a FloorMapDocument on success, null on failure (e.g. not in a structure).
+        // Returns a rendered FloorMapDocument on success, null on failure.
         // statusCallback receives progress/error text for immediate UI feedback.
+        // mapsDir may be null; when provided the result is cached per entity.
         public async Task<FloorMapDocument?> RefreshAsync(
             string solarSystem, string playfield,
+            string? mapsDir,
             Action<string> statusCallback)
         {
             if (_messenger == null) throw new InvalidOperationException("FloorMapper not started");
             EdnaLogger.Detail("[FloorMapper] RefreshAsync start");
             try
             {
-                EdnaLogger.Log($"[FloorMapper] querying Player/GetProperties (playfield={playfield} solarSystem={solarSystem})");
                 var playerJson = await _messenger.RequestAsync(
                     "Player", "GetProperties",
                     "{\"Properties\":[\"Position\",\"CurrentStructureId\",\"CurrentStructureEntityId\"]}",
@@ -48,56 +51,73 @@ namespace EDNAClient.Skills.FloorMap
                     return null;
                 }
 
-                var cseToken = pj["CurrentStructureEntityId"];
-                int entityId = cseToken != null ? (int)cseToken : 0;
+                int entityId = (int)(pj["CurrentStructureEntityId"] ?? 0);
                 var pos  = pj["Position"];
-                var posX = pos?["X"];  var posY = pos?["Y"];  var posZ = pos?["Z"];
-                float worldX = posX != null ? (float)posX : 0f;
-                float worldY = posY != null ? (float)posY : 0f;
-                float worldZ = posZ != null ? (float)posZ : 0f;
+                float worldX = pos != null ? (float)(pos["X"] ?? 0) : 0f;
+                float worldY = pos != null ? (float)(pos["Y"] ?? 0) : 0f;
+                float worldZ = pos != null ? (float)(pos["Z"] ?? 0) : 0f;
 
-                EdnaLogger.Log($"[FloorMapper] querying Structure/GlobalToStructPos for entity={entityId} worldPos=({worldX},{worldY},{worldZ})");
-                var structPosJson = await _messenger.RequestAsync(
+                // Fire GlobalToStructPos immediately -- it is fast and runs while we handle blocks.
+                var structPosTask = _messenger.RequestAsync(
                     "Structure", "GlobalToStructPos",
                     $"{{\"EntityId\":{entityId},\"Pos\":{{\"X\":{worldX},\"Y\":{worldY},\"Z\":{worldZ}}}}}",
                     RequestTimeout);
 
-                EdnaLogger.Log($"[FloorMapper] Structure/GlobalToStructPos response: {structPosJson}");
-                var sp      = JObject.Parse(structPosJson);
+                // Resolve cache path when mapsDir is available.
+                string? cachePath = null;
+                if (mapsDir != null)
+                {
+                    var cacheDir = Path.Combine(mapsDir, SafeName(solarSystem), SafeName(playfield));
+                    cachePath = Path.Combine(cacheDir, $"{entityId}.json");
+                }
+
+                FloorMapDocument? doc;
+                if (cachePath != null && File.Exists(cachePath))
+                {
+                    EdnaLogger.Log($"[FloorMapper] loading cached blocks for entity={entityId}");
+                    doc = FloorMapDocument.Load(cachePath);
+                    if (doc == null)
+                    {
+                        statusCallback($"Failed to load cached data for entity {entityId}");
+                        return null;
+                    }
+                }
+                else
+                {
+                    statusCallback($"Fetching blocks for entity {entityId}...");
+                    EdnaLogger.Log($"[FloorMapper] calling Structure/GetAllBlocks entity={entityId}");
+                    var blocksJson = await _messenger.RequestAsync(
+                        "Structure", "GetAllBlocks",
+                        $"{{\"EntityId\":{entityId}}}", RequestTimeout);
+
+                    EdnaLogger.Log($"[FloorMapper] GetAllBlocks response length={blocksJson.Length}");
+                    var blocksObj = JObject.Parse(blocksJson);
+                    var blocks    = blocksObj["Blocks"] as JArray ?? new JArray();
+                    doc = FloorMapDocument.FromAllBlocks(entityId, playfield, solarSystem, blocks);
+                }
+
+                var structPosJson = await structPosTask;
+                EdnaLogger.Log($"[FloorMapper] GlobalToStructPos response: {structPosJson}");
+                var sp    = JObject.Parse(structPosJson);
                 var spos  = sp["StructPos"];
-                var sposY = spos?["Y"];  var sposX = spos?["X"];  var sposZ = spos?["Z"];
-                int structY = sposY != null ? (int)sposY : 0;
-                int playerX = sposX != null ? (int)sposX : 0;
-                int playerZ = sposZ != null ? (int)sposZ : 0;
+                int structY = spos != null ? (int)(spos["Y"] ?? 0) : 0;
+                int playerX = spos != null ? (int)(spos["X"] ?? 0) : 0;
+                int playerZ = spos != null ? (int)(spos["Z"] ?? 0) : 0;
 
-                statusCallback($"Scanning entity {entityId} Y={structY}...");
+                doc.Y       = structY;
+                doc.PlayerX = playerX;
+                doc.PlayerZ = playerZ;
+                doc.Render();
 
-                // Structure/ScanFloor: pending server implementation
-                var wallTask  = _messenger.RequestAsync("Structure", "ScanFloor",
-                    $"{{\"EntityId\":{entityId},\"Y\":{structY}}}", RequestTimeout);
-                var floorTask = _messenger.RequestAsync("Structure", "ScanFloor",
-                    $"{{\"EntityId\":{entityId},\"Y\":{structY - 1}}}", RequestTimeout);
+                EdnaLogger.Detail($"[FloorMapper] render done: entity={entityId} Y={structY}");
 
-                await Task.WhenAll(wallTask, floorTask);
+                if (cachePath != null)
+                {
+                    Directory.CreateDirectory(Path.GetDirectoryName(cachePath) ?? string.Empty);
+                    doc.Save(cachePath);
+                }
 
-                EdnaLogger.Log($"[FloorMapper] ScanFloor Y={structY} response: {wallTask.Result}");
-                EdnaLogger.Log($"[FloorMapper] ScanFloor Y={structY - 1} response: {floorTask.Result}");
-                var wallScan  = JObject.Parse(wallTask.Result);
-                var floorScan = JObject.Parse(floorTask.Result);
-
-                var wallBlocks  = ParseBlocks(wallScan);
-                var floorBlocks = ParseBlocks(floorScan);
-
-                var (minX, minZ, maxX, maxZ) = CombinedBounds(wallScan, floorScan);
-                int width  = maxX - minX + 1;
-                int height = maxZ - minZ + 1;
-
-                EdnaLogger.Detail($"[FloorMapper] scan done: entity={entityId} Y={structY} {width}x{height}");
-
-                return FloorMapDocument.FromScan(
-                    entityId, structY, playfield, solarSystem,
-                    minX, minZ, width, height, playerX, playerZ,
-                    wallBlocks, floorBlocks);
+                return doc;
             }
             catch (OperationCanceledException)
             {
@@ -112,43 +132,7 @@ namespace EDNAClient.Skills.FloorMap
             }
         }
 
-        // ── Internal helpers ──────────────────────────────────────────────────
-
-        private static readonly HashSet<int> SkippedTypes = new HashSet<int>();
-
-        private static List<BlockEntry> ParseBlocks(JObject scan)
-        {
-            var list   = new List<BlockEntry>();
-            var blocks = scan["Blocks"] as JArray;
-            if (blocks == null) return list;
-            foreach (var b in blocks)
-            {
-                int type = (int)(b["Type"] ?? 0);
-                if (SkippedTypes.Contains(type)) continue;
-                list.Add(new BlockEntry
-                {
-                    X        = (int)b["X"]!,
-                    Z        = (int)b["Z"]!,
-                    Type     = type,
-                    Shape    = (int)(b["Shape"]    ?? 0),
-                    Rotation = (int)(b["Rotation"] ?? 0),
-                });
-            }
-            return list;
-        }
-
-        private static (int minX, int minZ, int maxX, int maxZ) CombinedBounds(
-            JObject wallScan, JObject floorScan)
-        {
-            static (int, int, int, int) FromScan(JObject s)
-            {
-                var mn = s["MinPos"]!;
-                var mx = s["MaxPos"]!;
-                return ((int)mn["X"]!, (int)mn["Z"]!, (int)mx["X"]!, (int)mx["Z"]!);
-            }
-            var (w0, w2, w1, w3) = FromScan(wallScan);
-            var (f0, f2, f1, f3) = FromScan(floorScan);
-            return (Math.Min(w0, f0), Math.Min(w2, f2), Math.Max(w1, f1), Math.Max(w3, f3));
-        }
+        private static string SafeName(string s) =>
+            string.Join("_", s.Split(Path.GetInvalidFileNameChars()));
     }
 }

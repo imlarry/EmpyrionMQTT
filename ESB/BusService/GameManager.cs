@@ -10,8 +10,6 @@ namespace ESB
     public class GameManager
     {
         readonly private ContextData _ctx;
-        // Buffers retained payloads received before game entry, keyed by "{gameId}:{scope}/{operation}".
-        private readonly Dictionary<string, string> _pendingRetained = new Dictionary<string, string>();
 
         public string GameName { get; private set; }
         public string GameIdentifier { get; private set; }
@@ -24,22 +22,6 @@ namespace ESB
         {
             _ctx = context;
             _ctx.GameManager = this;
-        }
-
-        // StorePendingRetained ... called by SubscriptionHandler when a retained message arrives before game entry.
-        public void StorePendingRetained(string gameId, string scope, string operation, string payload)
-        {
-            _pendingRetained[gameId + ":" + scope + "/" + operation] = payload;
-        }
-
-        // ConsumePendingRetained ... drains a buffered payload for the current game after GameIdentifier is set.
-        public string ConsumePendingRetained(string scope, string operation)
-        {
-            var key = GameIdentifier + ":" + scope + "/" + operation;
-            string payload;
-            _pendingRetained.TryGetValue(key, out payload);
-            _pendingRetained.Remove(key);
-            return payload;
         }
 
         // ApplyMappingFromJson ... deserializes an ID->Name JSON object into BlockAndItemMapping.
@@ -64,10 +46,6 @@ namespace ESB
             GameIdentifier = IdentifierHelper.GenerateIdentifier(GameName, 8);
             GameMode = _ctx.ModApi.Application.Mode.ToString();
 
-            string pending = ConsumePendingRetained("Registry", "BlockAndIdtemMapping");
-            if (!string.IsNullOrEmpty(pending))
-                ApplyMappingFromJson(pending);
-
             var json = new JObject(
                 new JProperty("Status", "Created"));
             await _ctx.Messenger.SendAsync("App", MessageType.Log, "GameManager", json.ToString(Newtonsoft.Json.Formatting.None));
@@ -77,11 +55,14 @@ namespace ESB
             if (hasEntered)
             {
                 SetGameProperties();
+                if (_ctx.Messenger.ParticipantType() != "Ds")
+                    await _ctx.Messenger.SubscribeBrokerAsync(participantType: "Client", connectionId: GameIdentifier, scope: "Registry", msgType: MessageType.Evt, operation: "#");
             }
             else
             {
+                if (!string.IsNullOrEmpty(GameIdentifier) && _ctx.Messenger.ParticipantType() != "Ds")
+                    await _ctx.Messenger.UnsubscribeAsync(participantType: "Client", connectionId: GameIdentifier, scope: "Registry", msgType: MessageType.Evt, operation: "#");
             }
-            await Task.CompletedTask;
         }
         private void SetGameProperties()
         {
@@ -89,10 +70,6 @@ namespace ESB
             GameName = Path.GetFileName(SaveGamePath);
             GameIdentifier = IdentifierHelper.GenerateIdentifier(GameName, 8);
             GameMode = _ctx.ModApi.Application.Mode.ToString();
-
-            string pending = ConsumePendingRetained("Registry", "BlockAndIdtemMapping");
-            if (!string.IsNullOrEmpty(pending))
-                ApplyMappingFromJson(pending);
 
             if (GameMode == "Client" && (BlockAndItemMapping == null || BlockAndItemMapping.Count == 0))
             {
@@ -102,7 +79,7 @@ namespace ESB
                     BlockAndItemMapping = new Dictionary<int, string>();
                     foreach (var pair in raw)
                         BlockAndItemMapping[pair.Value] = pair.Key;
-                    _ = _ctx.Messenger.PublishRetainedAsync("Registry", MessageType.Evt, "BlockAndIdtemMapping", BuildMappingJson(), 3600u);
+                    _ = _ctx.Messenger.PublishRetainedAsync("Registry", MessageType.Evt, "BlockAndIdtemMapping", BuildMappingJson(), 3600u, GameIdentifier);
                 }
             }
 

@@ -69,7 +69,7 @@ namespace ESB.EventHandlers
 
                     string[] parts = arg4.ToString().Trim('(', ')').Split(',');
                     VectorInt3 vector = new VectorInt3(int.Parse(parts[0]), int.Parse(parts[1]), int.Parse(parts[2]));
-                    var pf = _ctx.ModApi.ClientPlayfield;
+                    var pf = _ctx.GameManager.CurrentPlayfield;
                     IEntity ent;
                     if (pf != null && pf.Entities.TryGetValue(entityId, out ent) && ent != null && ent.Structure != null)
                     {

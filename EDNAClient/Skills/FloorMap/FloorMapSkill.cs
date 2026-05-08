@@ -117,12 +117,13 @@ namespace EDNAClient.Skills.FloorMap
             var ss = _solarSystem;
             var pf = _playfield;
 
+            var dir = _mapsDir;
             _ = Task.Run(async () =>
             {
                 FloorMapDocument? doc = null;
                 try
                 {
-                    doc = await _mapper.RefreshAsync(ss, pf, status =>
+                    doc = await _mapper.RefreshAsync(ss, pf, dir, status =>
                         UI.Invoke(() => UpdateOrShowStatus(status)));
                 }
                 catch (Exception ex)
@@ -136,7 +137,7 @@ namespace EDNAClient.Skills.FloorMap
                     return;
                 }
 
-                EdnaLogger.Log($"[FloorMap] capture succeeded: docId={doc.DocumentId} walls={doc.WallBlocks.Count} floors={doc.FloorBlocks.Count}");
+                EdnaLogger.Log($"[FloorMap] capture succeeded: docId={doc.DocumentId} Y={doc.Y}");
                 UI.Invoke(() => ApplyCapturedDocument(doc));
             });
         }
@@ -149,7 +150,6 @@ namespace EDNAClient.Skills.FloorMap
 
         private void ApplyCapturedDocument(FloorMapDocument incoming)
         {
-            incoming.Render();
             var docId = incoming.DocumentId;
 
             if (_openData.TryGetValue(docId, out var existing))
@@ -221,7 +221,7 @@ namespace EDNAClient.Skills.FloorMap
 
         private void DeleteDocument(string docId)
         {
-            if (!_openData.TryGetValue(docId, out var doc)) return;
+            if (_mapsDir == null || !_openData.TryGetValue(docId, out var doc)) return;
             DeleteMapFile(MapFilePath(doc));
         }
 
@@ -304,39 +304,23 @@ namespace EDNAClient.Skills.FloorMap
                     var pfName = Path.GetFileName(pfDir);
                     var pfNode = new NavNode { Name = pfName, NodeType = NavNodeType.MapPlayfield };
 
-                    foreach (var entDir in Directory.GetDirectories(pfDir).OrderBy(Path.GetFileName))
+                    foreach (var file in Directory.GetFiles(pfDir, "*.json").OrderBy(Path.GetFileName))
                     {
-                        var entName = Path.GetFileName(entDir);
-                        var entNode = new NavNode
+                        var f       = file;
+                        var entId   = Path.GetFileNameWithoutExtension(file);
+                        var leaf = new NavNode
                         {
-                            Name     = $"Entity {entName}",
-                            NodeType = NavNodeType.MapEntity,
+                            Name       = $"Entity {entId}",
+                            NodeType   = NavNodeType.MapEntity,
+                            Tag        = f,
+                            OnSelected = () => UI.Invoke(() => OpenFromFile(f)),
                         };
-
-                        foreach (var file in Directory.GetFiles(entDir, "*.json").OrderBy(Path.GetFileName))
+                        leaf.ContextItems = new List<NavMenuItem>
                         {
-                            var f       = file;
-                            var yLabel  = Path.GetFileNameWithoutExtension(file);
-                            var parts   = yLabel.Split('_');
-                            var display = parts.Length == 2 ? $"Y={parts[1]}" : yLabel;
-
-                            var leaf = new NavNode
-                            {
-                                Name       = display,
-                                NodeType   = NavNodeType.MapFloor,
-                                Tag        = f,
-                                OnSelected = () => UI.Invoke(() => OpenFromFile(f)),
-                            };
-                            leaf.ContextItems = new List<NavMenuItem>
-                            {
-                                new NavMenuItem { Header = "Open",   Execute = () => UI.Invoke(() => OpenFromFile(f)) },
-                                new NavMenuItem { Header = "Delete", Execute = () => UI.Invoke(() => DeleteMapFile(f)) },
-                            };
-                            entNode.Children.Add(leaf);
-                        }
-
-                        if (entNode.Children.Count > 0)
-                            pfNode.Children.Add(entNode);
+                            new NavMenuItem { Header = "Open",   Execute = () => UI.Invoke(() => OpenFromFile(f)) },
+                            new NavMenuItem { Header = "Delete", Execute = () => UI.Invoke(() => DeleteMapFile(f)) },
+                        };
+                        pfNode.Children.Add(leaf);
                     }
 
                     if (pfNode.Children.Count > 0)
@@ -373,8 +357,7 @@ namespace EDNAClient.Skills.FloorMap
             return Path.Combine(_mapsDir!,
                 safe(doc.SolarSystem),
                 safe(doc.Playfield),
-                doc.EntityId.ToString(),
-                $"{doc.DocumentId}.json");
+                $"{doc.EntityId}.json");
         }
     }
 }

@@ -20,8 +20,6 @@ namespace ESB.TopicHandlers
         // Property getter table -- allocated once at class load, keyed by name.
         // -------------------------------------------------------------------------
 
-        static JToken Vec3(Vector3 v)    => new JObject(new JProperty("X", v.x), new JProperty("Y", v.y), new JProperty("Z", v.z));
-        static JToken Vec4(Quaternion q) => new JObject(new JProperty("X", q.x), new JProperty("Y", q.y), new JProperty("Z", q.z), new JProperty("W", q.w));
         static JToken FD(FactionData fd) => new JObject(new JProperty("Group", fd.Group.ToString()), new JProperty("Id", fd.Id));
 
         static readonly Dictionary<string, Func<IPlayer, JToken>> _getters =
@@ -66,26 +64,12 @@ namespace ESB.TopicHandlers
             ["CurrentStructureId"]       = p => p.CurrentStructure != null ? JToken.FromObject(p.CurrentStructure.Id)        : JValue.CreateNull(),
             ["CurrentStructureEntityId"] = p => p.CurrentStructure != null ? JToken.FromObject(p.CurrentStructure.Entity.Id) : JValue.CreateNull(),
             ["DrivingEntityId"]          = p => p.DrivingEntity    != null ? JToken.FromObject(p.DrivingEntity.Id)            : JValue.CreateNull(),
-            ["Position"]                 = p => Vec3(p.Position),
-            ["Forward"]                  = p => Vec3(p.Forward),
-            ["Rotation"]                 = p => Vec4(p.Rotation),
-            ["Toolbar"]                  = p => SerializeItemStacks(p.Toolbar),
-            ["Bag"]                      = p => SerializeItemStacks(p.Bag),
+            ["Position"]                 = p => MessageHelpers.Vec(p.Position),
+            ["Forward"]                  = p => MessageHelpers.Vec(p.Forward),
+            ["Rotation"]                 = p => MessageHelpers.Vec(p.Rotation),
+            ["Toolbar"]                  = p => HandlerHelper.ItemStacksJson(p.Toolbar),
+            ["Bag"]                      = p => HandlerHelper.ItemStacksJson(p.Bag),
         };
-
-        static JToken SerializeItemStacks(List<ItemStack> stacks)
-        {
-            var arr = new JArray();
-            if (stacks == null) return arr;
-            foreach (var s in stacks)
-                arr.Add(new JObject(
-                    new JProperty("Id",      s.id),
-                    new JProperty("Count",   s.count),
-                    new JProperty("SlotIdx", s.slotIdx),
-                    new JProperty("Ammo",    s.ammo),
-                    new JProperty("Decay",   s.decay)));
-            return arr;
-        }
 
         public void Register()
         {

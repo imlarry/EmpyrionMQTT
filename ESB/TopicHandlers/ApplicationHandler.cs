@@ -8,7 +8,6 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
-using UnityEngine;
 
 namespace ESB.TopicHandlers
 {
@@ -84,7 +83,7 @@ namespace ESB.TopicHandlers
                 return;
             }
             var json = new JObject(
-                new JProperty("ClientPlayfield", _ctx.ModApi.ClientPlayfield == null ? "null" : "set"),
+                new JProperty("ClientPlayfield", _ctx.GameManager.CurrentPlayfield != null ? "set" : "null"),
                 new JProperty("Network",         _ctx.ModApi.Network          == null ? "null" : "set"),
                 new JProperty("GUI",             _ctx.ModApi.GUI              == null ? "null" : "set"),
                 new JProperty("PDA",             _ctx.ModApi.PDA              == null ? "null" : "set"),
@@ -240,7 +239,7 @@ namespace ESB.TopicHandlers
 
                 async void Callback(GlobalStructureInfo s)
                 {
-                    var json = BuildStructureJson(s);
+                    var json = HandlerHelper.BuildStructureJson(s);
                     await HandlerHelper.ReplyAsync(_ctx.Messenger, ctx, json.ToString(Formatting.None));
                 }
 
@@ -288,7 +287,7 @@ namespace ESB.TopicHandlers
                 {
                     var array = new JArray();
                     foreach (var s in structures)
-                        array.Add(BuildStructureJson(s));
+                        array.Add(HandlerHelper.BuildStructureJson(s));
                     await HandlerHelper.ReplyAsync(_ctx.Messenger, ctx, array.ToString(Formatting.None));
                 }
 
@@ -394,20 +393,5 @@ namespace ESB.TopicHandlers
             }
         }
 
-        private static JObject BuildStructureJson(GlobalStructureInfo s) =>
-            new JObject(
-                new JProperty("Id",             s.id),
-                new JProperty("Name",           s.name),
-                new JProperty("FactionId",      s.factionId),
-                new JProperty("FactionGroup",   s.factionGroup),
-                new JProperty("ClassNr",        s.classNr),
-                new JProperty("CoreType",       s.coreType),
-                new JProperty("Type",           s.type),
-                new JProperty("PlayfieldName",  s.PlayfieldName),
-                new JProperty("Pos",            MessageHelpers.Vec(new Vector3(s.pos.x, s.pos.y, s.pos.z))),
-                new JProperty("Rot",            MessageHelpers.Vec(new Vector3(s.rot.x, s.rot.y, s.rot.z))),
-                new JProperty("LastVisitedUtc", s.lastVisitedUTC),
-                new JProperty("Powered",        s.powered),
-                new JProperty("DockedShips",    s.dockedShips != null ? (JToken)new JArray(s.dockedShips) : JValue.CreateNull()));
     }
 }

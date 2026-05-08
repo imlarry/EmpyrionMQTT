@@ -33,7 +33,16 @@ namespace ESB.TopicHandlers
             _ctx.Messenger.RegisterHandler("Structure/req/SetFaction",             SetFaction);
             _ctx.Messenger.RegisterHandler("Structure/req/StructToGlobalPos",      StructToGlobalPos);
             _ctx.Messenger.RegisterHandler("Structure/req/GlobalToStructPos",      GlobalToStructPos);
+            _ctx.Messenger.RegisterHandler("Structure/req/ScanFloor",              ScanFloor);
+            _ctx.Messenger.RegisterHandler("Structure/req/GetAllBlocks",           GetAllBlocks);
+            _ctx.Messenger.RegisterHandler("Structure/req/Describe",              StructureDescribe);
             // Device scope operations are deferred to a future DeviceHandler pass.
+        }
+
+        public async Task StructureDescribe(MessageContext ctx)
+        {
+            await HandlerHelper.ReplyAsync(_ctx.Messenger, ctx,
+                HandlerHelper.ScopeManifestJson("Structure", _opDefs));
         }
 
         // -------------------------------------------------------------------------
@@ -42,20 +51,11 @@ namespace ESB.TopicHandlers
         // -------------------------------------------------------------------------
         private async Task<IStructure> GetStructureForEntity(MessageContext ctx, int entityId)
         {
-            var pf = _ctx.GameManager.CurrentPlayfield ?? _ctx.ModApi.ClientPlayfield;
-            if (pf == null)
-            {
-                await HandlerHelper.ReplyErrorAsync(_ctx.Messenger, ctx,
-                    MessageHelpers.ErrorJson("CurrentPlayfield is null -- no playfield loaded on this process"));
-                return null;
-            }
+            var pf = _ctx.GameManager.CurrentPlayfield;
+            if (pf == null) return null; // not our playfield, another participant handles this
             IEntity entity;
             if (!pf.Entities.TryGetValue(entityId, out entity) || entity == null)
-            {
-                await HandlerHelper.ReplyErrorAsync(_ctx.Messenger, ctx,
-                    MessageHelpers.ErrorJson($"Entity {entityId} not found in CurrentPlayfield.Entities"));
-                return null;
-            }
+                return null; // entity not on this playfield
             var structure = entity.Structure;
             if (structure == null)
             {
@@ -589,6 +589,121 @@ namespace ESB.TopicHandlers
                     new JProperty("EntityId",  entityId),
                     new JProperty("GlobalPos", MessageHelpers.Vec(globalPos)),
                     new JProperty("StructPos", MessageHelpers.Vec(structPos)));
+
+                await HandlerHelper.ReplyAsync(_ctx.Messenger, ctx, json.ToString(Formatting.None));
+            }
+            catch (Exception ex)
+            {
+                await HandlerHelper.ReplyErrorAsync(_ctx.Messenger, ctx, MessageHelpers.ExceptionJson(ex));
+            }
+        }
+
+        // =========================================================================
+        // Structure/req/ScanFloor
+        // payload: { "EntityId": int, "Y": int }
+        // response: { EntityId, Y, MinPos:{X,Z}, MaxPos:{X,Z}, Blocks:[{X,Z,Type,Shape,Rotation},...] }
+        // =========================================================================
+        public async Task ScanFloor(MessageContext ctx)
+        {
+            try
+            {
+                var args     = JObject.Parse(ctx.Payload);
+                int entityId = (int)args["EntityId"];
+                int y        = (int)args["Y"];
+
+                var structure = await GetStructureForEntity(ctx, entityId);
+                if (structure == null) return;
+
+                var minPos = structure.MinPos;
+                var maxPos = structure.MaxPos;
+
+                var blocks = new JArray();
+                for (int x = minPos.x; x <= maxPos.x; x++)
+                    for (int z = minPos.z; z <= maxPos.z; z++)
+                    {
+                        var block = structure.GetBlock(x, y, z);
+                        if (block == null) continue;
+                        int type, shape, rotation;
+                        bool active;
+                        block.Get(out type, out shape, out rotation, out active);
+                        if (type == 0) continue;
+                        blocks.Add(new JObject(
+                            new JProperty("X",        x),
+                            new JProperty("Z",        z),
+                            new JProperty("Type",     type),
+                            new JProperty("Shape",    shape),
+                            new JProperty("Rotation", rotation)));
+                    }
+
+                var json = new JObject(
+                    new JProperty("EntityId", entityId),
+                    new JProperty("Y",        y),
+                    new JProperty("MinPos",   MessageHelpers.Vec(minPos)),
+                    new JProperty("MaxPos",   MessageHelpers.Vec(maxPos)),
+                    new JProperty("Blocks",   blocks));
+
+                await HandlerHelper.ReplyAsync(_ctx.Messenger, ctx, json.ToString(Formatting.None));
+            }
+            catch (Exception ex)
+            {
+                await HandlerHelper.ReplyErrorAsync(_ctx.Messenger, ctx, MessageHelpers.ExceptionJson(ex));
+            }
+        }
+
+        // =========================================================================
+        // Structure/req/GetAllBlocks
+        // payload: { "EntityId": int }
+        // response: { EntityId, Blocks: [["X","Y","Z","Type","Shape","Rotation","Active"], ...] }
+        //
+        // GetBlock coordinate note: IStructure.MinPos/MaxPos X and Z map directly to the
+        // coordinates GetBlock expects. Y does not -- MinPos/MaxPos Y is in structure-centered
+        // space while GetBlock requires block-space Y. GlobalToStructPos(entity.Position)
+        // converts the entity's world position to block space, giving the Y basis needed to
+        // apply the MinPos/MaxPos Y offsets correctly. X and Z do not need this correction
+        // because structures are centered at (0,0) horizontally in their block space.
+        // =========================================================================
+        public async Task GetAllBlocks(MessageContext ctx)
+        {
+            try
+            {
+                int entityId = (int)JObject.Parse(ctx.Payload)["EntityId"];
+
+                var pf = _ctx.GameManager.CurrentPlayfield;
+                if (pf == null) return; // not our playfield
+                IEntity entity;
+                if (!pf.Entities.TryGetValue(entityId, out entity) || entity == null)
+                    return; // entity not on this playfield
+                var structure = entity.Structure;
+                if (structure == null)
+                {
+                    await HandlerHelper.ReplyErrorAsync(_ctx.Messenger, ctx,
+                        MessageHelpers.ErrorJson($"Entity {entityId} has no Structure"));
+                    return;
+                }
+
+                var min   = structure.MinPos;
+                var max   = structure.MaxPos;
+                int yBase = structure.GlobalToStructPos(entity.Position).y;
+
+                var blocks = new JArray();
+                blocks.Add(new JArray("X", "Y", "Z", "Type", "Shape", "Rotation", "Active"));
+
+                for (int x = min.x; x <= max.x; x++)
+                    for (int y = yBase + min.y; y <= yBase + max.y; y++)
+                        for (int z = min.z; z <= max.z; z++)
+                        {
+                            var block = structure.GetBlock(x, y, z);
+                            if (block == null) continue;
+                            int type, shape, rotation;
+                            bool active;
+                            block.Get(out type, out shape, out rotation, out active);
+                            if (type == 0) continue;
+                            blocks.Add(new JArray(x, y, z, type, shape, rotation, active));
+                        }
+
+                var json = new JObject(
+                    new JProperty("EntityId", entityId),
+                    new JProperty("Blocks",   blocks));
 
                 await HandlerHelper.ReplyAsync(_ctx.Messenger, ctx, json.ToString(Formatting.None));
             }

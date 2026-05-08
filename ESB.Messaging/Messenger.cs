@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.IO.Compression;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Threading;
@@ -15,6 +16,8 @@ namespace ESB.Messaging
 {
     public class Messenger : IMessenger
     {
+        public int CompressionThreshold { get; set; } = 2048;
+
         private BaseContextData _ctx;
         private string _machineId;
         private string _clientId;
@@ -246,40 +249,84 @@ namespace ESB.Messaging
         // ReplyAsync ... publish a response using MQTT5 ResponseTopic + CorrelationData
         public async Task ReplyAsync(string responseTopic, byte[] correlationData, string payload)
         {
-            var message = new MqttApplicationMessageBuilder()
+            var builder = new MqttApplicationMessageBuilder()
                 .WithTopic(responseTopic)
-                .WithPayload(payload)
-                .WithCorrelationData(correlationData)
-                .Build();
-            await _mqttClient.PublishAsync(message, CancellationToken.None);
+                .WithCorrelationData(correlationData);
+            bool shouldCompress = CompressionThreshold > 0 && payload != null && payload.Length >= CompressionThreshold;
+            if (shouldCompress && payload != null)
+            {
+                int originalLen = Encoding.UTF8.GetByteCount(payload);
+                var compressed = CompressPayload(payload);
+                builder = builder.WithPayload(compressed);
+                var logJson = new JObject(
+                    new JProperty("Topic", responseTopic),
+                    new JProperty("OriginalBytes", originalLen),
+                    new JProperty("CompressedBytes", compressed.Length),
+                    new JProperty("Ratio", (int)((1.0 - (double)compressed.Length / originalLen) * 100) + "%"));
+                await LogAsync("Compress", logJson.ToString(Newtonsoft.Json.Formatting.None));
+            }
+            else
+            {
+                builder = builder.WithPayload(payload);
+            }
+            await _mqttClient.PublishAsync(builder.Build(), CancellationToken.None);
         }
 
         // PublishRetainedAsync ... publish a retained message to a structured ESB topic
-        public async Task PublishRetainedAsync(string scope, MessageType msgType, string operation, string payload, uint expirySeconds = 0u)
+        public async Task PublishRetainedAsync(string scope, MessageType msgType, string operation, string payload, uint expirySeconds = 0u, string connectionId = null, bool compress = false)
         {
-            var topic = BuildTopic(_participantType, _clientId, scope, msgType, operation);
+            var topic = BuildTopic(_participantType, connectionId ?? _clientId, scope, msgType, operation);
             var builder = new MqttApplicationMessageBuilder()
                 .WithTopic(topic)
-                .WithPayload(payload)
                 .WithRetainFlag(true);
+            bool shouldCompress = compress || (CompressionThreshold > 0 && payload != null && payload.Length >= CompressionThreshold);
+            if (shouldCompress && payload != null)
+            {
+                int originalLen = Encoding.UTF8.GetByteCount(payload);
+                var compressed = CompressPayload(payload);
+                builder = builder.WithPayload(compressed);
+                var logJson = new JObject(
+                    new JProperty("Op", scope + "/" + msgType.ToString().ToLower() + "/" + operation),
+                    new JProperty("OriginalBytes", originalLen),
+                    new JProperty("CompressedBytes", compressed.Length),
+                    new JProperty("Ratio", (int)((1.0 - (double)compressed.Length / originalLen) * 100) + "%"));
+                await LogAsync("Compress", logJson.ToString(Newtonsoft.Json.Formatting.None));
+            }
+            else
+            {
+                builder = builder.WithPayload(payload);
+            }
             if (expirySeconds > 0u)
                 builder = builder.WithMessageExpiryInterval(expirySeconds);
             await _mqttClient.PublishAsync(builder.Build(), CancellationToken.None);
         }
 
         // SendAsync ... publish to ESB/{participantType}/{connectionId}/{scope}/{msgType}/{operation}
-        public async Task SendAsync(string scope, MessageType msgType, string operation, string payload, List<KeyValuePair<string, string>> userProperties = null)
+        public async Task SendAsync(string scope, MessageType msgType, string operation, string payload, List<KeyValuePair<string, string>> userProperties = null, bool compress = false)
         {
             var topic = BuildTopic(_participantType, _clientId, scope, msgType, operation);
-            var builder = new MqttApplicationMessageBuilder()
-                .WithTopic(topic)
-                .WithPayload(payload);
+            var builder = new MqttApplicationMessageBuilder().WithTopic(topic);
+            bool shouldCompress = compress || (CompressionThreshold > 0 && payload != null && payload.Length >= CompressionThreshold);
+            if (shouldCompress && payload != null)
+            {
+                int originalLen = Encoding.UTF8.GetByteCount(payload);
+                var compressed = CompressPayload(payload);
+                builder = builder.WithPayload(compressed);
+                var logJson = new JObject(
+                    new JProperty("Op", scope + "/" + msgType.ToString().ToLower() + "/" + operation),
+                    new JProperty("OriginalBytes", originalLen),
+                    new JProperty("CompressedBytes", compressed.Length),
+                    new JProperty("Ratio", (int)((1.0 - (double)compressed.Length / originalLen) * 100) + "%"));
+                await LogAsync("Compress", logJson.ToString(Newtonsoft.Json.Formatting.None));
+            }
+            else
+            {
+                builder = builder.WithPayload(payload);
+            }
             if (userProperties != null)
             {
                 foreach (var kv in userProperties)
-                {
                     builder = builder.WithUserProperty(kv.Key, kv.Value);
-                }
             }
             await _mqttClient.PublishAsync(builder.Build(), CancellationToken.None);
         }
@@ -298,13 +345,28 @@ namespace ESB.Messaging
             }
 
             var topic = BuildTopic(_participantType, _clientId, scope, MessageType.Req, operation);
-            var message = new MqttApplicationMessageBuilder()
+            var builder = new MqttApplicationMessageBuilder()
                 .WithTopic(topic)
-                .WithPayload(payload)
                 .WithResponseTopic(responseTopic)
-                .WithCorrelationData(Encoding.ASCII.GetBytes(shortId))
-                .Build();
-            await _mqttClient.PublishAsync(message, CancellationToken.None);
+                .WithCorrelationData(Encoding.ASCII.GetBytes(shortId));
+            bool shouldCompress = CompressionThreshold > 0 && payload != null && payload.Length >= CompressionThreshold;
+            if (shouldCompress && payload != null)
+            {
+                int originalLen = Encoding.UTF8.GetByteCount(payload);
+                var compressed = CompressPayload(payload);
+                builder = builder.WithPayload(compressed);
+                var logJson = new JObject(
+                    new JProperty("Op", scope + "/req/" + operation),
+                    new JProperty("OriginalBytes", originalLen),
+                    new JProperty("CompressedBytes", compressed.Length),
+                    new JProperty("Ratio", (int)((1.0 - (double)compressed.Length / originalLen) * 100) + "%"));
+                await LogAsync("Compress", logJson.ToString(Newtonsoft.Json.Formatting.None));
+            }
+            else
+            {
+                builder = builder.WithPayload(payload);
+            }
+            await _mqttClient.PublishAsync(builder.Build(), CancellationToken.None);
 
             using (var cts = new CancellationTokenSource(timeout))
             {
@@ -337,6 +399,30 @@ namespace ESB.Messaging
             await _mqttClient.PublishAsync(message, CancellationToken.None);
         }
 
+        // CompressPayload ... GZip-compress a string payload; returns raw bytes.
+        private static byte[] CompressPayload(string payload)
+        {
+            var bytes = Encoding.UTF8.GetBytes(payload);
+            using (var ms = new MemoryStream())
+            {
+                using (var gz = new GZipStream(ms, CompressionMode.Compress))
+                    gz.Write(bytes, 0, bytes.Length);
+                return ms.ToArray();
+            }
+        }
+
+        // DecompressPayload ... decompress GZip bytes back to a string.
+        private static string DecompressPayload(byte[] bytes)
+        {
+            using (var input = new MemoryStream(bytes))
+            using (var gz = new GZipStream(input, CompressionMode.Decompress))
+            using (var output = new MemoryStream())
+            {
+                gz.CopyTo(output);
+                return Encoding.UTF8.GetString(output.ToArray());
+            }
+        }
+
         // LogAsync ... emit an ESB/{participantType}/{connectionId}/App/log/{operation} message
         private Task LogAsync(string operation, string payload)
         {
@@ -354,10 +440,25 @@ namespace ESB.Messaging
                 var seg = e.ApplicationMessage.PayloadSegment;
                 var buf = new byte[seg.Count];
                 Array.Copy(seg.Array, seg.Offset, buf, 0, seg.Count);
-                payload = Encoding.Default.GetString(buf);
+                if (buf.Length >= 2 && buf[0] == 0x1F && buf[1] == 0x8B)
+                {
+                    int compressedLen = buf.Length;
+                    payload = DecompressPayload(buf);
+                    int originalLen = Encoding.UTF8.GetByteCount(payload);
+                    var logJson = new JObject(
+                        new JProperty("Topic", topic),
+                        new JProperty("CompressedBytes", compressedLen),
+                        new JProperty("OriginalBytes", originalLen),
+                        new JProperty("Ratio", (int)((1.0 - (double)compressedLen / originalLen) * 100) + "%"));
+                    await LogAsync("Decompress", logJson.ToString(Newtonsoft.Json.Formatting.None));
+                }
+                else
+                {
+                    payload = Encoding.Default.GetString(buf);
+                }
             }
 #if DEBUG
-            var dbg = new JObject(new JProperty("Topic", topic), new JProperty("Payload", "[not included in this log]"));
+            var dbg = new JObject(new JProperty("Topic", topic), new JProperty("Payload", payload));   // "[not included in this log]"
             await LogAsync("ProcessingMessage", dbg.ToString(Newtonsoft.Json.Formatting.None));
 #endif
 
