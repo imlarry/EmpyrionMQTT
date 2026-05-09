@@ -20,6 +20,7 @@ namespace ESB
         public IModApi ModApi { get; set; }
         public EmpyrionModBase ModBase { get; set; }
         public ESBConfig ESBConfig { get; set; }
+        public IMessageBus Bus        { get; set; }
         public BusManager BusManager { get; set; }
         public GameManager GameManager { get; set; }
         public MainThreadRunner MainThreadRunner { get; } = new MainThreadRunner(); // should I constuct this here?

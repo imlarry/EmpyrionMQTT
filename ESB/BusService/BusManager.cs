@@ -42,14 +42,15 @@ namespace ESB
             string configPath = Path.Combine(ESBModPath, "ESB_Info.yaml");
             _ctx.ESBConfig = YamlFileReader.ReadYamlFile<ESBConfig>(configPath);
 
-            await _ctx.Messenger.ConnectAsync
-                    (_ctx
-                    , ParticipantType
-                    , _ctx.ESBConfig.MQTThost.WithTcpServer
-                    , _ctx.ESBConfig.MQTThost.Port
-                    , _ctx.ESBConfig.MQTThost.Username
-                    , _ctx.ESBConfig.MQTThost.Password
-                    , _ctx.ESBConfig.MQTThost.CAFilePath);
+            var bus = new BusBuilder()
+                .WithMessenger(_ctx.Messenger)
+                .WithParticipantType(ParticipantType)
+                .WithConnection(_ctx.ESBConfig.MQTThost.WithTcpServer, _ctx.ESBConfig.MQTThost.Port)
+                .WithCredentials(_ctx.ESBConfig.MQTThost.Username, _ctx.ESBConfig.MQTThost.Password)
+                .WithCertificate(_ctx.ESBConfig.MQTThost.CAFilePath)
+                .Build();
+            _ctx.Bus = bus;
+            await bus.ConnectAsync(_ctx);
 
             await PublishRegistryEntryAsync();
 
@@ -68,7 +69,7 @@ namespace ESB
         {
             _eMgr.DisableEventHandlers();
             // await ClearRegistryEntryAsync(); // a will can clear it if the client disconnects unexpectedly. Retained messages with empty payload are discarded by the broker.
-            await _ctx.Messenger.DisconnectAsync();
+            await _ctx.Bus.DisconnectAsync();
         }
 
         private void LaunchEdnaClient()
