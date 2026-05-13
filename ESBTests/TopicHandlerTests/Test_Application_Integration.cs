@@ -5,159 +5,295 @@ using System.Threading.Tasks;
 namespace ESBTests.TopicHandlerTests;
 
 /// <summary>
-/// Integration tests for the ESB/ Application handlers.
+/// Integration tests for the App-scope handlers (AppHandler.cs).
 /// Requires the game running with the ESB mod loaded.
 /// Run with: dotnet test --filter "Category=Integration"
+///
+/// Pattern: each operation gets a section with success and error cases.
+/// No-input operations have success only; input operations have both.
 /// </summary>
 [Trait("Category", "Integration")]
 public class Test_Application_Integration
 {
     // -------------------------------------------------------------------------
-    // App/GameTicks
+    // App/GameTicks -- no input, returns ulong
     // -------------------------------------------------------------------------
+
     [Fact]
     public async Task GameTicks_ReturnsPositiveNumber()
     {
         await using var mqtt = await SBTestClient.ConnectAsync();
         var payload = await mqtt.RequestAsync("App", "GameTicks", "{}");
 
-        Assert.NotNull(payload["GameTicks"]);
-        Assert.True(payload["GameTicks"]!.Value<long>() > 0,
-            "GameTicks should be positive once the game is running");
+        Assert.True((ulong?)payload["GameTicks"] > 0);
     }
 
     // -------------------------------------------------------------------------
-    // App/Mode
+    // App/Mode -- no input, returns ApplicationMode enum as string
     // -------------------------------------------------------------------------
+
     [Fact]
     public async Task Mode_ReturnsModeString()
     {
         await using var mqtt = await SBTestClient.ConnectAsync();
         var payload = await mqtt.RequestAsync("App", "Mode", "{}");
 
-        Assert.NotNull(payload["Mode"]);
-        Assert.False(string.IsNullOrEmpty(payload["Mode"]!.Value<string>()),
-            "Mode must be a non-empty string");
+        Assert.False(string.IsNullOrEmpty((string)payload["Mode"]));
     }
 
     // -------------------------------------------------------------------------
-    // App/State
+    // App/State -- no input, returns GameState enum as string
     // -------------------------------------------------------------------------
+
     [Fact]
     public async Task State_ReturnsStateString()
     {
         await using var mqtt = await SBTestClient.ConnectAsync();
         var payload = await mqtt.RequestAsync("App", "State", "{}");
 
-        Assert.NotNull(payload["State"]);
-        Assert.False(string.IsNullOrEmpty(payload["State"]!.Value<string>()),
-            "State must be a non-empty string");
+        Assert.False(string.IsNullOrEmpty((string)payload["State"]));
     }
 
     // -------------------------------------------------------------------------
-    // App/ModApiProperties
+    // App/ModApiProperties -- no input, returns "set"/"null" availability map
     // -------------------------------------------------------------------------
+
     [Fact]
-    public async Task ModApiProperties_ReturnsExpectedKeys()
+    public async Task ModApiProperties_ReturnsAvailabilityMap()
     {
         await using var mqtt = await SBTestClient.ConnectAsync();
         var payload = await mqtt.RequestAsync("App", "ModApiProperties", "{}");
 
         Assert.NotNull(payload["Application"]);
-        Assert.NotNull(payload["GUI"]);
         Assert.NotNull(payload["Network"]);
+        Assert.NotNull(payload["GUI"]);
+        Assert.NotNull(payload["PDA"]);
+        Assert.NotNull(payload["Scripting"]);
+        Assert.NotNull(payload["SoundPlayer"]);
+        Assert.NotNull(payload["ClientPlayfield"]);
     }
 
     // -------------------------------------------------------------------------
-    // App/GetAllPlayfields
+    // App/GetAllPlayfields -- no input, returns PlayfieldInfoResponse array
     // -------------------------------------------------------------------------
+
     [Fact]
-    public async Task GetAllPlayfields_ContainsAkua()
+    public async Task GetAllPlayfields_ContainsKnownPlayfield()
     {
         await using var mqtt = await SBTestClient.ConnectAsync();
         var payload = await mqtt.RequestAsync("App", "GetAllPlayfields", "{}");
 
-        // Handler returns a JSON array; SBTestClient wraps it under "items"
         var array = payload["items"] as JArray ?? new JArray();
         Assert.NotEmpty(array);
-        Assert.Contains(array, t => t["PlayfieldName"]?.Value<string>() == KnownState.Playfield);
+        Assert.Contains(array, t => (string)t["PlayfieldName"] == KnownState.Playfield);
+    }
+
+    [Fact]
+    public async Task GetAllPlayfields_ItemsHaveExpectedFields()
+    {
+        await using var mqtt = await SBTestClient.ConnectAsync();
+        var payload = await mqtt.RequestAsync("App", "GetAllPlayfields", "{}");
+
+        var first = (payload["items"] as JArray)?[0];
+        Assert.NotNull(first);
+        Assert.NotNull(first["PlayfieldName"]);
+        Assert.NotNull(first["PlayfieldType"]);
+        Assert.NotNull(first["IsInstance"]);
     }
 
     // -------------------------------------------------------------------------
-    // App/PlayerEntityIds
+    // App/PfServerInfos -- no input; may return error if no playfield servers active
     // -------------------------------------------------------------------------
+
     [Fact]
-    public async Task GetPlayerEntityIds_ReturnsArray()
+    public async Task PfServerInfos_Responds()
     {
         await using var mqtt = await SBTestClient.ConnectAsync();
-        var payload = await mqtt.RequestAsync("App", "PlayerEntityIds", "{}");
+        var payload = await mqtt.RequestAsync("App", "PfServerInfos", "{}");
 
-        // May be an array (no players online) or an object -- just check it arrives
+        // Valid response is either a data object or an error -- both are acceptable.
         Assert.NotNull(payload);
     }
 
     // -------------------------------------------------------------------------
-    // App/GetPathFor
+    // App/PlayerEntityIds -- no input, returns int array (may be empty)
     // -------------------------------------------------------------------------
-    [Fact]
-    public async Task GetPathFor_Root_ReturnsPath()
-    {
-        await using var mqtt = await SBTestClient.ConnectAsync();
-        var payload = await mqtt.RequestAsync("App", "GetPathFor",
-            "{\"AppFolder\":\"Root\"}");
-
-        Assert.Equal("Root", payload["AppFolder"]!.Value<string>());
-        Assert.False(string.IsNullOrEmpty(payload["Path"]!.Value<string>()),
-            "Path must be non-empty");
-    }
 
     [Fact]
-    public async Task GetPathFor_SaveGame_ReturnsPath()
+    public async Task PlayerEntityIds_Responds()
     {
         await using var mqtt = await SBTestClient.ConnectAsync();
-        var payload = await mqtt.RequestAsync("App", "GetPathFor",
-            "{\"AppFolder\":\"SaveGame\"}");
+        var payload = await mqtt.RequestAsync("App", "PlayerEntityIds", "{}");
 
-        Assert.Equal("SaveGame", payload["AppFolder"]!.Value<string>());
-        Assert.False(string.IsNullOrEmpty(payload["Path"]!.Value<string>()),
-            "SaveGame path must be non-empty");
+        Assert.NotNull(payload);
     }
 
     // -------------------------------------------------------------------------
-    // App/GetStructure -- async DB query by entity ID
+    // App/BlockAndItemMapping -- no input, returns Dictionary<string, int>
     // -------------------------------------------------------------------------
+
     [Fact]
-    public async Task GetStructure_BaseEntity_ReturnsStructureInfo()
+    public async Task BlockAndItemMapping_ReturnsNonEmptyMapping()
+    {
+        await using var mqtt = await SBTestClient.ConnectAsync();
+        var payload = await mqtt.RequestAsync("App", "BlockAndItemMapping", "{}");
+
+        Assert.Null(payload["Error"]);
+        Assert.True(payload.Count > 0, "Mapping should contain at least one entry");
+    }
+
+    // -------------------------------------------------------------------------
+    // App/GetPathFor -- AppFolder enum required
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public async Task GetPathFor_Root_ReturnsAbsolutePath()
+    {
+        await using var mqtt = await SBTestClient.ConnectAsync();
+        var payload = await mqtt.RequestAsync("App", "GetPathFor", "{\"AppFolder\":\"Root\"}");
+
+        Assert.Equal("Root", (string)payload["AppFolder"]);
+        Assert.False(string.IsNullOrEmpty((string)payload["Path"]));
+    }
+
+    [Fact]
+    public async Task GetPathFor_SaveGame_ReturnsAbsolutePath()
+    {
+        await using var mqtt = await SBTestClient.ConnectAsync();
+        var payload = await mqtt.RequestAsync("App", "GetPathFor", "{\"AppFolder\":\"SaveGame\"}");
+
+        Assert.Equal("SaveGame", (string)payload["AppFolder"]);
+        Assert.False(string.IsNullOrEmpty((string)payload["Path"]));
+    }
+
+    [Fact]
+    public async Task GetPathFor_InvalidEnum_ReturnsError()
+    {
+        await using var mqtt = await SBTestClient.ConnectAsync();
+        var payload = await mqtt.RequestAsync("App", "GetPathFor", "{\"AppFolder\":\"NotAValidFolder\"}");
+
+        Assert.NotNull(payload["Error"]);
+    }
+
+    [Fact]
+    public async Task GetPathFor_EmptyPayload_ReturnsError()
+    {
+        await using var mqtt = await SBTestClient.ConnectAsync();
+        var payload = await mqtt.RequestAsync("App", "GetPathFor", "{}");
+
+        Assert.NotNull(payload["Error"]);
+    }
+
+    // -------------------------------------------------------------------------
+    // App/GetPlayerDataFor -- PlayerEntityId required
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public async Task GetPlayerDataFor_KnownPlayer_ReturnsData()
+    {
+        await using var mqtt = await SBTestClient.ConnectAsync();
+        var payload = await mqtt.RequestAsync("App", "GetPlayerDataFor",
+            $"{{\"PlayerEntityId\":{KnownState.PlayerEntityId}}}");
+
+        Assert.Null(payload["Error"]);
+        Assert.Equal(KnownState.PlayerEntityId, (int)payload["EntityId"]);
+        Assert.NotNull(payload["PlayerName"]);
+        Assert.NotNull(payload["SteamId"]);
+        Assert.NotNull(payload["PlayfieldName"]);
+        Assert.NotNull(payload["IsOnline"]);
+    }
+
+    [Fact]
+    public async Task GetPlayerDataFor_EmptyPayload_ReturnsError()
+    {
+        await using var mqtt = await SBTestClient.ConnectAsync();
+        var payload = await mqtt.RequestAsync("App", "GetPlayerDataFor", "{}");
+
+        Assert.NotNull(payload["Error"]);
+    }
+
+    // -------------------------------------------------------------------------
+    // App/GetStructure -- EntityId required, result via async callback
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public async Task GetStructure_KnownBase_ReturnsStructureInfo()
     {
         await using var mqtt = await SBTestClient.ConnectAsync();
         var payload = await mqtt.RequestAsync("App", "GetStructure",
             $"{{\"EntityId\":{KnownState.BaseEntityId}}}", timeoutMs: 10000);
 
-        Assert.Equal(KnownState.BaseEntityId, payload["Id"]!.Value<int>());
-        Assert.NotNull(payload["Name"]);
+        Assert.Null(payload["Error"]);
+        Assert.Equal(KnownState.BaseEntityId, (int)payload["Id"]);
+        Assert.Equal(KnownState.BaseName, (string)payload["Name"]);
         Assert.NotNull(payload["Pos"]);
+        Assert.NotNull(payload["Rot"]);
+    }
+
+    [Fact]
+    public async Task GetStructure_EmptyPayload_ReturnsError()
+    {
+        await using var mqtt = await SBTestClient.ConnectAsync();
+        var payload = await mqtt.RequestAsync("App", "GetStructure", "{}");
+
+        Assert.NotNull(payload["Error"]);
     }
 
     // -------------------------------------------------------------------------
-    // App/GetStructures -- async DB query by playfield name
+    // App/GetStructures -- PlayfieldName or FactionData required, async callback
     // -------------------------------------------------------------------------
+
     [Fact]
-    public async Task GetStructures_AkuaPlayfield_ReturnsStructureList()
+    public async Task GetStructures_ByPlayfield_ReturnsStructureList()
     {
         await using var mqtt = await SBTestClient.ConnectAsync();
         var payload = await mqtt.RequestAsync("App", "GetStructures",
             $"{{\"PlayfieldName\":\"{KnownState.Playfield}\"}}", timeoutMs: 10000);
 
-        // Handler returns a bare JSON array; SBTestClient wraps it under "items"
         var array = payload["items"] as JArray ?? new JArray();
-        Assert.Contains(array, t => t["Name"]?.Value<string>() == KnownState.BaseName);
+        Assert.NotEmpty(array);
+        Assert.Contains(array, t => (string)t["Name"] == KnownState.BaseName);
     }
 
     [Fact]
-    public async Task GetStructures_MissingBothFilters_ReturnsError()
+    public async Task GetStructures_NoFilters_ReturnsError()
     {
         await using var mqtt = await SBTestClient.ConnectAsync();
         var payload = await mqtt.RequestAsync("App", "GetStructures", "{}");
+
+        Assert.NotNull(payload["Error"]);
+    }
+
+    [Fact]
+    public async Task GetStructures_InvalidEntityType_ReturnsError()
+    {
+        await using var mqtt = await SBTestClient.ConnectAsync();
+        var payload = await mqtt.RequestAsync("App", "GetStructures",
+            $"{{\"PlayfieldName\":\"{KnownState.Playfield}\",\"EntityType\":\"NotAnEntityType\"}}");
+
+        Assert.NotNull(payload["Error"]);
+    }
+
+    // -------------------------------------------------------------------------
+    // App/SendChatMessage -- broadcasts chat; Text defaults to empty if omitted
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public async Task SendChatMessage_ValidRequest_ReturnsOk()
+    {
+        await using var mqtt = await SBTestClient.ConnectAsync();
+        var payload = await mqtt.RequestAsync("App", "SendChatMessage",
+            "{\"Text\":\"[ESB integration test]\"}");
+
+        Assert.Null(payload["Error"]);
+        Assert.NotNull(payload["ok"]);
+    }
+
+    [Fact]
+    public async Task SendChatMessage_EmptyPayload_ReturnsError()
+    {
+        await using var mqtt = await SBTestClient.ConnectAsync();
+        var payload = await mqtt.RequestAsync("App", "SendChatMessage", "");
 
         Assert.NotNull(payload["Error"]);
     }

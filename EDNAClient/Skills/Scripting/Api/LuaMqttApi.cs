@@ -53,41 +53,9 @@ namespace EDNAClient.Skills.Scripting.Api
         ///     log.info("got: " .. payload)
         ///   end)
         /// </summary>
-        public void subscribe(string topicFilter, DynValue handler) // TODO: refacor this approach
+        public void subscribe(string topicFilter, DynValue handler)
         {
-            EdnaLogger.Detail($"[{_engine.Name}] mqtt.subscribe {topicFilter}");
-            var task = _messenger.SubscribeEventAsync(topicFilter, (topic, payload) =>
-            {
-#if DEBUG
-                _ = _messenger.SendAsync("App", MessageType.Log, "LuaMqttApi.Dispatch",
-                    $"{{\"Script\":\"{_engine.Name}\",\"Topic\":\"{topic}\"}}");
-#endif
-                Application.Current.Dispatcher.Invoke(() =>
-                {
-                    try
-                    {
-                        _engine.CallFunction(handler, topic, payload);
-                    }
-                    catch (ScriptRuntimeException ex)
-                    {
-                        _ = _messenger.SendAsync("App", MessageType.Log, "LuaMqttApi.CallbackError",
-                            $"{{\"Script\":\"{_engine.Name}\",\"Topic\":\"{topic}\",\"Error\":{JsonConvert.SerializeObject(ex.DecoratedMessage)}}}");
-                    }
-                    catch (Exception ex)
-                    {
-                        _ = _messenger.SendAsync("App", MessageType.Log, "LuaMqttApi.CallbackError",
-                            $"{{\"Script\":\"{_engine.Name}\",\"Topic\":\"{topic}\",\"Error\":{JsonConvert.SerializeObject(ex.GetType().Name + ": " + ex.Message)}}}");
-                    }
-                });
-                return System.Threading.Tasks.Task.CompletedTask;
-            });
-
-            task.ContinueWith(t =>
-            {
-                var msg = t.Exception?.Flatten().InnerException?.Message ?? "unknown error";
-                _ = _messenger.SendAsync("App", MessageType.Log, "LuaMqttApi.SubscribeFailed",
-                    $"{{\"Script\":\"{_engine.Name}\",\"TopicFilter\":\"{topicFilter}\",\"Error\":{Newtonsoft.Json.JsonConvert.SerializeObject(msg)}}}");
-            }, System.Threading.Tasks.TaskContinuationOptions.OnlyOnFaulted);
+            /* stub -- raw topic filter subscriptions removed; reimplement via OnBroadcastRequest */
         }
     }
 }

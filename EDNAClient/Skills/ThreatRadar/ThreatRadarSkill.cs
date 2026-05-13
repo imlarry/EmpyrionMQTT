@@ -17,9 +17,9 @@ namespace EDNAClient.Skills.ThreatRadar
             _window    = new ThreatWindow(viewModel);
         }
 
-        public async Task StartAsync(IMessenger messenger)
+        public async Task StartAsync(IMessageBus bus)
         {
-            _tracker = new ThreatTracker(messenger, _viewModel);
+            _tracker = new ThreatTracker(bus, _viewModel);
             await _tracker.StartAsync();
         }
 

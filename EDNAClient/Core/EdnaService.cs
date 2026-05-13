@@ -49,19 +49,26 @@ namespace EDNAClient.Core
                 var mqtt    = esbInfo?.MQTThost ?? new MqttConnectionSettings();
                 _settings   = esbInfo?.EDNA ?? new EdnaInfo();
 
-                await _ctx.Messenger.ConnectAsync(_ctx, "EDNA",
-                    mqtt.WithTcpServer, mqtt.Port, mqtt.Username, mqtt.Password, mqtt.CAFilePath);
+                _ctx.Bus = new BusBuilder()
+                    .WithMessenger(_ctx.Messenger)
+                    .WithParticipantType("EDNA")
+                    .WithConnection(mqtt.WithTcpServer, mqtt.Port)
+                    .WithCredentials(mqtt.Username, mqtt.Password)
+                    .WithCertificate(mqtt.CAFilePath)
+                    .Build();
+
+                await _ctx.Bus.ConnectAsync(_ctx);
                 EdnaLogger.Log($"MQTT connected to {mqtt.WithTcpServer ?? "localhost"}");
 
                 WellKnownPaths.SaveEdnaSettings(_settings);
 
-                await _ctx.Messenger.SubscribeBrokerAsync(scope: "App",       msgType: MessageType.Evt, operation: "GameEnter",  callback: OnGameEnter);
-                await _ctx.Messenger.SubscribeBrokerAsync(scope: "App",       msgType: MessageType.Evt, operation: "GameExit",   callback: OnGameExit);
-                await _ctx.Messenger.SubscribeBrokerAsync(scope: "Playfield", msgType: MessageType.Evt, operation: "Loaded",     callback: OnPlayfieldLoaded);
+                _ctx.Bus.OnEvent("App",       "GameEnter",  OnGameEnter);
+                _ctx.Bus.OnEvent("App",       "GameExit",   OnGameExit);
+                _ctx.Bus.OnEvent("Playfield", "Loaded",     OnPlayfieldLoaded);
 
                 foreach (var skill in EnabledSkills())
                 {
-                    await skill.StartAsync(_ctx.Messenger);
+                    await skill.StartAsync(_ctx.Bus);
                     EdnaLogger.Log($"Skill '{skill.Id}' started");
                 }
 
@@ -87,16 +94,17 @@ namespace EDNAClient.Core
             _luaHost.Stop();
             foreach (var skill in _skills) skill.Stop();
             _hotkeys.Dispose();
-            await _ctx.Messenger.DisconnectAsync();
+            if (_ctx.Bus != null)
+                await _ctx.Bus.DisconnectAsync();
         }
 
-        private Task OnPlayfieldLoaded(string topic, string payload)
+        private Task OnPlayfieldLoaded(MessageEnvelope env)
         {
             try
             {
-                var j      = JObject.Parse(payload);
-                var ss     = j["SolarSystemName"]?.ToString() ?? "";
-                var pf     = j["Name"]?.ToString() ?? "";
+                var j      = env.PayloadJson ?? new JObject();
+                var ss     = (string)j["SolarSystemName"] ?? "";
+                var pf     = (string)j["Name"] ?? "";
                 var coords = j["SolarSystemCoordinates"];
                 double x   = coords != null ? (double)(coords["X"] ?? 0) : 0;
                 double y   = coords != null ? (double)(coords["Y"] ?? 0) : 0;
@@ -115,17 +123,17 @@ namespace EDNAClient.Core
             return Task.CompletedTask;
         }
 
-        private async Task OnGameEnter(string topic, string payload)
+        private async Task OnGameEnter(MessageEnvelope env)
         {
             try
             {
-                var j            = JObject.Parse(payload);
-                var gameMode     = j["GameMode"]?.ToString();
-                var saveGamePath = j["SaveGamePath"]?.ToString();
+                var j            = env.PayloadJson ?? new JObject();
+                var gameMode     = (string)j["GameMode"];
+                var saveGamePath = (string)j["SaveGamePath"];
 
                 EdnaLogger.Log($"GameEnter: mode={gameMode} path={saveGamePath}");
 
-                _ctx.AuthoritativeSource = topic.Split('/')[1];
+                _ctx.AuthoritativeSource = env.SenderType;
 
                 await Application.Current.Dispatcher.InvokeAsync(() =>
                 {
@@ -168,15 +176,15 @@ namespace EDNAClient.Core
                 EdnaLogger.Error("OnGameEnter failed", ex);
             }
 
-            _luaHost.Broadcast("on_game_enter", topic, payload);
+            _luaHost.Broadcast("on_game_enter", env.SenderType, env.RawPayload);
         }
 
-        private Task OnGameExit(string topic, string payload)
+        private Task OnGameExit(MessageEnvelope env)
         {
             EdnaLogger.Log("GameExit received (lobby)");
             try
             {
-                _luaHost.Broadcast("on_game_exit", topic, payload);
+                _luaHost.Broadcast("on_game_exit", env.SenderType, env.RawPayload);
                 _luaHost.Stop();
                 Application.Current.Dispatcher.InvokeAsync(() =>
                 {

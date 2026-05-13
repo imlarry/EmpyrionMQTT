@@ -6,7 +6,7 @@ namespace EDNAClient.Core
     public interface IEdnaSkill
     {
         string Id { get; }
-        Task StartAsync(IMessenger messenger);
+        Task StartAsync(IMessageBus bus);
         void Stop();
         void SnapToGameWindow();
     }

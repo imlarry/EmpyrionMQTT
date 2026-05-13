@@ -13,7 +13,7 @@ namespace EDNAClient.Skills.ThreatRadar
     /// </summary>
     public class ThreatTracker
     {
-        private readonly IMessenger      _messenger;
+        private readonly IMessageBus     _bus;
         private readonly ThreatViewModel _viewModel;
 
         // Threat entities keyed by entity id; value is last-known XZ position
@@ -22,23 +22,22 @@ namespace EDNAClient.Skills.ThreatRadar
         private float _playerX, _playerZ;
         private float _fwdX = 0f, _fwdZ = 1f;   // default: facing +Z (world north)
 
-        public ThreatTracker(IMessenger messenger, ThreatViewModel viewModel)
+        public ThreatTracker(IMessageBus bus, ThreatViewModel viewModel)
         {
-            _messenger = messenger;
+            _bus       = bus;
             _viewModel = viewModel;
         }
 
         // ── Lifecycle ──────────────────────────────────────────────────────
 
-        public async Task StartAsync()
+        public Task StartAsync()
         {
-            // App/evt/PlayfieldEntered published by GameEventHandler for GameEventType.PlayfieldEntered
-            await _messenger.SubscribeBrokerAsync(scope: "App", msgType: MessageType.Evt, operation: "PlayfieldEntered", callback: OnPlayfieldEntered);
-            // App/evt/Feeds.Scan: pending server implementation; subscribing now so it activates when available
-            await _messenger.SubscribeBrokerAsync(scope: "App", msgType: MessageType.Evt, operation: "Feeds.Scan", callback: OnScanSnapshot);
+            _bus.OnEvent("App", "PlayfieldEntered", OnPlayfieldEntered);
+            _bus.OnEvent("App", "Feeds.Scan",       OnScanSnapshot);
+            return Task.CompletedTask;
         }
 
-        private Task OnPlayfieldEntered(string topic, string payload)
+        private Task OnPlayfieldEntered(MessageEnvelope env)
         {
             _ = RequestScanAsync().ContinueWith(t =>
                 EdnaLogger.Error("RequestScanAsync failed on PlayfieldEntered", t.Exception?.InnerException),
@@ -56,17 +55,19 @@ namespace EDNAClient.Skills.ThreatRadar
 
         private async Task RequestScanAsync()
         {
-            // App scope pending confirmation when Feeds.Scan is added to ESB server
-            await _messenger.SendAsync("App", MessageType.Req, "Feeds.Scan", "{\"Duration\":300,\"RefreshRate\":2}");
+            // Feeds.Scan: pending ESB server implementation
+            await _bus.RequestAsync<object>("App", "Feeds.Scan",
+                new { Duration = 300, RefreshRate = 2 }, System.TimeSpan.FromSeconds(30));
         }
 
         // ── Scan snapshot handler ──────────────────────────────────────────
 
-        private Task OnScanSnapshot(string topic, string payload)
+        private Task OnScanSnapshot(MessageEnvelope env)
         {
             try
             {
-                var j = JObject.Parse(payload);
+                var j = env.PayloadJson;
+                if (j == null) return Task.CompletedTask;
 
                 // Terminal event — re-arm the feed
                 if (j["Status"] != null)

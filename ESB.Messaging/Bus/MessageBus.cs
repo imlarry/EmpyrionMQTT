@@ -31,6 +31,7 @@ namespace ESB.Messaging
         private readonly string                 _caFilePath;
         private readonly List<SubscriptionSpec> _subscriptions;
         private bool _connected;
+        private readonly HashSet<string> _subscribedKeys = new HashSet<string>();
 
         internal MessageBus(IMessenger messenger, string participantType,
             string host, int port, string username, string password, string caFilePath,
@@ -60,6 +61,22 @@ namespace ESB.Messaging
                 _host, _port, _username, _password, _caFilePath).ConfigureAwait(false);
             _connected = true;
 
+            // Auto-register the identity handler so other participants can discover this one.
+            _messenger.RegisterHandler("Registry/req/Identify", async msgCtx => {
+                if (msgCtx.ResponseTopic != null)
+                {
+                    var identJson = new JObject(
+                        new JProperty("ParticipantType", ParticipantType),
+                        new JProperty("ConnectionId",    ConnectionId));
+                    await _messenger.ReplyAsync(msgCtx.ResponseTopic, msgCtx.CorrelationData,
+                        identJson.ToString(Newtonsoft.Json.Formatting.None)).ConfigureAwait(false);
+                }
+            });
+            await _messenger.SubscribeBrokerAsync(
+                participantType: _participantType, connectionId: "discovery",
+                scope: "Registry", msgType: MessageType.Req, operation: "Identify")
+                .ConfigureAwait(false);
+
             foreach (var sub in _subscriptions)
             {
                 await _messenger.SubscribeBrokerAsync(
@@ -79,12 +96,15 @@ namespace ESB.Messaging
                 BusBuilder.NormalizeScope(scope), MessageType.Evt, operation, json);
         }
 
-        public Task AnnounceAsync<T>(string scope, string operation, T payload,
-            uint expirySeconds = 0u)
+        public Task AnnounceAsync<T>(string operation, T payload, uint expirySeconds = 0u)
         {
             var json = JsonConvert.SerializeObject(payload);
-            return _messenger.PublishRetainedAsync(
-                BusBuilder.NormalizeScope(scope), MessageType.Evt, operation, json, expirySeconds);
+            return _messenger.PublishRetainedAsync("Announcements", MessageType.Evt, operation, json, expirySeconds);
+        }
+
+        public Task LogAsync(string scope, string operation, string payload)
+        {
+            return _messenger.SendAsync(BusBuilder.NormalizeScope(scope), MessageType.Log, operation, payload);
         }
 
         // -- Request / response --------------------------------------------------
@@ -140,7 +160,7 @@ namespace ESB.Messaging
         {
             var key = BusBuilder.NormalizeScope(scope) + "/evt/" + operation;
             _messenger.RegisterHandler(key, ctx => handler(MessageEnvelope<T>.From(ctx)));
-            EnsureSubscribed(BusBuilder.NormalizeScope(scope), MessageType.Evt, operation);
+            EnsureSubscribed(BusBuilder.NormalizeScope(scope), MessageType.Evt);
         }
 
         public void OnEvent(string scope, string operation,
@@ -148,7 +168,7 @@ namespace ESB.Messaging
         {
             var key = BusBuilder.NormalizeScope(scope) + "/evt/" + operation;
             _messenger.RegisterHandler(key, ctx => handler(MessageEnvelope.From(ctx)));
-            EnsureSubscribed(BusBuilder.NormalizeScope(scope), MessageType.Evt, operation);
+            EnsureSubscribed(BusBuilder.NormalizeScope(scope), MessageType.Evt);
         }
 
         public void OnRequest<TReq, TRes>(string scope, string operation,
@@ -165,7 +185,7 @@ namespace ESB.Messaging
                                    .ConfigureAwait(false);
                 }
             });
-            EnsureSubscribed(BusBuilder.NormalizeScope(scope), MessageType.Req, operation);
+            EnsureSubscribed(BusBuilder.NormalizeScope(scope), MessageType.Req);
         }
 
         public void OnRequest(string scope, string operation,
@@ -181,23 +201,40 @@ namespace ESB.Messaging
                                    .ConfigureAwait(false);
                 }
             });
-            EnsureSubscribed(BusBuilder.NormalizeScope(scope), MessageType.Req, operation);
+            EnsureSubscribed(BusBuilder.NormalizeScope(scope), MessageType.Req);
         }
 
-        // If already connected, subscribe immediately (fire-and-forget).
-        // If not yet connected, queue for ConnectAsync.
-        private void EnsureSubscribed(string scope, MessageType msgType, string operation)
+        public void OnBroadcastRequest(string fromParticipantType, string scope, string operation,
+            Func<MessageEnvelope, Task> handler)
         {
-            var spec = new SubscriptionSpec(scope, msgType, operation);
+            var normScope = BusBuilder.NormalizeScope(scope);
+            var key = normScope + "/evt/" + operation;
+            _messenger.RegisterHandler(key, ctx => handler(MessageEnvelope.From(ctx)));
+            EnsureSubscribed(normScope, MessageType.Evt);
+        }
+
+        public async Task<string> DiscoverConnectionIdAsync(string participantType, TimeSpan timeout)
+        {
+            var raw = await _messenger.RequestToAsync(
+                participantType, "discovery", "Registry", "Identify", "{}", timeout)
+                .ConfigureAwait(false);
+            if (string.IsNullOrEmpty(raw)) return null;
+            var obj = JObject.Parse(raw);
+            return (string)obj["ConnectionId"];
+        }
+
+        // One broker subscription per msgType covers all scopes; dispatch table routes by key.
+        // Deduplicates so N OnRequest/OnEvent calls across all scopes produce one subscribe.
+        private void EnsureSubscribed(string scope, MessageType msgType)
+        {
+            string key = msgType.ToString().ToLower();
+            if (_subscribedKeys.Contains(key)) return;
+            _subscribedKeys.Add(key);
+
             if (_connected)
-            {
-                _messenger.SubscribeBrokerAsync(
-                    scope: scope, msgType: msgType, operation: operation);
-            }
+                _messenger.SubscribeBrokerAsync(msgType: msgType);
             else
-            {
-                _subscriptions.Add(spec);
-            }
+                _subscriptions.Add(new SubscriptionSpec(null, msgType, null));
         }
     }
 }

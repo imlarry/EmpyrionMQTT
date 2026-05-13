@@ -24,7 +24,7 @@ public class Test_Bus_Integration
     private sealed class TestCtx : BaseContextData { }
 
     private static async Task<IMessageBus> ConnectBusAsync(
-        string participantType, Action<BusBuilder>? configure = null)
+        string participantType, Action<IMessageBus>? configure = null)
     {
         var configPath = Path.Combine(
             AppDomain.CurrentDomain.BaseDirectory, "ESB_Info.yaml");
@@ -39,9 +39,8 @@ public class Test_Bus_Integration
         if (!string.IsNullOrEmpty(cfg.Username))
             builder = builder.WithCredentials(cfg.Username, cfg.Password);
 
-        configure?.Invoke(builder);
-
         var bus = builder.Build();
+        configure?.Invoke(bus);  // register handlers on IMessageBus before connecting
         await bus.ConnectAsync(new TestCtx());
         return bus;
     }
@@ -109,28 +108,6 @@ public class Test_Bus_Integration
 
             var raw = await AwaitOrTimeout(received);
             Assert.Contains("ok", raw);
-        }
-        finally { await Disconnect(sub); await Disconnect(pub); }
-    }
-
-    [Fact]
-    public async Task PublishEventAsync_BusScopeEnum_DeliveredToHandler()
-    {
-        IMessageBus? sub = null, pub = null;
-        var received = new TaskCompletionSource<PingPayload>();
-        try
-        {
-            sub = await ConnectBusAsync("BusScopeSub", b =>
-                b.OnEvent<PingPayload>("App", "Heartbeat",
-                    env => { received.TrySetResult(env.Body); return Task.CompletedTask; }));
-
-            pub = await ConnectBusAsync("BusScopePub");
-
-            await pub.PublishEventAsync(BusScope.App, "Heartbeat",
-                new PingPayload { Value = 7 });
-
-            var payload = await AwaitOrTimeout(received);
-            Assert.Equal(7, payload.Value);
         }
         finally { await Disconnect(sub); await Disconnect(pub); }
     }

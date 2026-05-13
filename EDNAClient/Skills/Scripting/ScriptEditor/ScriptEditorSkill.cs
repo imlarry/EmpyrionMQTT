@@ -22,7 +22,7 @@ namespace EDNAClient.Skills.Scripting.ScriptEditor
 
         // ── IEdnaSkill ────────────────────────────────────────────────────────
 
-        public Task StartAsync(IMessenger messenger) => Task.CompletedTask;
+        public Task StartAsync(IMessageBus bus) => Task.CompletedTask;
 
         // Full stop: same as OnGameExit since ScriptEditor has no MQTT subscriptions.
         public void Stop() => OnGameExit();

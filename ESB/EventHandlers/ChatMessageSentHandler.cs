@@ -1,6 +1,7 @@
+using System;
+using System.Threading.Tasks;
 using Eleon;
 using ESB.Interfaces;
-using ESB.Messaging;
 using Newtonsoft.Json.Linq;
 
 namespace ESB.EventHandlers
@@ -11,26 +12,52 @@ namespace ESB.EventHandlers
 
         public async void Handle(MessageData chatMsgData)
         {
-            await Execute(async () =>
+            ulong ticks;
+            int senderEntityId, recipientEntityId;
+            string senderType, senderNameOverride, senderFaction, recipientFaction;
+            float gameTime;
+            bool isTextLocaKey;
+            string arg1, arg2, channel, text;
+            try
             {
-                JObject json = new JObject(
-                        new JProperty("GameTicks", _ctx.ModApi.Application.GameTicks),
-                        new JProperty("SenderEntityId", chatMsgData.SenderEntityId),
-                        new JProperty("SenderType", chatMsgData.SenderType.ToString()),
-                        new JProperty("SenderNameOverride", chatMsgData.SenderNameOverride),
-                        new JProperty("SenderFaction", chatMsgData.SenderFaction.ToString()),
-                        new JProperty("RecipientEntityId", chatMsgData.RecipientEntityId),
-                        new JProperty("RecipientFaction", chatMsgData.RecipientFaction.ToString()),
-                        new JProperty("GameTime", chatMsgData.GameTime),
-                        new JProperty("IsTextLocaKey", chatMsgData.IsTextLocaKey),
-                        new JProperty("Arg1", chatMsgData.Arg1),
-                        new JProperty("Arg2", chatMsgData.Arg2),
-                        new JProperty("Channel", chatMsgData.Channel.ToString()),
-                new JProperty("Text", chatMsgData.Text)
-                        );
-                string chatJson = json.ToString(Newtonsoft.Json.Formatting.None);
-                await _ctx.Messenger.SendAsync("Chat", MessageType.Evt, "ChatMessageSent", chatJson);
-            });
+                ticks              = _ctx.ModApi.Application.GameTicks;
+                senderEntityId     = chatMsgData.SenderEntityId;
+                senderType         = chatMsgData.SenderType.ToString();
+                senderNameOverride = chatMsgData.SenderNameOverride;
+                senderFaction      = chatMsgData.SenderFaction.ToString();
+                recipientEntityId  = chatMsgData.RecipientEntityId;
+                recipientFaction   = chatMsgData.RecipientFaction.ToString();
+                gameTime           = chatMsgData.GameTime;
+                isTextLocaKey      = chatMsgData.IsTextLocaKey;
+                arg1               = chatMsgData.Arg1;
+                arg2               = chatMsgData.Arg2;
+                channel            = chatMsgData.Channel.ToString();
+                text               = chatMsgData.Text;
+            }
+            catch { return; }
+
+            try
+            {
+                var json = new JObject(
+                    new JProperty("GameTicks",          ticks),
+                    new JProperty("SenderEntityId",     senderEntityId),
+                    new JProperty("SenderType",         senderType),
+                    new JProperty("SenderNameOverride", senderNameOverride),
+                    new JProperty("SenderFaction",      senderFaction),
+                    new JProperty("RecipientEntityId",  recipientEntityId),
+                    new JProperty("RecipientFaction",   recipientFaction),
+                    new JProperty("GameTime",           gameTime),
+                    new JProperty("IsTextLocaKey",      isTextLocaKey),
+                    new JProperty("Arg1",               arg1),
+                    new JProperty("Arg2",               arg2),
+                    new JProperty("Channel",            channel),
+                    new JProperty("Text",               text));
+                await _ctx.Bus.PublishEventAsync("App", "ChatMessageSent", json);
+            }
+            catch (Exception ex)
+            {
+                try { await _ctx.Bus.LogAsync("EventHandlers", "ChatMessageSent", ex.ToString()); } catch { }
+            }
         }
     }
 }

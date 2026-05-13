@@ -55,20 +55,20 @@ public class Test_Messenger_Integration
         Messenger? pub = null, sub = null;
         try
         {
-            var received = new TaskCompletionSource<string>();
+            var received = new TaskCompletionSource<ParsedTopic>();
 
             sub = await ConnectAsync("SubLc");
-            await sub.SubscribeBrokerAsync(scope: "Game", msgType: MessageType.Evt, operation: "Ping", callback: (topic, _) =>
-            {
-                received.TrySetResult(topic);
+            sub.RegisterHandler("Game/evt/Ping", ctx => {
+                received.TrySetResult(ctx.ParsedTopic);
                 return Task.CompletedTask;
             });
+            await sub.SubscribeBrokerAsync(scope: "Game", msgType: MessageType.Evt, operation: "Ping");
 
             pub = await ConnectAsync("PubLc");
             await pub.SendAsync("Game", MessageType.Evt, "Ping", "{}");
 
-            var topic = await AwaitOrTimeout(received, 3000);
-            Assert.Contains("/evt/", topic);
+            var pt = await AwaitOrTimeout(received, 3000);
+            Assert.Equal("evt", pt.MsgType);
         }
         finally { await Disconnect(pub!); await Disconnect(sub!); }
     }
@@ -82,11 +82,11 @@ public class Test_Messenger_Integration
             var received = false;
 
             sub = await ConnectAsync("SubPc");
-            await sub.SubscribeBrokerAsync(scope: "Game", msgType: MessageType.Evt, operation: "OtherPing", callback: (_, __) =>
-            {
+            sub.RegisterHandler("Game/evt/OtherPing", ctx => {
                 received = true;
                 return Task.CompletedTask;
             });
+            await sub.SubscribeBrokerAsync(scope: "Game", msgType: MessageType.Evt, operation: "OtherPing");
 
             pub = await ConnectAsync("PubPc");
             await pub.SendAsync("Game", MessageType.Evt, "Ping", "{}");

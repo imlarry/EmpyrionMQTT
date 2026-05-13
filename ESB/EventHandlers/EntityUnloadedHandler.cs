@@ -1,6 +1,7 @@
+using System;
+using System.Threading.Tasks;
 using Eleon.Modding;
 using ESB.Interfaces;
-using ESB.Messaging;
 using Newtonsoft.Json.Linq;
 
 namespace ESB.EventHandlers
@@ -11,20 +12,24 @@ namespace ESB.EventHandlers
 
         public async void Handle(IEntity entity)
         {
-            // snapshot before enqueue -- bridge object is freed as part of the unload sequence
-            int id = entity.Id;
-            string name = entity.Name;
-            await Execute(async () =>
-            {
+            int id;
+            string name;
+            ulong ticks;
+            try { id = entity.Id; name = entity.Name; ticks = _ctx.ModApi.Application.GameTicks; }
+            catch { return; }
 
-                JObject json = new JObject(
-                        new JProperty("GameTicks", _ctx.ModApi.Application.GameTicks),
-                        new JProperty("Id", id),
-                        new JProperty("Name", name)
-                        );
-                string unloadedJson = json.ToString(Newtonsoft.Json.Formatting.None);
-                await _ctx.Messenger.SendAsync("Entity", MessageType.Evt, "EntityUnloaded", unloadedJson);
-            });
+            try
+            {
+                var json = new JObject(
+                    new JProperty("GameTicks", ticks),
+                    new JProperty("Id",        id),
+                    new JProperty("Name",      name));
+                await _ctx.Bus.PublishEventAsync("Playfield", "EntityUnloaded", json);
+            }
+            catch (Exception ex)
+            {
+                try { await _ctx.Bus.LogAsync("EventHandlers", "EntityUnloaded", ex.ToString()); } catch { }
+            }
         }
     }
 }

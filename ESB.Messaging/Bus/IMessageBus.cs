@@ -14,8 +14,10 @@ namespace ESB.Messaging
 
         Task PublishEventAsync<T>(string scope, string operation, T payload);
 
-        Task AnnounceAsync<T>(string scope, string operation, T payload,
-            uint expirySeconds = 0u);
+        // Publish a retained event to ESB/{ownType}/{ownConnId}/Announcements/evt/{operation}.
+        Task AnnounceAsync<T>(string operation, T payload, uint expirySeconds = 0u);
+
+        Task LogAsync(string scope, string operation, string payload);
 
         Task<MessageEnvelope<TResponse>> RequestAsync<TRequest, TResponse>(
             string scope, string operation, TRequest payload, TimeSpan timeout);
@@ -34,48 +36,14 @@ namespace ESB.Messaging
 
         void OnRequest(string scope, string operation,
             Func<MessageEnvelope, Task<string>> handler);
-    }
 
-    // BusScope overloads -- keeps IMessageBus clean while providing enum convenience.
-    public static class BusExtensions
-    {
-        public static Task PublishEventAsync<T>(
-            this IMessageBus bus, BusScope scope, string operation, T payload)
-            => bus.PublishEventAsync(scope.ToString(), operation, payload);
+        // Subscribe to events or requests from another participant type using wildcard connectionId.
+        // Subscribes to: ESB/{fromParticipantType}/+/{scope}/{msgType}/{operation}
+        void OnBroadcastRequest(string fromParticipantType, string scope, string operation,
+            Func<MessageEnvelope, Task> handler);
 
-        public static Task AnnounceAsync<T>(
-            this IMessageBus bus, BusScope scope, string operation, T payload,
-            uint expirySeconds = 0u)
-            => bus.AnnounceAsync(scope.ToString(), operation, payload, expirySeconds);
-
-        public static Task<MessageEnvelope<TResponse>> RequestAsync<TRequest, TResponse>(
-            this IMessageBus bus, BusScope scope, string operation,
-            TRequest payload, TimeSpan timeout)
-            => bus.RequestAsync<TRequest, TResponse>(scope.ToString(), operation, payload, timeout);
-
-        public static Task<MessageEnvelope> RequestAsync<TRequest>(
-            this IMessageBus bus, BusScope scope, string operation,
-            TRequest payload, TimeSpan timeout)
-            => bus.RequestAsync(scope.ToString(), operation, payload, timeout);
-
-        public static void OnEvent<T>(
-            this IMessageBus bus, BusScope scope, string operation,
-            Func<MessageEnvelope<T>, Task> handler)
-            => bus.OnEvent(scope.ToString(), operation, handler);
-
-        public static void OnEvent(
-            this IMessageBus bus, BusScope scope, string operation,
-            Func<MessageEnvelope, Task> handler)
-            => bus.OnEvent(scope.ToString(), operation, handler);
-
-        public static void OnRequest<TReq, TRes>(
-            this IMessageBus bus, BusScope scope, string operation,
-            Func<MessageEnvelope<TReq>, Task<TRes>> handler)
-            => bus.OnRequest(scope.ToString(), operation, handler);
-
-        public static void OnRequest(
-            this IMessageBus bus, BusScope scope, string operation,
-            Func<MessageEnvelope, Task<string>> handler)
-            => bus.OnRequest(scope.ToString(), operation, handler);
+        // Discover the connectionId of a participant by sending a request to its "discovery" address.
+        // Publishes to: ESB/{participantType}/discovery/Registry/req/Identify
+        Task<string> DiscoverConnectionIdAsync(string participantType, TimeSpan timeout);
     }
 }

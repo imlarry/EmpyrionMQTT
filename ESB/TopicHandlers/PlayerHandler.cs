@@ -1,217 +1,169 @@
 using Eleon.Modding;
 using ESB.Helpers;
 using ESB.Messaging;
+using ESB.Payloads;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using System;
-using System.Collections.Generic;
 using System.Threading.Tasks;
 using UnityEngine;
 
 namespace ESB.TopicHandlers
 {
-    public partial class PlayerHandler
+    public class PlayerHandler
     {
         private readonly ContextData _ctx;
 
         public PlayerHandler(ContextData ctx) { _ctx = ctx; }
 
-        // -------------------------------------------------------------------------
-        // Property getter table -- allocated once at class load, keyed by name.
-        // -------------------------------------------------------------------------
-
-        static JToken FD(FactionData fd) => new JObject(new JProperty("Group", fd.Group.ToString()), new JProperty("Id", fd.Id));
-
-        static readonly Dictionary<string, Func<IPlayer, JToken>> _getters =
-            new Dictionary<string, Func<IPlayer, JToken>>
-        {
-            ["Id"]                       = p => JToken.FromObject(p.Id),
-            ["Name"]                     = p => JToken.FromObject(p.Name),
-            ["SteamId"]                  = p => JToken.FromObject(p.SteamId),
-            ["SteamOwnerId"]             = p => JToken.FromObject(p.SteamOwnerId),
-            ["StartPlayfield"]           = p => JToken.FromObject(p.StartPlayfield),
-            ["Origin"]                   = p => JToken.FromObject(p.Origin),
-            ["Permission"]               = p => JToken.FromObject(p.Permission),
-            ["Health"]                   = p => JToken.FromObject(p.Health),
-            ["HealthMax"]                = p => JToken.FromObject(p.HealthMax),
-            ["Oxygen"]                   = p => JToken.FromObject(p.Oxygen),
-            ["OxygenMax"]                = p => JToken.FromObject(p.OxygenMax),
-            ["Stamina"]                  = p => JToken.FromObject(p.Stamina),
-            ["StaminaMax"]               = p => JToken.FromObject(p.StaminaMax),
-            ["Food"]                     = p => JToken.FromObject(p.Food),
-            ["FoodMax"]                  = p => JToken.FromObject(p.FoodMax),
-            ["Radiation"]                = p => JToken.FromObject(p.Radiation),
-            ["RadiationMax"]             = p => JToken.FromObject(p.RadiationMax),
-            ["BodyTemp"]                 = p => JToken.FromObject(p.BodyTemp),
-            ["BodyTempMax"]              = p => JToken.FromObject(p.BodyTempMax),
-            ["Credits"]                  = p => JToken.FromObject(p.Credits),
-            ["ExperiencePoints"]         = p => JToken.FromObject(p.ExperiencePoints),
-            ["UpgradePoints"]            = p => JToken.FromObject(p.UpgradePoints),
-            ["Kills"]                    = p => JToken.FromObject(p.Kills),
-            ["Died"]                     = p => JToken.FromObject(p.Died),
-            ["Ping"]                     = p => JToken.FromObject(p.Ping),
-            ["HomeBaseId"]               = p => JToken.FromObject(p.HomeBaseId),
-            ["IsPilot"]                  = p => JToken.FromObject(p.IsPilot),
-            ["IsLocal"]                  = p => JToken.FromObject(p.IsLocal),
-            ["IsProxy"]                  = p => JToken.FromObject(p.IsProxy),
-            ["IsPoi"]                    = p => JToken.FromObject(p.IsPoi),
-            ["BelongsTo"]                = p => JToken.FromObject(p.BelongsTo),
-            ["DockedTo"]                 = p => JToken.FromObject(p.DockedTo),
-            ["Type"]                     = p => JToken.FromObject(p.Type.ToString()),
-            ["FactionData"]              = p => FD(p.FactionData),
-            ["Faction"]                  = p => FD(p.Faction),
-            ["FactionRole"]              = p => JToken.FromObject(p.FactionRole.ToString()),
-            ["CurrentStructureId"]       = p => p.CurrentStructure != null ? JToken.FromObject(p.CurrentStructure.Id)        : JValue.CreateNull(),
-            ["CurrentStructureEntityId"] = p => p.CurrentStructure != null ? JToken.FromObject(p.CurrentStructure.Entity.Id) : JValue.CreateNull(),
-            ["DrivingEntityId"]          = p => p.DrivingEntity    != null ? JToken.FromObject(p.DrivingEntity.Id)            : JValue.CreateNull(),
-            ["Position"]                 = p => MessageHelpers.Vec(p.Position),
-            ["Forward"]                  = p => MessageHelpers.Vec(p.Forward),
-            ["Rotation"]                 = p => MessageHelpers.Vec(p.Rotation),
-            ["Toolbar"]                  = p => HandlerHelper.ItemStacksJson(p.Toolbar),
-            ["Bag"]                      = p => HandlerHelper.ItemStacksJson(p.Bag),
-        };
+        static JObject FD(FactionData fd) => new JObject(new JProperty("Group", fd.Group.ToString()), new JProperty("Id", fd.Id));
 
         public void Register()
         {
-            _ctx.Messenger.RegisterHandler("Player/req/GetProperties", Properties);
-            _ctx.Messenger.RegisterHandler("Player/req/Teleport",      Teleport);
-            _ctx.Messenger.RegisterHandler("Player/req/DamageEntity",  DamageEntity);
-            _ctx.Messenger.RegisterHandler("Player/req/Describe",      Describe);
+            _ctx.Bus.OnRequest("Player", "GetProperties", Properties);
+            _ctx.Bus.OnRequest("Player", "Teleport",      Teleport);
+            _ctx.Bus.OnRequest("Player", "DamageEntity",  DamageEntity);
         }
 
-        public async Task Describe(MessageContext ctx)
+        public async Task<string> Properties(MessageEnvelope env)
         {
-            await HandlerHelper.ReplyAsync(_ctx.Messenger, ctx,
-                HandlerHelper.ScopeManifestJson("Player", _opDefs));
-        }
-
-        public async Task Properties(MessageContext ctx)
-        {
-            if (ctx.ParsedTopic.MetaOperation != null)
-            {
-                await HandlerHelper.ReplyMetaAsync(_ctx.Messenger, ctx, "GetProperties", _opDefs["GetProperties"]);
-                return;
-            }
             try
             {
-                JObject args = string.IsNullOrWhiteSpace(ctx.Payload) ? null : JObject.Parse(ctx.Payload);
-
-                HashSet<string> filter = null;
-                var propArray = args?["Properties"] as JArray;
-                if (propArray != null)
+                IPlayer player;
+                var args     = env.PayloadJson;
+                var entityId = args?["EntityId"];
+                if (entityId != null && entityId.Type != JTokenType.Null)
                 {
-                    if (!HandlerHelper.TryParsePropertyNames(propArray, _getters.Keys, out filter, out var invalid))
+                    int id = (int)entityId;
+                    var pf = _ctx.GameManager.CurrentPlayfield ?? _ctx.ModApi.ClientPlayfield;
+                    if (pf == null)
+                        return MessageHelpers.ErrorJson("No active playfield");
+                    if (!pf.Players.TryGetValue(id, out player) || player == null)
+                        return MessageHelpers.ErrorJson("Player entity " + id + " not found on current playfield");
+                }
+                else
+                {
+                    player = _ctx.ModApi.Application.LocalPlayer;
+                    if (player == null)
+                        return MessageHelpers.ErrorJson("LocalPlayer is null -- no active player in this game mode");
+                }
+
+                return await _ctx.MainThreadRunner.RunOnMainThread(() =>
+                {
+                    JToken S(Func<object> getter)
                     {
-                        var errObj = new JObject(
-                            new JProperty("Error",             "InvalidProperty"),
-                            new JProperty("InvalidProperties", new JArray(invalid)),
-                            new JProperty("ValidProperties",   new JArray(_getters.Keys)));
-                        await HandlerHelper.ReplyErrorAsync(_ctx.Messenger, ctx, errObj.ToString(Formatting.None));
-                        return;
+                        try { var v = getter(); return v == null ? JValue.CreateNull() : JToken.FromObject(v); }
+                        catch { return JValue.CreateNull(); }
                     }
-                }
 
-                var localPlayer = _ctx.ModApi.Application.LocalPlayer;
-                if (localPlayer == null)
-                {
-                    await HandlerHelper.ReplyErrorAsync(_ctx.Messenger, ctx,
-                        MessageHelpers.ErrorJson("LocalPlayer is null -- no active player in this game mode"));
-                    return;
-                }
-
-                JObject json = null;
-                await _ctx.MainThreadRunner.RunOnMainThread(async () =>
-                {
-                    json = HandlerHelper.BuildPropertyObject(localPlayer, _getters, filter);
-                    await Task.CompletedTask;
+                    var obj = new JObject();
+                    obj["Id"]              = S(() => player.Id);
+                    obj["Name"]            = S(() => player.Name);
+                    obj["SteamId"]         = S(() => player.SteamId);
+                    obj["SteamOwnerId"]    = S(() => player.SteamOwnerId);
+                    obj["StartPlayfield"]  = S(() => player.StartPlayfield);
+                    obj["Origin"]          = S(() => player.Origin);
+                    obj["Permission"]      = S(() => player.Permission);
+                    obj["Health"]          = S(() => player.Health);
+                    obj["HealthMax"]       = S(() => player.HealthMax);
+                    obj["Oxygen"]          = S(() => player.Oxygen);
+                    obj["OxygenMax"]       = S(() => player.OxygenMax);
+                    obj["Stamina"]         = S(() => player.Stamina);
+                    obj["StaminaMax"]      = S(() => player.StaminaMax);
+                    obj["Food"]            = S(() => player.Food);
+                    obj["FoodMax"]         = S(() => player.FoodMax);
+                    obj["Radiation"]       = S(() => player.Radiation);
+                    obj["RadiationMax"]    = S(() => player.RadiationMax);
+                    obj["BodyTemp"]        = S(() => player.BodyTemp);
+                    obj["BodyTempMax"]     = S(() => player.BodyTempMax);
+                    obj["Credits"]         = S(() => player.Credits);
+                    obj["ExperiencePoints"]= S(() => player.ExperiencePoints);
+                    obj["UpgradePoints"]   = S(() => player.UpgradePoints);
+                    obj["Kills"]           = S(() => player.Kills);
+                    obj["Died"]            = S(() => player.Died);
+                    obj["Ping"]            = S(() => player.Ping);
+                    obj["HomeBaseId"]      = S(() => player.HomeBaseId);
+                    obj["IsPilot"]         = S(() => player.IsPilot);
+                    obj["IsLocal"]         = S(() => player.IsLocal);
+                    obj["IsProxy"]         = S(() => player.IsProxy);
+                    obj["IsPoi"]           = S(() => player.IsPoi);
+                    obj["BelongsTo"]       = S(() => player.BelongsTo);
+                    obj["DockedTo"]        = S(() => player.DockedTo);
+                    obj["Type"]            = S(() => player.Type.ToString());
+                    obj["FactionData"]     = S(() => FD(player.FactionData));
+                    obj["Faction"]         = S(() => FD(player.Faction));
+                    obj["FactionRole"]     = S(() => player.FactionRole.ToString());
+                    obj["CurrentStructure"] = player.CurrentStructure != null
+                        ? (JToken)new JObject(
+                            new JProperty("Id",       player.CurrentStructure.Id),
+                            new JProperty("EntityId", player.CurrentStructure.Entity.Id))
+                        : JValue.CreateNull();
+                    obj["DrivingEntity"] = player.DrivingEntity != null
+                        ? (JToken)new JObject(new JProperty("EntityId", player.DrivingEntity.Id))
+                        : JValue.CreateNull();
+                    obj["Position"] = MessageHelpers.Vec(player.Position);
+                    obj["Forward"]  = MessageHelpers.Vec(player.Forward);
+                    obj["Rotation"] = MessageHelpers.Vec(player.Rotation);
+                    obj["Toolbar"]  = HandlerHelper.ItemStacksJson(player.Toolbar);
+                    obj["Bag"]      = HandlerHelper.ItemStacksJson(player.Bag);
+                    return obj.ToString(Formatting.None);
                 });
-
-                await HandlerHelper.ReplyAsync(_ctx.Messenger, ctx, json.ToString(Formatting.None));
             }
             catch (Exception ex)
             {
-                await HandlerHelper.ReplyErrorAsync(_ctx.Messenger, ctx, MessageHelpers.ExceptionJson(ex));
+                return MessageHelpers.ExceptionJson(ex);
             }
         }
 
-        public async Task Teleport(MessageContext ctx)
+        public async Task<string> Teleport(MessageEnvelope env)
         {
-            if (ctx.ParsedTopic.MetaOperation != null)
-            {
-                await HandlerHelper.ReplyMetaAsync(_ctx.Messenger, ctx, "Teleport", _opDefs["Teleport"]);
-                return;
-            }
             try
             {
                 var lp = _ctx.ModApi.Application.LocalPlayer;
                 if (lp == null)
-                {
-                    await HandlerHelper.ReplyErrorAsync(_ctx.Messenger, ctx,
-                        MessageHelpers.ErrorJson("LocalPlayer is null -- no active player in this game mode"));
-                    return;
-                }
+                    return MessageHelpers.ErrorJson("LocalPlayer is null -- no active player in this game mode");
 
-                var args = JObject.Parse(ctx.Payload);
+                JObject args = env.PayloadJson;
                 string playfield = args["Playfield"]?.ToString();
 
                 if (args["Pos"] == null)
-                {
-                    await HandlerHelper.ReplyErrorAsync(_ctx.Messenger, ctx, MessageHelpers.ErrorJson("Pos argument is required"));
-                    return;
-                }
+                    return MessageHelpers.ErrorJson("Pos argument is required");
                 if (playfield != null && args["Rot"] == null)
-                {
-                    await HandlerHelper.ReplyErrorAsync(_ctx.Messenger, ctx, MessageHelpers.ErrorJson("Rot argument is required when Playfield is provided"));
-                    return;
-                }
+                    return MessageHelpers.ErrorJson("Rot argument is required when Playfield is provided");
 
                 Vector3 pos = MessageHelpers.ParseVec3(args["Pos"]);
-                await _ctx.MainThreadRunner.RunOnMainThread(async () =>
+                return await _ctx.MainThreadRunner.RunOnMainThread(() =>
                 {
                     bool result = playfield == null
                         ? lp.Teleport(pos)
                         : lp.Teleport(playfield, pos, MessageHelpers.ParseVec3(args["Rot"]));
-                    await HandlerHelper.ReplyAsync(_ctx.Messenger, ctx,
-                        new JObject(new JProperty("ok", result)).ToString(Formatting.None));
+                    return new JObject(new JProperty("ok", result)).ToString(Formatting.None);
                 });
             }
             catch (Exception ex)
             {
-                await HandlerHelper.ReplyErrorAsync(_ctx.Messenger, ctx, MessageHelpers.ExceptionJson(ex));
+                return MessageHelpers.ExceptionJson(ex);
             }
         }
 
-        public async Task DamageEntity(MessageContext ctx)
+        public async Task<string> DamageEntity(MessageEnvelope env)
         {
-            if (ctx.ParsedTopic.MetaOperation != null)
-            {
-                await HandlerHelper.ReplyMetaAsync(_ctx.Messenger, ctx, "DamageEntity", _opDefs["DamageEntity"]);
-                return;
-            }
             try
             {
                 var lp = _ctx.ModApi.Application.LocalPlayer;
                 if (lp == null)
-                {
-                    await HandlerHelper.ReplyErrorAsync(_ctx.Messenger, ctx,
-                        MessageHelpers.ErrorJson("LocalPlayer is null -- no active player in this game mode"));
-                    return;
-                }
+                    return MessageHelpers.ErrorJson("LocalPlayer is null -- no active player in this game mode");
 
-                var args = JObject.Parse(ctx.Payload);
-                int damageAmount = args["DamageAmount"]?.Value<int>() ?? 0;
-                int damageType   = args["DamageType"]?.Value<int>()   ?? 0;
-
-                await _ctx.MainThreadRunner.RunOnMainThread(async () =>
+                var req = env.PayloadAs<DamageEntityRequest>();
+                return await _ctx.MainThreadRunner.RunOnMainThread(() =>
                 {
-                    lp.DamageEntity(damageAmount, damageType);
-                    await HandlerHelper.ReplyAsync(_ctx.Messenger, ctx,
-                        new JObject(new JProperty("ok", true)).ToString(Formatting.None));
+                    lp.DamageEntity(req.DamageAmount, req.DamageType);
+                    return new JObject(new JProperty("ok", true)).ToString(Formatting.None);
                 });
             }
             catch (Exception ex)
             {
-                await HandlerHelper.ReplyErrorAsync(_ctx.Messenger, ctx, MessageHelpers.ExceptionJson(ex));
+                return MessageHelpers.ExceptionJson(ex);
             }
         }
     }

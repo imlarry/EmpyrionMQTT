@@ -5,104 +5,194 @@ They are ordered by dependency: each step builds on the previous one.
 
 ---
 
-## Step 1: Introduce BusBuilder at each participant entry point
+## Step 1: Introduce BusBuilder at each participant entry point -- DONE
 
-Each participant (ESB mod, EDNA client) currently creates a `Messenger` and calls
-`ConnectAsync` directly. Replace that startup sequence with a `BusBuilder` that
-produces an `IMessageBus`.
-
-The participant type, broker address, and credentials that are currently scattered
-through startup code become `BusBuilder` configuration calls. The result is a single
-`IMessageBus` instance that the participant passes to everything that needs it.
+BusManager.cs builds an IMessageBus via BusBuilder and stores it in _ctx.Bus.
+EntityLoadedHandler.cs uses _ctx.Bus.PublishEventAsync and is the proof-of-concept event handler.
 
 ---
 
-## Step 2: Convert one handler as a proof of concept
+## Step 2: App scope proof-of-concept -- DONE
 
-Pick a simple, self-contained handler (a read-only request/response with no side
-effects is ideal). Re-implement it as a `[BusRoute]`-decorated class implementing
-`IRequestHandler<TReq, TRes>` or `IEventHandler<T>`. Define the payload POCOs.
-
-Verify the handler registers, receives requests, and responds correctly alongside
-the existing IMessenger-based handlers. Nothing else changes yet -- this is a
-parallel path while the old code still runs.
+ApplicationHandler.cs replaced with AppHandler.cs. Typed POCOs created in AppPayloads.cs.
+PlayerPayloads.cs created with DamageEntityRequest. Introspection (.defs.cs) removed from all
+scopes. Old ApplicationHandler.defs.cs, PlayerHandler.defs.cs, StructureHandler.Defs.cs deleted.
 
 ---
 
-## Step 3: Define payload model types
+## Step 3: Define payload model types -- DONE
 
-The existing handlers extract fields from raw JSON. Before converting more handlers,
-define C# POCOs for the payloads those handlers send and receive. These become the
-shared contracts between bus participants.
+ESB/Payloads/AppPayloads.cs: all App-scope request types plus event payloads
+  (ChatMessageSentPayload, GameStatePayload, DialogResponsePayload).
+ESB/Payloads/PlayerPayloads.cs: DamageEntityRequest, GetPropertiesRequest, TeleportRequest.
+ESB/Payloads/EntityLoadedPayload.cs: EntityLoadedPayload and Vec3Payload (shared).
+ESB/Payloads/PlayfieldPayloads.cs: EntityUnloadedPayload, PlayfieldEntitySnapshot,
+  PlayfieldLoadedPayload, PlayfieldUnloadingPayload.
+ESB/Payloads/StructurePayloads.cs: VecInt3Payload (shared) plus request types for all
+  17 Structure operations (EntityIdRequest, GetDevicePositionsRequest, GetBlockSignalsRequest,
+  GetSignalStateRequest, GetSignalReceiversRequest, GetSendSignalNameRequest,
+  AddTankContentRequest, SetFactionRequest, StructToGlobalPosRequest,
+  GlobalToStructPosRequest, ScanFloorRequest).
 
-Payload types should live in a location accessible to both the ESB mod and the
-EDNA client (either a shared project or duplicated per participant if the build
-boundary requires it).
-
----
-
-## Step 4: Convert remaining handlers incrementally
-
-Working handler by handler, replace raw JSON extraction with typed handler classes
-and POCO payloads. Each converted handler:
-
-- Gets a `[BusRoute]` attribute matching its current dispatch key scope and operation.
-- Implements `IRequestHandler<TReq, TRes>` or `IEventHandler<T>`.
-- Replaces its direct `IMessenger.RegisterHandler` and `SubscribeBrokerAsync` calls.
-
-The old handler registration code is removed once the typed equivalent is verified.
+Handlers still build JObject responses inline; typed response POCOs can be added
+alongside EDNA client deserialization work in Step 7.
 
 ---
 
-## Step 5: Wire DI for handlers that have dependencies
+## Step 4: Convert handlers to IMessageBus -- DONE
 
-Handlers that currently receive dependencies via constructor or field injection need
-those dependencies available through the `IServiceProvider` supplied to `BusBuilder`.
-Configure the DI container to register each handler type and its dependencies, then
-pass the built `IServiceProvider` to `BusBuilder.WithServiceProvider`.
+### TopicHandler conversion pattern
+
+Each TopicHandler class follows this structure:
+
+1. `Register()` calls `_ctx.Bus.OnRequest(scope, operation, method)` once per operation.
+   The overload used is `void OnRequest(string scope, string operation,
+   Func<MessageEnvelope, Task<string>> handler)`.
+
+2. Every handler method has the signature:
+   `private Task<string> MethodName(MessageEnvelope env)`
+
+3. For operations with typed request payloads, the handler calls `env.PayloadAs<TReq>()`
+   inside the method body to deserialize. The registration line is identical whether or
+   not the operation has a request payload -- no wrapper or generic overload at the call site.
+
+4. Exception handling belongs inside the handler method, not at the registration layer.
+   Use `MessageHelpers.ErrorJson(message)` for expected errors and
+   `MessageHelpers.ExceptionJson(ex)` for caught exceptions.
+
+Example:
+```
+public void Register()
+{
+    _ctx.Bus.OnRequest("App", "GetPathFor", GetPathFor);
+}
+
+private Task<string> GetPathFor(MessageEnvelope env)
+{
+    var req = env.PayloadAs<GetPathForRequest>();
+    // ... build and return JSON string
+}
+```
+
+### EventHandler conversion pattern
+
+Event publishers call `await _ctx.Bus.PublishEventAsync(scope, operation, payload)` where
+payload is a JObject or a typed POCO. Exception handling belongs inside the handler, not at
+the call site.
+
+### Current status
+
+TopicHandlers (all using Bus.OnRequest):
+- AppHandler: 14 operations implemented (complete)
+- PlayerHandler: 3 operations implemented (complete)
+- StructureHandler: 17 operations implemented (complete)
+- RegistryHandler: being retired; stub left in place
+
+EventHandlers (all using Bus.PublishEventAsync):
+- ChatMessageSentHandler, EntityLoadedHandler, EntityUnloadedHandler,
+  GameEnteredHandler, GameEventHandler, PlayfieldLoadedHandler,
+  PlayfieldUnloadingHandler: converted
+
+MainThreadRunner: RunOnMainThread<T>(Func<T>) overload added to support
+synchronous main-thread work returning a value (used by App and Player handlers).
+
+PlayfieldLoadedHandler: _ctx.GameManager.CurrentPlayfield assignment was dropped
+during conversion and restored. StructureHandler.GetStructureForEntity also falls
+back to _ctx.ModApi.ClientPlayfield when CurrentPlayfield is null.
+
+SubscriptionHandler.SubscribeAll() calls Register() on each TopicHandler and returns
+Task.CompletedTask. No wildcard SubscribeBrokerAsync calls remain in application code.
 
 ---
 
-## Step 6: Migrate EDNA client subscriptions
+## Step 5: Implement handler bodies -- DONE (132 tests passing)
 
-EDNA currently subscribes to events using `SubscribeBrokerAsync` with raw callbacks.
-Replace those subscriptions with `IMessageBus.OnEvent<T>` registrations (either on
-the builder before connect, or dynamically after connect for cases that are currently
-registered at runtime).
+### Reference implementations in git
 
-Typed payload POCOs from Step 3 replace inline JSON field access throughout the
-EDNA skills and services.
+The prior API used IMessenger directly. Complete working implementations exist in git at
+HEAD and are the primary reference for this work. Recover them with:
+
+  git show HEAD:ESB/TopicHandlers/ApplicationHandler.cs  (all App scope handlers)
+  git diff HEAD -- ESB/TopicHandlers/PlayerHandler.cs    (Properties, Teleport, DamageEntity)
+  git diff HEAD -- ESB/TopicHandlers/StructureHandler.cs (all 17 Structure scope handlers)
+
+### Mechanical translation from old API to new
+
+| Old (IMessenger) | New (IMessageBus) |
+|---|---|
+| `async Task HandlerName(MessageContext ctx)` | `Task<string> HandlerName(MessageEnvelope env)` |
+| `JObject.Parse(ctx.Payload)` | `env.PayloadJson` (already a JObject -- no Parse call needed) |
+| `env.PayloadAs<TReq>()` | typed POCO deserialization (preferred when POCO exists in AppPayloads) |
+| `await HandlerHelper.ReplyAsync(_ctx.Messenger, ctx, json)` | `return json` (return the string directly) |
+| `await HandlerHelper.ReplyErrorAsync(_ctx.Messenger, ctx, err)` | `return err` |
+| `args["Key"].Value<T>()` | `(T)args["Key"]` (CLAUDE.md rule -- no .Value<T>()) |
+| `_ctx.Messenger.SendAsync("App", MessageType.Evt, "Op", payload)` | `await _ctx.Bus.PublishEventAsync("App", "Op", payload)` |
+| `GetStructureForEntity(ctx, entityId)` returning null + reply | `GetStructureForEntity(entityId)` returning null silently or throwing |
+| `if (ctx.ParsedTopic.MetaOperation != null) ...` | remove (introspection removed) |
+| `Describe` / `AppDescribe` handlers | remove (introspection removed) |
+
+Key changes beyond mechanical substitution:
+- Old handlers were `async Task` because they awaited ReplyAsync. New handlers are
+  `Task<string>` and simply return the JSON string. Use `Task.FromResult(json)` for
+  synchronous paths; `async Task<string>` only when awaiting real async work (MainThreadRunner).
+- `GetStructureForEntity` in StructureHandler was already changed from
+  `async Task<IStructure>(MessageContext)` to `IStructure(int)` -- it now throws
+  InvalidOperationException on bad entity type instead of sending an error reply.
+  Callers use a try/catch that returns `MessageHelpers.ExceptionJson(ex)`.
+- ShowDialogBox fires a dialog-callback event. Old code called `_ctx.Messenger.SendAsync`.
+  New code must call `await _ctx.Bus.PublishEventAsync("App", "DialogResponse", payload)`
+  inside the void callback using `_ = _ctx.Bus.PublishEventAsync(...)`.
+
+### Scope order and payload files
+
+- App scope: AppHandler.cs / AppPayloads.cs (request and response POCOs complete)
+- Player scope: PlayerHandler.cs / PlayerPayloads.cs (add response POCOs as needed)
+- Structure scope: StructureHandler.cs / create StructurePayloads.cs as needed
+
+Each implementation returns a JSON string built via JObject or
+JsonConvert.SerializeObject(..., MessageHelpers.PascalCaseSettings).
 
 ---
 
-## Step 7: Replace remaining direct IMessenger call sites
+## Step 6: Wire DI for handlers that have dependencies -- DEFERRED
 
-Any remaining calls to `IMessenger.SendAsync`, `RequestAsync`, or `PublishRetainedAsync`
-in application-level code (not in the bus implementation itself) are replaced with the
-corresponding `IMessageBus` methods. After this step, application code no longer
-holds a reference to `IMessenger` directly -- only `IMessageBus`.
-
-`IMessenger` becomes an implementation detail held only by `BusBuilder` and `MessageBus`.
+No current handler has dependencies beyond ContextData. Revisit when a handler
+requires an injected service. BusBuilder.WithServiceProvider is the entry point.
 
 ---
 
-## Step 8: Expand test coverage
+## Step 7: Migrate EDNA client subscriptions
 
-As each handler is converted, add a corresponding typed integration test under
-`ESBTests/Bus/` following the pattern established in `Test_Bus_Integration.cs`.
-Tests at this level verify the full round-trip: payload serialization, dispatch,
-handler logic, and response.
+EDNA currently subscribes to events using SubscribeBrokerAsync with raw callbacks.
+Replace with IMessageBus.OnEvent<T> registrations. Typed payload POCOs from Step 3
+replace inline JSON field access throughout EDNA skills and services.
+
+---
+
+## Step 8: Replace remaining direct IMessenger call sites
+
+Any remaining calls to IMessenger.SendAsync, RequestAsync, or PublishRetainedAsync
+in application-level code are replaced with the corresponding IMessageBus methods.
+After this step, application code no longer holds a reference to IMessenger directly.
+
+Note: BusManager.PublishRegistryEntryAsync still calls _ctx.Messenger.PublishRetainedAsync
+directly and will be updated here.
+
+---
+
+## Step 9: Expand test coverage
+
+As each handler scope is implemented, add typed integration tests under ESBTests/Bus/
+following the pattern in Test_Bus_Integration.cs. Tests verify the full round-trip:
+payload serialization, dispatch, handler logic, and response deserialization.
+
+Current integration tests exercise IMessenger-based paths and should continue to pass
+throughout the migration.
 
 ---
 
 ## Deferred: middleware and per-message DI scope
 
-Once the above steps are complete and the system is running cleanly on `IMessageBus`,
-the remaining capabilities from the design can be introduced as needed:
-
-- **Middleware pipeline**: cross-cutting concerns such as logging, validation, and
-  retry added as a processing stage between the bus and the handler.
-- **Per-message DI scope**: an `IServiceScope` created per handler invocation so that
-  scoped services (e.g. per-request database sessions) are supported.
-- **Log method**: a `Log(level, message)` convenience on `IMessageBus` that routes
-  to the existing `App/log/` topic convention.
+Once the above steps are complete:
+- Middleware pipeline: logging, validation, retry as a processing stage between bus and handler.
+- Per-message DI scope: IServiceScope per handler invocation for scoped services.

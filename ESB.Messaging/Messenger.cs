@@ -25,7 +25,6 @@ namespace ESB.Messaging
         private MqttFactory _mqttFactory;
         private IMqttClient _mqttClient;
         private readonly Dictionary<string, Func<MessageContext, Task>> _handlers = new Dictionary<string, Func<MessageContext, Task>>();
-        private readonly Dictionary<string, Func<string, string, Task>> _eventCallbacks = new Dictionary<string, Func<string, string, Task>>();
         private readonly Dictionary<string, TaskCompletionSource<string>> _pendingResponses = new Dictionary<string, TaskCompletionSource<string>>();
         private readonly object _callbackLock = new object();
 
@@ -200,27 +199,9 @@ namespace ESB.Messaging
         }
 
         // SubscribeBrokerAsync ... subscribe using structured ESB topic segments; null -> "+"
-        // Optional callback registers a direct (topic, payload) handler for wildcard-matched delivery.
-        public async Task SubscribeBrokerAsync(string participantType = null, string connectionId = null, string scope = null, MessageType? msgType = null, string operation = null, Func<string, string, Task> callback = null)
+        public async Task SubscribeBrokerAsync(string participantType = null, string connectionId = null, string scope = null, MessageType? msgType = null, string operation = null)
         {
             var topicFilter = BuildTopic(participantType, connectionId, scope, msgType, operation);
-            if (callback != null)
-            {
-                lock (_callbackLock)
-                {
-                    _eventCallbacks[topicFilter] = callback;
-                }
-            }
-            await SubscribeRawAsync(topicFilter);
-        }
-
-        // SubscribeEventAsync ... raw-filter subscription for LuaMqttApi (Lua-supplied filter strings)
-        public async Task SubscribeEventAsync(string topicFilter, Func<string, string, Task> callback)
-        {
-            lock (_callbackLock)
-            {
-                _eventCallbacks[topicFilter] = callback;
-            }
             await SubscribeRawAsync(topicFilter);
         }
 
@@ -389,6 +370,57 @@ namespace ESB.Messaging
             }
         }
 
+        // RequestToAsync ... like RequestAsync but addressed to a specific target participant/connectionId.
+        public async Task<string> RequestToAsync(string targetParticipantType, string targetConnectionId, string scope, string operation, string payload, TimeSpan timeout)
+        {
+            var shortId       = Guid.NewGuid().ToString("N").Substring(0, 8);
+            var responseTopic = BuildTopic(_participantType, _clientId, scope, MessageType.Res, operation);
+            var tcs           = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+            lock (_callbackLock)
+            {
+                _pendingResponses[shortId] = tcs;
+            }
+
+            var topic = BuildTopic(targetParticipantType, targetConnectionId, scope, MessageType.Req, operation);
+            var builder = new MqttApplicationMessageBuilder()
+                .WithTopic(topic)
+                .WithResponseTopic(responseTopic)
+                .WithCorrelationData(Encoding.ASCII.GetBytes(shortId));
+            bool shouldCompress = CompressionThreshold > 0 && payload != null && payload.Length >= CompressionThreshold;
+            if (shouldCompress && payload != null)
+            {
+                int originalLen = Encoding.UTF8.GetByteCount(payload);
+                var compressed = CompressPayload(payload);
+                builder = builder.WithPayload(compressed);
+            }
+            else
+            {
+                builder = builder.WithPayload(payload);
+            }
+            await _mqttClient.PublishAsync(builder.Build(), CancellationToken.None);
+
+            using (var cts = new CancellationTokenSource(timeout))
+            {
+                cts.Token.Register(() => tcs.TrySetCanceled());
+                try
+                {
+                    return await tcs.Task;
+                }
+                catch (OperationCanceledException)
+                {
+                    throw new TimeoutException($"RequestToAsync {targetParticipantType}/{targetConnectionId}/{scope}/{operation}: no response within {(int)timeout.TotalSeconds}s");
+                }
+                finally
+                {
+                    lock (_callbackLock)
+                    {
+                        _pendingResponses.Remove(shortId);
+                    }
+                }
+            }
+        }
+
         // PublishAsync ... raw publish to a fully-formed topic (internal escape hatch only)
         internal async Task PublishAsync(string topic, string payload)
         {
@@ -457,11 +489,6 @@ namespace ESB.Messaging
                     payload = Encoding.Default.GetString(buf);
                 }
             }
-#if DEBUG
-            var dbg = new JObject(new JProperty("Topic", topic), new JProperty("Payload", payload));   // "[not included in this log]"
-            await LogAsync("ProcessingMessage", dbg.ToString(Newtonsoft.Json.Formatting.None));
-#endif
-
             // Demux RequestAsync responses by correlation data before any other dispatch.
             string[] parts = topic.Split('/');
             if (parts.Length == 6 && parts[0] == "ESB" && parts[4] == "res")
@@ -486,22 +513,6 @@ namespace ESB.Messaging
                 }
             }
 
-            // Dispatch to raw event callbacks (registered via SubscribeBrokerAsync with callback)
-            KeyValuePair<string, Func<string, string, Task>>[] callbacks;
-            lock (_callbackLock)
-            {
-                callbacks = new KeyValuePair<string, Func<string, string, Task>>[_eventCallbacks.Count];
-                int i = 0;
-                foreach (var kv in _eventCallbacks) callbacks[i++] = kv;
-            }
-            foreach (var kv in callbacks)
-            {
-                if (MqttTopicFilterComparer.Compare(topic, kv.Key) == MqttTopicFilterCompareResult.IsMatch)
-                {
-                    await kv.Value(topic, payload);
-                }
-            }
-
             // ESB dispatch-key routing for well-formed ESB/{type}/{id}/{scope}/{msgType}/{op} topics
             if (parts.Length != 6 || parts[0] != "ESB") return;
 
@@ -520,6 +531,10 @@ namespace ESB.Messaging
 
             if (handler != null)
             {
+#if DEBUG
+                var dbg = new JObject(new JProperty("Topic", topic), new JProperty("Payload", payload));
+                await LogAsync("ProcessingMessage", dbg.ToString(Newtonsoft.Json.Formatting.None));
+#endif
                 await handler(new MessageContext
                 {
                     ParsedTopic     = pt,
@@ -528,13 +543,6 @@ namespace ESB.Messaging
                     CorrelationData = e.ApplicationMessage.CorrelationData,
                     UserProperties  = userProps
                 });
-            }
-            else
-            {
-                var json = new JObject(
-                    new JProperty("Topic",     topic),
-                    new JProperty("Exception", "No handler for " + pt.DispatchKey));
-                await LogAsync("ProcessMessageAsync", json.ToString(Newtonsoft.Json.Formatting.None));
             }
         }
     }

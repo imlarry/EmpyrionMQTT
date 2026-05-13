@@ -31,10 +31,10 @@ namespace EDNAClient.Skills.FloorMap
 
         // ── IEdnaSkill ────────────────────────────────────────────────────────
 
-        public async Task StartAsync(IMessenger messenger)
+        public async Task StartAsync(IMessageBus bus)
         {
             _mapper = new FloorMapper();
-            await _mapper.StartAsync(messenger);
+            await _mapper.StartAsync(bus);
         }
 
         // Full stop: close UI then tear down MQTT.

@@ -26,6 +26,8 @@ namespace ESB.EventHandlers
                 }
             }
 
+            /* EventQueue drain disabled -- handlers now capture game data synchronously
+               and publish directly via IMessageBus rather than deferring to a later tick.
             if (_ctx.IsReady)
             {
                 while (_ctx.EventQueue.Count > 0)
@@ -34,6 +36,7 @@ namespace ESB.EventHandlers
                     _ = DrainAsync(work);
                 }
             }
+            */
         }
 
         private async Task DrainAsync(Func<Task> work)

@@ -1,6 +1,9 @@
+using System;
+using System.Threading.Tasks;
 using Eleon.Modding;
+using ESB.Helpers;
 using ESB.Interfaces;
-using ESB.Payloads;
+using Newtonsoft.Json.Linq;
 
 namespace ESB.EventHandlers
 {
@@ -10,24 +13,48 @@ namespace ESB.EventHandlers
 
         public async void Handle(IEntity entity)
         {
-            await Execute(async () =>
+            int id;
+            string name, faction, type;
+            bool isLocal, isProxy, isPoi;
+            int belongsTo, dockedTo;
+            JObject position;
+            ulong ticks;
+            try
             {
-                var payload = new EntityLoadedPayload
-                {
-                    GameTicks = _ctx.ModApi.Application.GameTicks,
-                    Id        = entity.Id,
-                    Name      = entity.Name,
-                    Faction   = entity.Faction.ToString(),
-                    Position  = new Vec3Payload { X = entity.Position.x, Y = entity.Position.y, Z = entity.Position.z },
-                    IsLocal   = entity.IsLocal,
-                    IsProxy   = entity.IsProxy,
-                    IsPoi     = entity.IsPoi,
-                    BelongsTo = entity.BelongsTo,
-                    DockedTo  = entity.DockedTo,
-                    Type      = entity.Type.ToString()
-                };
-                await _ctx.Bus.PublishEventAsync("Entity", "EntityLoaded", payload);
-            });
+                ticks     = _ctx.ModApi.Application.GameTicks;
+                id        = entity.Id;
+                name      = entity.Name;
+                faction   = entity.Faction.ToString();
+                position  = MessageHelpers.Vec(entity.Position);
+                isLocal   = entity.IsLocal;
+                isProxy   = entity.IsProxy;
+                isPoi     = entity.IsPoi;
+                belongsTo = entity.BelongsTo;
+                dockedTo  = entity.DockedTo;
+                type      = entity.Type.ToString();
+            }
+            catch { return; }
+
+            try
+            {
+                var json = new JObject(
+                    new JProperty("GameTicks", ticks),
+                    new JProperty("Id",        id),
+                    new JProperty("Name",      name),
+                    new JProperty("Faction",   faction),
+                    new JProperty("Position",  position),
+                    new JProperty("IsLocal",   isLocal),
+                    new JProperty("IsProxy",   isProxy),
+                    new JProperty("IsPoi",     isPoi),
+                    new JProperty("BelongsTo", belongsTo),
+                    new JProperty("DockedTo",  dockedTo),
+                    new JProperty("Type",      type));
+                await _ctx.Bus.PublishEventAsync("Playfield", "EntityLoaded", json);
+            }
+            catch (Exception ex)
+            {
+                try { await _ctx.Bus.LogAsync("EventHandlers", "EntityLoaded", ex.ToString()); } catch { }
+            }
         }
     }
 }

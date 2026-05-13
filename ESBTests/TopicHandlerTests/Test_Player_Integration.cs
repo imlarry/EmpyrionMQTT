@@ -40,8 +40,9 @@ public class Test_Player_Integration
     }
 
     [Fact]
-    public async Task Properties_SelectFields_ReturnsOnlyRequested()
+    public async Task Properties_WithPayload_IgnoresPropertyFilter()
     {
+        // Property selection was removed; any payload is accepted and all properties are returned.
         await using var mqtt = await SBTestClient.ConnectAsync();
         var payload = await mqtt.RequestAsync("Player", "GetProperties",
             "{\"Properties\":[\"SteamId\",\"Health\"]}");
@@ -50,8 +51,8 @@ public class Test_Player_Integration
         {
             Assert.NotNull(payload["SteamId"]);
             Assert.NotNull(payload["Health"]);
-            Assert.Null(payload["Bag"]);
-            Assert.Null(payload["Oxygen"]);
+            Assert.NotNull(payload["Bag"]);     // all fields returned regardless of filter
+            Assert.NotNull(payload["Position"]);
         }
         else
         {
@@ -108,17 +109,24 @@ public class Test_Player_Integration
     }
 
     [Fact]
-    public async Task Properties_InvalidProperty_ReturnsErrorWithValidList()
+    public async Task Properties_UnknownPayloadField_ReturnsAllFields()
     {
+        // Unknown payload fields are ignored; all player properties are still returned.
         await using var mqtt = await SBTestClient.ConnectAsync();
         var payload = await mqtt.RequestAsync("Player", "GetProperties",
             "{\"Properties\":[\"NotAProperty\"]}");
 
-        Assert.NotNull(payload["Error"]);
-        Assert.NotNull(payload["InvalidProperties"]);
-        var validProps = payload["ValidProperties"] as JArray;
-        Assert.NotNull(validProps);
-        Assert.True(validProps.Count > 0, "ValidProperties should list all property names");
+        if (payload["Error"] == null)
+        {
+            Assert.NotNull(payload["Health"]);
+            Assert.NotNull(payload["SteamId"]);
+            Assert.NotNull(payload["Position"]);
+        }
+        else
+        {
+            // Dedicated server: LocalPlayer is null
+            Assert.NotNull(payload["Error"]);
+        }
     }
 
     [Fact]
@@ -186,7 +194,7 @@ public class Test_Player_Integration
         var payload = await mqtt.RequestAsync("Player", "Teleport", "{}");
 
         Assert.NotNull(payload["Error"]);
-        Assert.Contains("Pos argument is required", payload["Error"]!.Value<string>() ?? "");
+        Assert.Contains("Pos argument is required", (string)payload["Error"] ?? "");
     }
 
     [Fact]
@@ -197,7 +205,7 @@ public class Test_Player_Integration
             $"{{\"Pos\":{KnownState.PlayerSpawnPos},\"Playfield\":\"{KnownState.Playfield}\"}}");
 
         Assert.NotNull(payload["Error"]);
-        Assert.Contains("Rot argument is required", payload["Error"]!.Value<string>() ?? "");
+        Assert.Contains("Rot argument is required", (string)payload["Error"] ?? "");
     }
 
     // =========================================================================

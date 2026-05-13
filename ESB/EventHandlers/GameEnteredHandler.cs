@@ -1,5 +1,6 @@
+using System;
+using System.Threading.Tasks;
 using ESB.Interfaces;
-using ESB.Messaging;
 using Newtonsoft.Json.Linq;
 
 namespace ESB.EventHandlers
@@ -10,21 +11,22 @@ namespace ESB.EventHandlers
 
         public async void Handle(bool hasEntered)
         {
-            await Execute(async () =>
+            try
             {
                 await _ctx.GameManager.StateChanged(hasEntered);
-                JObject json = new JObject(
-                    new JProperty("GameTicks", _ctx.ModApi.Application.GameTicks),
-                    new JProperty("GameName", _ctx.GameManager.GameName),
+                var json = new JObject(
+                    new JProperty("GameTicks",      _ctx.ModApi.Application.GameTicks),
+                    new JProperty("GameName",       _ctx.GameManager.GameName),
                     new JProperty("GameIdentifier", _ctx.GameManager.GameIdentifier),
-                    new JProperty("SaveGamePath", _ctx.GameManager.SaveGamePath),
-                    new JProperty("GameMode", _ctx.GameManager.GameMode));
-                string enteredJson = json.ToString(Newtonsoft.Json.Formatting.None);
-                if (hasEntered)
-                    await _ctx.Messenger.SendAsync("App", MessageType.Evt, "GameEnter", enteredJson);
-                else
-                    await _ctx.Messenger.SendAsync("App", MessageType.Evt, "GameExit", enteredJson);
-            });
+                    new JProperty("SaveGamePath",   _ctx.GameManager.SaveGamePath),
+                    new JProperty("GameMode",       _ctx.GameManager.GameMode));
+                var operation = hasEntered ? "GameEnter" : "GameExit";
+                await _ctx.Bus.PublishEventAsync("App", operation, json);
+            }
+            catch (Exception ex)
+            {
+                try { await _ctx.Bus.LogAsync("EventHandlers", "GameEntered", ex.ToString()); } catch { }
+            }
         }
     }
 }

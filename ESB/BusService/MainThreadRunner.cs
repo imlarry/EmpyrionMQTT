@@ -25,6 +25,18 @@ namespace ESB
             return tcs.Task;
         }
 
+        public Task<T> RunOnMainThread<T>(Func<T> func)
+        {
+            var tcs = new TaskCompletionSource<T>();
+            _actions.Enqueue(() =>
+            {
+                try   { tcs.SetResult(func()); }
+                catch (Exception ex) { tcs.SetException(ex); }
+                return Task.CompletedTask;
+            });
+            return tcs.Task;
+        }
+
         public void ProcessActions()
         {
             while (_actions.TryDequeue(out var action))

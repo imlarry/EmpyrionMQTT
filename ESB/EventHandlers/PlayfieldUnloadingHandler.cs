@@ -1,38 +1,46 @@
+using System;
+using System.Threading.Tasks;
 using Eleon.Modding;
 using ESB.Interfaces;
-using ESB.Messaging;
 using Newtonsoft.Json.Linq;
 
 namespace ESB.EventHandlers
 {
     public class PlayfieldUnloadingHandler : HandlerBase, IPlayfieldUnloadingHandler
     {
-        private readonly IEntityLoadedHandler _entityLoadedHandler;
+        private readonly IEntityLoadedHandler   _entityLoadedHandler;
         private readonly IEntityUnloadedHandler _entityUnloadedHandler;
 
-        public PlayfieldUnloadingHandler(ContextData context, IEntityLoadedHandler entityLoadedHandler, IEntityUnloadedHandler entityUnloadedHandler)
+        public PlayfieldUnloadingHandler(ContextData context,
+            IEntityLoadedHandler entityLoadedHandler, IEntityUnloadedHandler entityUnloadedHandler)
             : base(context)
         {
-            _entityLoadedHandler = entityLoadedHandler;
+            _entityLoadedHandler   = entityLoadedHandler;
             _entityUnloadedHandler = entityUnloadedHandler;
         }
 
         public async void Handle(IPlayfield playfield)
         {
-            // unsubscribe and clear state synchronously -- must not defer into queue
-            _ctx.GameManager.CurrentPlayfield = null;
-            playfield.OnEntityLoaded -= _entityLoadedHandler.Handle;
+            // Unwire entity events immediately -- these must stay synchronous.
+            playfield.OnEntityLoaded   -= _entityLoadedHandler.Handle;
             playfield.OnEntityUnloaded -= _entityUnloadedHandler.Handle;
-            string name = playfield.Name;
 
-            await Execute(async () =>
+            ulong ticks;
+            string name;
+            try { ticks = _ctx.ModApi.Application.GameTicks; name = playfield.Name; }
+            catch { return; }
+
+            try
             {
-                JObject json = new JObject(
-                    new JProperty("GameTicks", _ctx.ModApi.Application.GameTicks),
-                    new JProperty("Name", name));
-                string pfUnloadingJson = json.ToString(Newtonsoft.Json.Formatting.None);
-                await _ctx.Messenger.SendAsync("Playfield", MessageType.Evt, "Unloading", pfUnloadingJson);
-            });
+                var json = new JObject(
+                    new JProperty("GameTicks", ticks),
+                    new JProperty("Name",      name));
+                await _ctx.Bus.PublishEventAsync("Playfield", "Unloading", json);
+            }
+            catch (Exception ex)
+            {
+                try { await _ctx.Bus.LogAsync("EventHandlers", "PlayfieldUnloading", ex.ToString()); } catch { }
+            }
         }
     }
 }

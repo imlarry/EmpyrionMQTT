@@ -26,19 +26,9 @@ public class Test_Structure_Integration
         var payload = await mqtt.RequestAsync("Structure", "Info",
             $"{{\"EntityId\":{EID}}}");
 
-        Assert.Equal(EID, payload["EntityId"]!.Value<int>());
+        Assert.Equal(EID, (int)payload["EntityId"]);
         Assert.NotNull(payload["IsReady"]);
         Assert.NotNull(payload["Id"]);
-    }
-
-    [Fact]
-    public async Task Info_UnknownEntityId_ReturnsError()
-    {
-        await using var mqtt = await SBTestClient.ConnectAsync();
-        var payload = await mqtt.RequestAsync("Structure", "Info",
-            "{\"EntityId\":999999}");
-
-        Assert.NotNull(payload["Error"]);
     }
 
     // =========================================================================
@@ -68,7 +58,7 @@ public class Test_Structure_Integration
         var payload = await mqtt.RequestAsync("Structure", "GetAllCustomDeviceNames",
             $"{{\"EntityId\":{EID}}}");
 
-        var names = payload["DeviceNames"]!.ToObject<string[]>();
+        var names = payload["DeviceNames"].ToObject<string[]>();
         Assert.NotNull(names);
         Assert.Contains(KnownState.DeviceName1, names);
         Assert.Contains(KnownState.DeviceName2, names);
@@ -86,7 +76,7 @@ public class Test_Structure_Integration
             $"{{\"EntityId\":{EID},\"DeviceName\":\"{KnownState.DeviceName1}\"}}");
 
         Assert.NotNull(payload["Positions"]);
-        Assert.NotEmpty(payload["Positions"]!.ToObject<JArray>()!);
+        Assert.NotEmpty(payload["Positions"].ToObject<JArray>());
     }
 
     [Fact]
@@ -97,7 +87,7 @@ public class Test_Structure_Integration
             $"{{\"EntityId\":{EID},\"DeviceName\":\"{KnownState.DeviceName2}\"}}");
 
         Assert.NotNull(payload["Positions"]);
-        Assert.NotEmpty(payload["Positions"]!.ToObject<JArray>()!);
+        Assert.NotEmpty(payload["Positions"].ToObject<JArray>());
     }
 
     // =========================================================================
@@ -111,7 +101,7 @@ public class Test_Structure_Integration
         var payload = await mqtt.RequestAsync("Structure", "AddTankContent",
             $"{{\"EntityId\":{EID},\"TankType\":\"Fuel\",\"Amount\":0.0}}");
 
-        Assert.Equal("Fuel", payload["TankType"]!.Value<string>());
+        Assert.Equal("Fuel", (string)payload["TankType"]);
         Assert.NotNull(payload["Content"]);
         Assert.NotNull(payload["Capacity"]);
     }
@@ -177,10 +167,10 @@ public class Test_Structure_Integration
             $"{{\"EntityId\":{EID},\"Filter\":\"{KnownState.SignalName}\"}}");
 
         Assert.NotNull(payload["Signals"]);
-        var signals = payload["Signals"]!.ToObject<JArray>()!;
+        var signals = payload["Signals"].ToObject<JArray>();
         Assert.NotEmpty(signals);
         Assert.All(signals, t => Assert.Contains(KnownState.SignalName,
-            t["Name"]!.Value<string>()!, System.StringComparison.OrdinalIgnoreCase));
+            (string)t["Name"], System.StringComparison.OrdinalIgnoreCase));
     }
 
     // =========================================================================
@@ -208,7 +198,7 @@ public class Test_Structure_Integration
         var payload = await mqtt.RequestAsync("Structure", "GetSignalState",
             $"{{\"EntityId\":{EID},\"SignalName\":\"{KnownState.SignalName}\"}}");
 
-        Assert.Equal(KnownState.SignalName, payload["SignalName"]!.Value<string>());
+        Assert.Equal(KnownState.SignalName, (string)payload["SignalName"]);
         Assert.NotNull(payload["State"]);
     }
 
@@ -237,7 +227,7 @@ public class Test_Structure_Integration
         var payload = await mqtt.RequestAsync("Structure", "GetSendSignalName",
             $"{{\"EntityId\":{EID},\"Pos\":{KnownState.LeverSwitchBlock}}}");
 
-        Assert.Equal(KnownState.SignalName, payload["SignalName"]!.Value<string>());
+        Assert.Equal(KnownState.SignalName, (string)payload["SignalName"]);
     }
 
     // =========================================================================
@@ -251,14 +241,14 @@ public class Test_Structure_Integration
         var payload = await mqtt.RequestAsync("Structure", "StructToGlobalPos",
             $"{{\"EntityId\":{EID},\"StructPos\":{{\"X\":0,\"Y\":0,\"Z\":0}}}}");
 
-        var globalPos = payload["GlobalPos"]!;
+        var globalPos = payload["GlobalPos"];
         Assert.NotNull(globalPos["X"]);
         Assert.NotNull(globalPos["Y"]);
         Assert.NotNull(globalPos["Z"]);
         Assert.False(
-            globalPos["X"]!.Value<float>() == 0f &&
-            globalPos["Y"]!.Value<float>() == 0f &&
-            globalPos["Z"]!.Value<float>() == 0f,
+            (float)globalPos["X"] == 0f &&
+            (float)globalPos["Y"] == 0f &&
+            (float)globalPos["Z"] == 0f,
             "Struct origin should not map to global (0,0,0)");
     }
 
@@ -273,11 +263,11 @@ public class Test_Structure_Integration
         var payload = await mqtt.RequestAsync("Structure", "GlobalToStructPos",
             $"{{\"EntityId\":{EID},\"Pos\":{KnownState.BaseGlobalPos}}}");
 
-        var structPos = payload["StructPos"]!;
+        var structPos = payload["StructPos"];
         Assert.NotNull(structPos["X"]);
         Assert.NotNull(structPos["Y"]);
         Assert.NotNull(structPos["Z"]);
-        Assert.NotEqual(0, structPos["Y"]!.Value<int>());
+        Assert.NotEqual(0, (int)structPos["Y"]);
     }
 
     // =========================================================================

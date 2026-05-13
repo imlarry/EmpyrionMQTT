@@ -14,15 +14,15 @@ namespace EDNAClient.Skills.FloorMap
     {
         private static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(15);
 
-        private IMessenger? _messenger;
+        private IMessageBus? _bus;
 
-        public Task StartAsync(IMessenger messenger)
+        public Task StartAsync(IMessageBus bus)
         {
-            _messenger = messenger;
+            _bus = bus;
             return Task.CompletedTask;
         }
 
-        public void Stop() => _messenger = null;
+        public void Stop() => _bus = null;
 
         // Returns a rendered FloorMapDocument on success, null on failure.
         // statusCallback receives progress/error text for immediate UI feedback.
@@ -32,35 +32,33 @@ namespace EDNAClient.Skills.FloorMap
             string? mapsDir,
             Action<string> statusCallback)
         {
-            if (_messenger == null) throw new InvalidOperationException("FloorMapper not started");
+            if (_bus == null) throw new InvalidOperationException("FloorMapper not started");
             EdnaLogger.Detail("[FloorMapper] RefreshAsync start");
             try
             {
-                var playerJson = await _messenger.RequestAsync(
-                    "Player", "GetProperties",
-                    "{\"Properties\":[\"Position\",\"CurrentStructureId\",\"CurrentStructureEntityId\"]}",
-                    RequestTimeout);
+                var playerEnv = await _bus.RequestAsync<object>(
+                    "Player", "GetProperties", new { }, RequestTimeout);
 
-                EdnaLogger.Log($"[FloorMapper] Player/GetProperties response: {playerJson}");
-                var pj  = JObject.Parse(playerJson);
-                var csi = pj["CurrentStructureId"];
-                if (csi == null || csi.Type == JTokenType.Null)
+                EdnaLogger.Log($"[FloorMapper] Player/GetProperties response: {playerEnv.RawPayload}");
+                var pj = playerEnv.PayloadJson ?? new JObject();
+                var cs = pj["CurrentStructure"];
+                if (cs == null || cs.Type == JTokenType.Null)
                 {
                     statusCallback("Not inside a structure");
-                    EdnaLogger.Log("[FloorMapper] aborted: CurrentStructureId is null");
+                    EdnaLogger.Log("[FloorMapper] aborted: CurrentStructure is null");
                     return null;
                 }
 
-                int entityId = (int)(pj["CurrentStructureEntityId"] ?? 0);
+                int entityId = cs["EntityId"] != null ? (int)cs["EntityId"] : 0;
                 var pos  = pj["Position"];
                 float worldX = pos != null ? (float)(pos["X"] ?? 0) : 0f;
                 float worldY = pos != null ? (float)(pos["Y"] ?? 0) : 0f;
                 float worldZ = pos != null ? (float)(pos["Z"] ?? 0) : 0f;
 
                 // Fire GlobalToStructPos immediately -- it is fast and runs while we handle blocks.
-                var structPosTask = _messenger.RequestAsync(
+                var structPosTask = _bus.RequestAsync<object>(
                     "Structure", "GlobalToStructPos",
-                    $"{{\"EntityId\":{entityId},\"Pos\":{{\"X\":{worldX},\"Y\":{worldY},\"Z\":{worldZ}}}}}",
+                    new { EntityId = entityId, Pos = new { X = worldX, Y = worldY, Z = worldZ } },
                     RequestTimeout);
 
                 // Resolve cache path when mapsDir is available.
@@ -86,19 +84,18 @@ namespace EDNAClient.Skills.FloorMap
                 {
                     statusCallback($"Fetching blocks for entity {entityId}...");
                     EdnaLogger.Log($"[FloorMapper] calling Structure/GetAllBlocks entity={entityId}");
-                    var blocksJson = await _messenger.RequestAsync(
-                        "Structure", "GetAllBlocks",
-                        $"{{\"EntityId\":{entityId}}}", RequestTimeout);
+                    var blocksEnv = await _bus.RequestAsync<object>(
+                        "Structure", "GetAllBlocks", new { EntityId = entityId }, RequestTimeout);
 
-                    EdnaLogger.Log($"[FloorMapper] GetAllBlocks response length={blocksJson.Length}");
-                    var blocksObj = JObject.Parse(blocksJson);
+                    EdnaLogger.Log($"[FloorMapper] GetAllBlocks response length={blocksEnv.RawPayload.Length}");
+                    var blocksObj = JObject.Parse(blocksEnv.RawPayload);
                     var blocks    = blocksObj["Blocks"] as JArray ?? new JArray();
                     doc = FloorMapDocument.FromAllBlocks(entityId, playfield, solarSystem, blocks);
                 }
 
-                var structPosJson = await structPosTask;
-                EdnaLogger.Log($"[FloorMapper] GlobalToStructPos response: {structPosJson}");
-                var sp    = JObject.Parse(structPosJson);
+                var structPosEnv  = await structPosTask;
+                EdnaLogger.Log($"[FloorMapper] GlobalToStructPos response: {structPosEnv.RawPayload}");
+                var sp    = structPosEnv.PayloadJson ?? new JObject();
                 var spos  = sp["StructPos"];
                 int structY = spos != null ? (int)(spos["Y"] ?? 0) : 0;
                 int playerX = spos != null ? (int)(spos["X"] ?? 0) : 0;

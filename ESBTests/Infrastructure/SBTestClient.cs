@@ -7,6 +7,7 @@ using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Concurrent;
 using System.IO;
+using System.IO.Compression;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -125,8 +126,25 @@ public sealed class SBTestClient : IAsyncDisposable
 
         if (!_pending.TryGetValue(shortId, out var tcs)) return Task.CompletedTask;
 
-        var seg  = e.ApplicationMessage.PayloadSegment;
-        var json = Encoding.UTF8.GetString(seg.Array!, seg.Offset, seg.Count);
+        var seg = e.ApplicationMessage.PayloadSegment;
+        var buf = new byte[seg.Count];
+        Array.Copy(seg.Array, seg.Offset, buf, 0, seg.Count);
+
+        string json;
+        if (buf.Length >= 2 && buf[0] == 0x1F && buf[1] == 0x8B)
+        {
+            using (var ms = new MemoryStream(buf))
+            using (var gz = new GZipStream(ms, CompressionMode.Decompress))
+            using (var out_ = new MemoryStream())
+            {
+                gz.CopyTo(out_);
+                json = Encoding.UTF8.GetString(out_.ToArray());
+            }
+        }
+        else
+        {
+            json = Encoding.UTF8.GetString(buf);
+        }
         try
         {
             var token = JToken.Parse(json);
