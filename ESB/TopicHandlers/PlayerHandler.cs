@@ -25,6 +25,14 @@ namespace ESB.TopicHandlers
             _ctx.Bus.OnRequest("Player", "DamageEntity",  DamageEntity);
         }
 
+        // =========================================================================
+        // Player/GetProperties -- { "EntityId": int? }
+        // If EntityId is supplied, resolves that player on the current playfield;
+        // otherwise falls back to LocalPlayer. All IPlayer scalars are read on the
+        // main thread; individual getters that throw are emitted as null.
+        // Returns: object of player scalars plus Position/Forward/Rotation,
+        //          CurrentStructure/DrivingEntity refs, Toolbar/Bag stacks.
+        // =========================================================================
         public async Task<string> Properties(MessageEnvelope env)
         {
             try
@@ -115,6 +123,12 @@ namespace ESB.TopicHandlers
             }
         }
 
+        // =========================================================================
+        // Player/Teleport -- { "Pos": {X,Y,Z}, "Playfield": string?, "Rot": {X,Y,Z}? }
+        // Same-playfield form: Pos only. Cross-playfield form: Playfield + Pos + Rot.
+        // Dispatched on the main thread; operates on LocalPlayer.
+        // Returns: { "ok": bool }
+        // =========================================================================
         public async Task<string> Teleport(MessageEnvelope env)
         {
             try
@@ -146,6 +160,11 @@ namespace ESB.TopicHandlers
             }
         }
 
+        // =========================================================================
+        // Player/DamageEntity -- { "DamageAmount": float, "DamageType": int }
+        // Applies damage from LocalPlayer; dispatched on the main thread.
+        // Returns: { "ok": true }
+        // =========================================================================
         public async Task<string> DamageEntity(MessageEnvelope env)
         {
             try

@@ -1,5 +1,6 @@
 # Mosquitto Security Guide — Empyrion MQTT Integration
 
+DISCUSSION OF REGISTRY PATTERN VS ANNOUNCEMENTS .. DOC REVIEW REQUIRED
 ## Current Config Assessment
 
 Your current `mosquitto.conf` provides a minimal but workable starting point:

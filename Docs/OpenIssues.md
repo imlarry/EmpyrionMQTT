@@ -16,12 +16,6 @@ Supersedes Docs/Plans/. Plans directory can be removed once this document is rev
 
 ---
 
-## Registry
-
-- [ ] **Game-scope Registry entries.** COMPLETED. TEST. Registry entries need to include the game ID so consumers can distinguish entries across game sessions (and discard stale entries from a prior session). This has been implemented by making the connectionId the game identifier. Verify the technique works with the BlockAndItemMapping topic .. you should see it on game entry and it should be for that game.
-
----
-
 ## Data Serialization
 
 - [ ] **Parse formatted event strings.** Some game events deliver human-readable formatted strings rather than structured fields (e.g. `"'imlarry',1042"` or `"A: 32, R:17"`). Parse these into typed fields before publishing so consumers receive structured data. Audit event handlers for this pattern and define a parsing approach for each affected event.

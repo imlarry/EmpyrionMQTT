@@ -25,6 +25,7 @@ public static class KnownState
 
     // Block positions (struct-space)
     public const string LeverSwitchBlock = "{\"X\":2,\"Y\":130,\"Z\":1}";
+    public const string FridgeBlock      = "{\"X\":3,\"Y\":130,\"Z\":0}";
 
     // Signal / device names
     public const string SignalName   = "Fridge";

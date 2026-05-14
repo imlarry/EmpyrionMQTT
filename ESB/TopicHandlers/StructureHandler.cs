@@ -646,7 +646,7 @@ namespace ESB.TopicHandlers
 
         // =========================================================================
         // Structure/GetAllBlocks -- { "EntityId": int }
-        // response: { EntityId, Blocks: [["X","Y","Z","Type","Shape","Rotation","Active"], ...] }
+        // response: { EntityId, Blocks: { Columns: ["X","Y","Z","Type","Shape","Rotation","Active"], Rows: [[...], ...] } }
         //
         // GetBlock coordinate note: IStructure.MinPos/MaxPos X and Z map directly to the
         // coordinates GetBlock expects. Y does not -- MinPos/MaxPos Y is in structure-centered
@@ -674,9 +674,7 @@ namespace ESB.TopicHandlers
                 var max   = structure.MaxPos;
                 int yBase = structure.GlobalToStructPos(entity.Position).y;
 
-                var blocks = new JArray();
-                blocks.Add(new JArray("X", "Y", "Z", "Type", "Shape", "Rotation", "Active"));
-
+                var rows = new JArray();
                 for (int x = min.x; x <= max.x; x++)
                     for (int y = yBase + min.y; y <= yBase + max.y; y++)
                         for (int z = min.z; z <= max.z; z++)
@@ -687,12 +685,13 @@ namespace ESB.TopicHandlers
                             bool active;
                             block.Get(out type, out shape, out rotation, out active);
                             if (type == 0) continue;
-                            blocks.Add(new JArray(x, y, z, type, shape, rotation, active));
+                            rows.Add(new JArray(x, y, z, type, shape, rotation, active));
                         }
 
                 var json = new JObject(
                     new JProperty("EntityId", entityId),
-                    new JProperty("Blocks",   blocks));
+                    new JProperty("Blocks", MessageHelpers.Tabular(
+                        new[] { "X", "Y", "Z", "Type", "Shape", "Rotation", "Active" }, rows)));
 
                 return Task.FromResult(json.ToString(Formatting.None));
             }

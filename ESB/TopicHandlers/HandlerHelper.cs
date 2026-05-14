@@ -28,21 +28,16 @@ namespace ESB.TopicHandlers
                 new JProperty("Powered",        s.powered),
                 new JProperty("DockedShips",    s.dockedShips != null ? (JToken)new JArray(s.dockedShips) : JValue.CreateNull()));
 
-        internal static JObject ItemStackJson(ItemStack s) =>
-            new JObject(
-                new JProperty("Id",      s.id),
-                new JProperty("Count",   s.count),
-                new JProperty("SlotIdx", s.slotIdx),
-                new JProperty("Ammo",    s.ammo),
-                new JProperty("Decay",   s.decay));
+        private static readonly string[] ItemStackColumns =
+            { "Id", "Count", "SlotIdx", "Ammo", "Decay" };
 
-        internal static JArray ItemStacksJson(List<ItemStack> stacks)
+        internal static JObject ItemStacksJson(List<ItemStack> stacks)
         {
-            var arr = new JArray();
-            if (stacks == null) return arr;
-            foreach (var s in stacks)
-                arr.Add(ItemStackJson(s));
-            return arr;
+            var rows = new JArray();
+            if (stacks != null)
+                foreach (var s in stacks)
+                    rows.Add(new JArray(s.id, s.count, s.slotIdx, s.ammo, s.decay));
+            return MessageHelpers.Tabular(ItemStackColumns, rows);
         }
     }
 }

@@ -26,8 +26,8 @@ namespace EDNAClient.Skills.FloorMap
     }
 
     // One captured structure: raw GetAllBlocks data + metadata + rendered bitmap.
-    // Blocks is the exact Blocks array from the GetAllBlocks response (header + data rows).
-    // Render() filters to Y (walls) and Y-1 (floors) from that array.
+    // Blocks is the GetAllBlocks response table: { Columns: [...], Rows: [[...], ...] }.
+    // Render() filters to Y (walls) and Y-1 (floors) from the rows.
     public sealed class FloorMapDocument : INotifyPropertyChanged
     {
         // ── Tile rendering constants ──────────────────────────────────────────
@@ -76,8 +76,8 @@ namespace EDNAClient.Skills.FloorMap
         public string SolarSystem { get; set; } = "";
         public string CapturedAt  { get; set; } = "";
 
-        // Raw Blocks array from GetAllBlocks: row 0 is the header, remaining rows are data.
-        public JArray Blocks { get; set; } = new JArray();
+        // GetAllBlocks tabular response: { Columns: [...], Rows: [[...], ...] }.
+        public JObject Blocks { get; set; } = new JObject();
 
         // ── Runtime-only properties ───────────────────────────────────────────
 
@@ -101,7 +101,7 @@ namespace EDNAClient.Skills.FloorMap
         // ── Factory ───────────────────────────────────────────────────────────
 
         public static FloorMapDocument FromAllBlocks(
-            int entityId, string playfield, string solarSystem, JArray blocks)
+            int entityId, string playfield, string solarSystem, JObject blocks)
         {
             return new FloorMapDocument
             {
@@ -109,7 +109,7 @@ namespace EDNAClient.Skills.FloorMap
                 Playfield   = playfield,
                 SolarSystem = solarSystem,
                 CapturedAt  = DateTime.UtcNow.ToString("o"),
-                Blocks      = blocks ?? new JArray(),
+                Blocks      = blocks ?? new JObject(),
             };
         }
 
@@ -155,24 +155,39 @@ namespace EDNAClient.Skills.FloorMap
         // Filters Blocks to Y (walls) and Y-1 (floors) then draws the map.
         public void Render()
         {
-            if (Blocks == null || Blocks.Count <= 1) { StatusText = "No data"; return; }
+            var cols = Blocks?["Columns"] as JArray;
+            var rows = Blocks?["Rows"]    as JArray;
+            if (cols == null || rows == null || rows.Count == 0)
+            {
+                StatusText = "No data";
+                return;
+            }
+
+            var colIndex = new Dictionary<string, int>();
+            for (int i = 0; i < cols.Count; i++) colIndex[(string)cols[i]] = i;
+
+            int ixX     = colIndex["X"];
+            int ixY     = colIndex["Y"];
+            int ixZ     = colIndex["Z"];
+            int ixType  = colIndex["Type"];
+            int ixShape = colIndex["Shape"];
+            int ixRot   = colIndex["Rotation"];
+            int minCols = Math.Max(Math.Max(ixX, ixY), Math.Max(Math.Max(ixZ, ixType), Math.Max(ixShape, ixRot))) + 1;
 
             var wallBlocks  = new List<BlockEntry>();
             var floorBlocks = new List<BlockEntry>();
 
-            bool isHeader = true;
-            foreach (JToken row in Blocks)
+            foreach (JToken row in rows)
             {
-                if (isHeader) { isHeader = false; continue; }
-                var arr  = row as JArray;
-                if (arr == null || arr.Count < 6) continue;
-                int bx   = (int)(arr[0] ?? 0);
-                int by   = (int)(arr[1] ?? 0);
-                int bz   = (int)(arr[2] ?? 0);
-                int type = (int)(arr[3] ?? 0);
+                var arr = row as JArray;
+                if (arr == null || arr.Count < minCols) continue;
+                int bx   = (int)(arr[ixX]    ?? 0);
+                int by   = (int)(arr[ixY]    ?? 0);
+                int bz   = (int)(arr[ixZ]    ?? 0);
+                int type = (int)(arr[ixType] ?? 0);
                 if (type == 0 || SkippedTypes.Contains(type)) continue;
-                int shape = (int)(arr[4] ?? 0);
-                int rot   = (int)(arr[5] ?? 0);
+                int shape = (int)(arr[ixShape] ?? 0);
+                int rot   = (int)(arr[ixRot]   ?? 0);
 
                 var entry = new BlockEntry { X = bx, Z = bz, Type = type, Shape = shape, Rotation = rot };
                 if      (by == Y)     wallBlocks .Add(entry);

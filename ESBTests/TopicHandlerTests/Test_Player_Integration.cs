@@ -69,9 +69,8 @@ public class Test_Player_Integration
 
         if (payload["Error"] == null)
         {
-            var bag = payload["Bag"] as JArray;
-            Assert.NotNull(bag);
-            foreach (JObject item in bag)
+            Assert.NotNull(payload["Bag"]?["Columns"]);
+            foreach (var item in TabularJson.Rows(payload["Bag"]))
             {
                 Assert.NotNull(item["Id"]);
                 Assert.NotNull(item["Count"]);
@@ -93,9 +92,8 @@ public class Test_Player_Integration
 
         if (payload["Error"] == null)
         {
-            var toolbar = payload["Toolbar"] as JArray;
-            Assert.NotNull(toolbar);
-            foreach (JObject item in toolbar)
+            Assert.NotNull(payload["Toolbar"]?["Columns"]);
+            foreach (var item in TabularJson.Rows(payload["Toolbar"]))
             {
                 Assert.NotNull(item["Id"]);
                 Assert.NotNull(item["Count"]);

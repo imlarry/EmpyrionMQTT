@@ -52,26 +52,33 @@ namespace ESB.Helpers
         internal static Vector3    ParseVec3    (JToken t) => new Vector3   (t["X"].Value<float>(), t["Y"].Value<float>(), t["Z"].Value<float>());
         internal static VectorInt3 ParseVecInt3 (JToken t) => new VectorInt3(t["X"].Value<int>(),   t["Y"].Value<int>(),   t["Z"].Value<int>());
 
+        // --- Tabular array helper ---
+
+        // Compact encoding for arrays of homogeneous records; see Docs/TopicSchema.md.
+        internal static JObject Tabular(string[] columns, JArray rows)
+        {
+            var colsArr = new JArray();
+            for (int i = 0; i < columns.Length; i++) colsArr.Add(columns[i]);
+            return new JObject(
+                new JProperty("Columns", colsArr),
+                new JProperty("Rows",    rows));
+        }
+
         // --- Item stack serialization ---
 
-        internal static JArray ItemStacksJson(List<ItemStack> items, Dictionary<int, string> nameMap)
+        private static readonly string[] NamedItemStackColumns =
+            { "Id", "Name", "Count", "SlotIdx", "Ammo", "Decay" };
+
+        internal static JObject ItemStacksJson(List<ItemStack> items, Dictionary<int, string> nameMap)
         {
-            var result = new JArray();
+            var rows = new JArray();
             foreach (var item in items)
             {
                 if (!nameMap.TryGetValue(item.id, out string name))
                     name = "<no mapping>";
-
-                result.Add(new JObject(
-                    new JProperty("Id",      item.id),
-                    new JProperty("Name",    name),
-                    new JProperty("Count",   item.count),
-                    new JProperty("SlotIdx", item.slotIdx),
-                    new JProperty("Ammo",    item.ammo),
-                    new JProperty("Decay",   item.decay)
-                ));
+                rows.Add(new JArray(item.id, name, item.count, item.slotIdx, item.ammo, item.decay));
             }
-            return result;
+            return Tabular(NamedItemStackColumns, rows);
         }
     }
 }

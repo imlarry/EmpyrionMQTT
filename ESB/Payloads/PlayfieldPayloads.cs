@@ -40,6 +40,15 @@ namespace ESB.Payloads
 
     public class GetTerrainHeightRequest { public float X { get; set; } public float Z { get; set; } }
 
+    public class SpawnPrefabRequest          { public string PrefabName { get; set; } public Vec3Payload Pos { get; set; } }
+    public class SpawnTestPlayerRequest      { public Vec3Payload Pos { get; set; } }
+    public class LockStructureDeviceRequest  { public int StructureId { get; set; } public Vec3Payload PosInStruct { get; set; } public bool DoLock { get; set; } }
+    public class IsStructureDeviceLockedRequest { public int StructureId { get; set; } public Vec3Payload PosInStruct { get; set; } }
+    public class GetStructureDevicesRequest  { public int StructureId { get; set; } public string DeviceType { get; set; } }
+    public class AddVoxelAreaRequest         { public Vec3Payload Pos { get; set; } public int SizeInMeter { get; set; } }
+    public class MoveVoxelAreaRequest        { public int AreaId { get; set; } public Vec3Payload Pos { get; set; } }
+    public class RemoveVoxelAreaRequest      { public int AreaId { get; set; } }
+
     public class SpawnEntityRequest
     {
         public string      EntityType { get; set; }
