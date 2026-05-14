@@ -3,6 +3,7 @@ using System.Threading.Tasks;
 using Eleon.Modding;
 using ESB.Helpers;
 using ESB.Interfaces;
+using ESB.Messaging;
 using Newtonsoft.Json.Linq;
 
 namespace ESB.EventHandlers
@@ -49,11 +50,14 @@ namespace ESB.EventHandlers
                     new JProperty("BelongsTo", belongsTo),
                     new JProperty("DockedTo",  dockedTo),
                     new JProperty("Type",      type));
-                await _ctx.Bus.PublishEventAsync("Playfield", "EntityLoaded", json);
+                var rcId = _ctx.GameManager.CurrentPlayfieldRcId
+                           ?? _ctx.GameManager.GameRcId
+                           ?? RoutingContextId.BroadcastValue;
+                await _ctx.Bus.PublishEventAsync(rcId, "Playfield", "EntityLoaded", json);
             }
             catch (Exception ex)
             {
-                try { await _ctx.Bus.LogAsync("EventHandlers", "EntityLoaded", ex.ToString()); } catch { }
+                try { await _ctx.Bus.LogAsync(_ctx.Bus.MachineId, "EventHandlers", "EntityLoaded", ex.ToString()); } catch { }
             }
         }
     }

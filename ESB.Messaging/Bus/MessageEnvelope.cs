@@ -7,13 +7,13 @@ namespace ESB.Messaging
 {
     public class MessageEnvelope
     {
-        public string CorrelationId       { get; }
-        public string SenderType          { get; }
-        public string SenderConnectionId  { get; }
-        public string Scope               { get; }
-        public string Operation           { get; }
-        public string MsgType             { get; }
-        public string RawPayload          { get; }
+        public string CorrelationId     { get; }
+        public string SenderType        { get; }
+        public string RoutingContextId  { get; }
+        public string Scope             { get; }
+        public string Operation         { get; }
+        public string MsgType           { get; }
+        public string RawPayload        { get; }
 
         private JObject _payloadJson;
         private bool _payloadJsonParsed;
@@ -46,28 +46,28 @@ namespace ESB.Messaging
         internal MessageEnvelope(MessageContext ctx)
         {
             var pt = ctx.ParsedTopic;
-            CorrelationId      = ctx.CorrelationData != null && ctx.CorrelationData.Length > 0
-                                     ? Encoding.UTF8.GetString(ctx.CorrelationData)
-                                     : string.Empty;
-            SenderType         = pt != null ? pt.ParticipantType : string.Empty;
-            SenderConnectionId = pt != null ? pt.ConnectionId    : string.Empty;
-            Scope              = pt != null ? pt.Scope           : string.Empty;
-            Operation          = pt != null ? pt.Operation       : string.Empty;
-            MsgType            = pt != null ? pt.MsgType         : string.Empty;
-            RawPayload         = ctx.Payload ?? string.Empty;
+            CorrelationId    = ctx.CorrelationData != null && ctx.CorrelationData.Length > 0
+                                   ? Encoding.UTF8.GetString(ctx.CorrelationData)
+                                   : string.Empty;
+            SenderType       = pt != null ? pt.ParticipantType   : string.Empty;
+            RoutingContextId = pt != null ? pt.RoutingContextId  : string.Empty;
+            Scope            = pt != null ? pt.Scope             : string.Empty;
+            Operation        = pt != null ? pt.Operation         : string.Empty;
+            MsgType          = pt != null ? pt.MsgType           : string.Empty;
+            RawPayload       = ctx.Payload ?? string.Empty;
         }
 
         // From a raw response string (RequestAsync path).
         // Sender and CorrelationId are not available in this path.
         internal MessageEnvelope(string rawPayload, string scope, string operation)
         {
-            CorrelationId      = string.Empty;
-            SenderType         = string.Empty;
-            SenderConnectionId = string.Empty;
-            Scope              = scope     ?? string.Empty;
-            Operation          = operation ?? string.Empty;
-            MsgType            = "res";
-            RawPayload         = rawPayload ?? string.Empty;
+            CorrelationId    = string.Empty;
+            SenderType       = string.Empty;
+            RoutingContextId = string.Empty;
+            Scope            = scope      ?? string.Empty;
+            Operation        = operation  ?? string.Empty;
+            MsgType          = "res";
+            RawPayload       = rawPayload ?? string.Empty;
         }
 
         internal static MessageEnvelope From(MessageContext ctx)

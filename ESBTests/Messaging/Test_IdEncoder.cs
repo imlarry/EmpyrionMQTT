@@ -14,19 +14,19 @@ public class Test_IdEncoder
     }
 
     [Fact]
-    public void ToBase36_ClientId_Is4Chars()
+    public void ToBase36_Width4_Produces4Chars()
     {
         var result = IdEncoder.ToBase36(Guid.NewGuid().ToByteArray(), 4);
         Assert.Equal(4, result.Length);
     }
 
     [Fact]
-    public void ToBase36_MachineId_Is6Chars()
+    public void ToBase36_Width8_Produces8Chars()
     {
         var bytes = new byte[32];
         new Random().NextBytes(bytes);
-        var result = IdEncoder.ToBase36(bytes, 6);
-        Assert.Equal(6, result.Length);
+        var result = IdEncoder.ToBase36(bytes, 8);
+        Assert.Equal(8, result.Length);
     }
 
     [Fact]

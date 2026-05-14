@@ -1,8 +1,9 @@
 using System;
-using System.Collections.Generic;
 using System.Threading.Tasks;
 using Eleon.Modding;
+using ESB.Helpers;
 using ESB.Interfaces;
+using ESB.Messaging;
 using Newtonsoft.Json.Linq;
 
 namespace ESB.EventHandlers
@@ -31,7 +32,7 @@ namespace ESB.EventHandlers
             bool isPvP;
             float ssX, ssY, ssZ;
             ulong ticks;
-            var entitySnapshots = new List<JObject>();
+            var entityRows = new JArray();
             try
             {
                 ticks           = _ctx.ModApi.Application.GameTicks;
@@ -47,23 +48,25 @@ namespace ESB.EventHandlers
 
                 foreach (var kv in playfield.Entities)
                 {
-                    entitySnapshots.Add(new JObject(
-                        new JProperty("Id",       kv.Value.Id),
-                        new JProperty("Name",     kv.Value.Name),
-                        new JProperty("Type",     kv.Value.Type.ToString()),
-                        new JProperty("Position", kv.Value.Position.ToString())));
+                    entityRows.Add(new JArray(
+                        kv.Value.Id,
+                        kv.Value.Name,
+                        kv.Value.Type.ToString(),
+                        kv.Value.Position.ToString()));
                 }
             }
             catch { return; }
 
             try
             {
-                var entityArray = new JArray();
-                foreach (var e in entitySnapshots) entityArray.Add(e);
+                var gameRcId      = _ctx.GameManager.GameRcId ?? RoutingContextId.BroadcastValue;
+                var playfieldRcId = RoutingContextId.Playfield(gameRcId, solarSystemName, name).Id;
+                _ctx.GameManager.CurrentPlayfieldRcId = playfieldRcId;
 
                 var json = new JObject(
                     new JProperty("GameTicks",              ticks),
                     new JProperty("Name",                   name),
+                    new JProperty("PlayfieldRcId",          playfieldRcId),
                     new JProperty("PlayfieldType",          playfieldType),
                     new JProperty("PlanetType",             planetType),
                     new JProperty("PlanetClass",            planetClass),
@@ -73,12 +76,16 @@ namespace ESB.EventHandlers
                         new JProperty("Y", ssY),
                         new JProperty("Z", ssZ))),
                     new JProperty("IsPvP",                  isPvP),
-                    new JProperty("Entities",               entityArray));
-                await _ctx.Bus.PublishEventAsync("Playfield", "Loaded", json);
+                    new JProperty("Entities", MessageHelpers.Tabular(
+                        new[] { "Id", "Name", "Type", "Position" }, entityRows)));
+                // Publish under GameRcId so other in-game subscribers learn the new playfield's rcId;
+                // they may then SubscribeAsync(playfieldRcId) for per-playfield traffic.
+                await _ctx.Bus.PublishEventAsync(gameRcId, "Playfield", "Loaded", json);
+                await _ctx.Bus.SubscribeAsync(playfieldRcId);
             }
             catch (Exception ex)
             {
-                try { await _ctx.Bus.LogAsync("EventHandlers", "PlayfieldLoaded", ex.ToString()); } catch { }
+                try { await _ctx.Bus.LogAsync(_ctx.Bus.MachineId, "EventHandlers", "PlayfieldLoaded", ex.ToString()); } catch { }
             }
         }
     }

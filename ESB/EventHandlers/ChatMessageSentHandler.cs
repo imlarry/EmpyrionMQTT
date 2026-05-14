@@ -2,6 +2,7 @@ using System;
 using System.Threading.Tasks;
 using Eleon;
 using ESB.Interfaces;
+using ESB.Messaging;
 using Newtonsoft.Json.Linq;
 
 namespace ESB.EventHandlers
@@ -52,11 +53,12 @@ namespace ESB.EventHandlers
                     new JProperty("Arg2",               arg2),
                     new JProperty("Channel",            channel),
                     new JProperty("Text",               text));
-                await _ctx.Bus.PublishEventAsync("App", "ChatMessageSent", json);
+                var rcId = _ctx.GameManager.GameRcId ?? RoutingContextId.BroadcastValue;
+                await _ctx.Bus.PublishEventAsync(rcId, "App", "ChatMessageSent", json);
             }
             catch (Exception ex)
             {
-                try { await _ctx.Bus.LogAsync("EventHandlers", "ChatMessageSent", ex.ToString()); } catch { }
+                try { await _ctx.Bus.LogAsync(_ctx.Bus.MachineId, "EventHandlers", "ChatMessageSent", ex.ToString()); } catch { }
             }
         }
     }

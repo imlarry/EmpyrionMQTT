@@ -36,11 +36,11 @@ IMessageBus bus = new BusBuilder()
     .ScanAssembly(typeof(MyHandlers).Assembly)
     .Build();
 
-await bus.ConnectAsync(ctx);
+await bus.ConnectAsync();
 ```
 
 `Build()` registers all handlers with the underlying messenger.
-`ConnectAsync(ctx)` connects to the broker and activates all subscriptions.
+`ConnectAsync()` connects to the broker and activates all subscriptions.
 
 **BusBuilder options**
 
@@ -218,23 +218,19 @@ var name = (string)response.PayloadJson["Name"];
 ## 6. Retained Announcements
 
 `AnnounceAsync` publishes a retained message so late-joining subscribers receive current state
-immediately on connect. This is how Registry-style presence works.
+immediately on connect. This is how participant presence and per-game reference data are surfaced.
 
 ```csharp
-await bus.AnnounceAsync("Registry", "Connect", new
-{
-    Type = "Client",
-    ConnectionId = bus.ConnectionId
-});
+await bus.AnnounceAsync("Connect", new { Type = "Client" });
 ```
 
-The retained entry is automatically cleared when the participant disconnects cleanly (the underlying
-Messenger publishes an empty payload on disconnect via MQTT Will).
+The scope (`Announcements`) is hardcoded; only the operation and payload are caller-supplied. The
+topic resolves to `ESB/{ownType}/{ownConnId}/Announcements/evt/{operation}`.
 
 An optional expiry can be set:
 
 ```csharp
-await bus.AnnounceAsync(BusScope.Registry, "Connect", payload, expirySeconds: 3600u);
+await bus.AnnounceAsync("BlockAndItemMapping", mapping, expirySeconds: 3600u);
 ```
 
 ---
@@ -284,7 +280,7 @@ This convention is opt-in -- handlers that do not adopt it simply reply with the
 | `Operation` | Operation name (base, no dot-suffix) |
 | `MsgType` | Message type string: evt, req, res, log |
 | `SenderType` | Participant type of the sender |
-| `SenderConnectionId` | Connection ID of the sender |
+| `RoutingContextId` | Audience rcId the message was addressed to (8-char base-36, or `00000000` Broadcast) |
 | `CorrelationId` | Correlation hex string; empty on response envelopes from RequestAsync |
 
 ---
@@ -302,7 +298,7 @@ The `BusScope` enum covers the scopes defined in the topic schema:
 | `Player` | `Player` | Player state: health, credits, inventory |
 | `Structure` | `Structure` | Structures: fuel, tanks, signals, docked vessels |
 | `Device` | `Device` | Structure-mounted devices |
-| `Registry` | `Registry` | Participant presence events |
+| `Announcements` | `Announcements` | Retained participant-presence and state announcements |
 
 All `IMessageBus` methods accept either `BusScope` (via extension methods) or a plain `string`.
 Custom scopes not listed above are supported by passing a string directly.
@@ -314,10 +310,11 @@ The first character is normalized to uppercase; `"player"` and `"Player"` are eq
 
 ```csharp
 Console.WriteLine(bus.ParticipantType);   // e.g. "Client"
-Console.WriteLine(bus.ConnectionId);      // e.g. "g2w2"  (4-char base-36, stable per machine)
+Console.WriteLine(bus.MachineId);         // e.g. "g2w2k7v3"  (8-char base-36, stable per machine)
 Console.WriteLine(bus.AvailableTopics()); // CSV of registered dispatch keys
 ```
 
-`ConnectionId` is stable per participant type per machine. It is derived from a persistent token
-and the participant type string, so the same machine always connects with the same ID for a given
-type. See `Docs/TopicSchema.md` section 1 for the full topic format.
+`MachineId` is the 8-char base-36 rcId derived from a persistent per-machine GUID at
+`%ProgramData%\EmpyrionESB\bus.token`. It doubles as this participant's default `RoutingContextId`
+for response routing (auto-subscribed by `ConnectAsync`). See `Docs/TopicSchema.md` section 1 for
+the full topic format and section 11 for the `RoutingContextKind` taxonomy.

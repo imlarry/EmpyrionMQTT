@@ -84,11 +84,11 @@ namespace ESB.Payloads
 
     public class GameStatePayload
     {
-        public ulong  GameTicks      { get; set; }
-        public string GameName       { get; set; }
-        public string GameIdentifier { get; set; }
-        public string SaveGamePath   { get; set; }
-        public string GameMode       { get; set; }
+        public ulong  GameTicks    { get; set; }
+        public string GameName     { get; set; }
+        public string GameRcId     { get; set; }
+        public string SaveGamePath { get; set; }
+        public string GameMode     { get; set; }
     }
 
     public class DialogResponsePayload

@@ -86,7 +86,7 @@ TopicHandlers (all using Bus.OnRequest):
 - AppHandler: 14 operations implemented (complete)
 - PlayerHandler: 3 operations implemented (complete)
 - StructureHandler: 17 operations implemented (complete)
-- RegistryHandler: being retired; stub left in place
+- Registry scope retired; replaced by Announcements (publishers use Bus.AnnounceAsync)
 
 EventHandlers (all using Bus.PublishEventAsync):
 - ChatMessageSentHandler, EntityLoadedHandler, EntityUnloadedHandler,
@@ -175,8 +175,10 @@ Any remaining calls to IMessenger.SendAsync, RequestAsync, or PublishRetainedAsy
 in application-level code are replaced with the corresponding IMessageBus methods.
 After this step, application code no longer holds a reference to IMessenger directly.
 
-Note: BusManager.PublishRegistryEntryAsync still calls _ctx.Messenger.PublishRetainedAsync
-directly and will be updated here.
+Status: BusManager.PublishRegistryEntryAsync was migrated to Bus.AnnounceAsync (Connect)
+and the Registry scope is retired. Remaining direct IMessenger calls in application code
+are the log-message SendAsync invocations in GameManager.Init and UpdateHandler; these are
+candidates for Bus.LogAsync substitution.
 
 ---
 
@@ -188,6 +190,20 @@ payload serialization, dispatch, handler logic, and response deserialization.
 
 Current integration tests exercise IMessenger-based paths and should continue to pass
 throughout the migration.
+
+---
+
+## Step 10: RoutingContextId migration -- DONE
+
+`ConnectionId` was renamed to `RoutingContextId` (8-char base-36) and is now a per-publish audience
+selector rather than a per-participant identity. `IMessageBus` publish/request methods take an
+explicit `routingContextId` first parameter; `SubscribeAsync(rcId)` / `UnsubscribeAsync(rcId)` manage
+audience subscriptions. Machine rcId and Broadcast rcId are auto-subscribed at connect. See
+`Docs/TopicSchema.md` section 11 for the `RoutingContextKind` taxonomy.
+
+Call-site signature deltas previously listed in Step 4 / Step 8 (e.g.
+`_ctx.Bus.PublishEventAsync("App", "Op", payload)`) are superseded by the rcId-first form
+`_ctx.Bus.PublishEventAsync(rcId, "App", "Op", payload)`.
 
 ---
 

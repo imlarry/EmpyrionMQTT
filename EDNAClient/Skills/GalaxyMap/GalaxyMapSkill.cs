@@ -19,7 +19,7 @@ namespace EDNAClient.Skills.GalaxyMap
             _workspace = workspace;
         }
 
-        public Task StartAsync(IMessageBus bus) => Task.CompletedTask;
+        public Task StartAsync(EdnaContext ctx) => Task.CompletedTask;
 
         public void Stop() { }
 

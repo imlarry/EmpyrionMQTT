@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 
 namespace ESB.Messaging
 {
@@ -45,8 +44,7 @@ namespace ESB.Messaging
                 _messenger.CompressionThreshold = _compressionThreshold;
 
             return new MessageBus(_messenger, _participantType,
-                _host, _port, _username, _password, _caFilePath,
-                new List<SubscriptionSpec>());
+                _host, _port, _username, _password, _caFilePath);
         }
 
         // -- Utility -------------------------------------------------------------

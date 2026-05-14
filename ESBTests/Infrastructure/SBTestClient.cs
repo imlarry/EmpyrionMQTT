@@ -1,5 +1,6 @@
 using ESB.Configuration;
 using ESB.Helpers;
+using ESB.Messaging;
 using MQTTnet;
 using MQTTnet.Client;
 using MQTTnet.Formatter;
@@ -59,7 +60,7 @@ public sealed class SBTestClient : IAsyncDisposable
 
         await client.ConnectAsync(builder.Build(), CancellationToken.None);
 
-        var clientId = Guid.NewGuid().ToString("N").Substring(0, 4);
+        var clientId = Guid.NewGuid().ToString("N").Substring(0, 8);
         var instance = new SBTestClient(client, factory, participantType, clientId);
 
         // Persistent response subscription -- receives replies to all RequestAsync calls.
@@ -73,7 +74,7 @@ public sealed class SBTestClient : IAsyncDisposable
 
     /// <summary>
     /// Sends an ESB request and awaits the response via MQTT5 ResponseTopic + CorrelationData.
-    /// Publishes to:  ESB/{participantType}/{clientId}/{scope}/req/{operation}
+    /// Publishes to:  ESB/{participantType}/00000000/{scope}/req/{operation}  (Broadcast rcId)
     /// ResponseTopic: ESB/{participantType}/{clientId}/{scope}/res/{operation}
     /// Errors are returned inside the res payload as {"Error": "..."}.
     /// </summary>
@@ -91,7 +92,7 @@ public sealed class SBTestClient : IAsyncDisposable
         try
         {
             var message = new MqttApplicationMessageBuilder()
-                .WithTopic($"ESB/{_participantType}/{_clientId}/{scope}/req/{operation}")
+                .WithTopic($"ESB/{_participantType}/{RoutingContextId.BroadcastValue}/{scope}/req/{operation}")
                 .WithPayload(requestJson)
                 .WithResponseTopic(responseTopic)
                 .WithCorrelationData(Encoding.ASCII.GetBytes(shortId))

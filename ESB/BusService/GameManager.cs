@@ -12,7 +12,8 @@ namespace ESB
         readonly private ContextData _ctx;
 
         public string GameName { get; private set; }
-        public string GameIdentifier { get; private set; }
+        public string GameRcId { get; private set; }              // RoutingContextId.Game(SaveGamePath, machineId)
+        public string CurrentPlayfieldRcId { get; set; }          // RoutingContextId.Playfield(...); set by PlayfieldLoadedHandler
         public string SaveGamePath { get; private set; }
         public string GameMode { get; private set; }
         public Dictionary<int, string> BlockAndItemMapping { get; private set; }
@@ -42,36 +43,31 @@ namespace ESB
         public async Task Init()
         {
             SaveGamePath = Path.GetFullPath(_ctx.ModApi.Application.GetPathFor(AppFolder.SaveGame));
-            GameName = Path.GetFileName(SaveGamePath);
-            GameIdentifier = IdentifierHelper.GenerateIdentifier(GameName, 8);
-            GameMode = _ctx.ModApi.Application.Mode.ToString();
+            GameName     = Path.GetFileName(SaveGamePath);
+            GameRcId     = RoutingContextId.Game(SaveGamePath, _ctx.Bus.MachineId).Id;
+            GameMode     = _ctx.ModApi.Application.Mode.ToString();
 
             var json = new JObject(
                 new JProperty("Status", "Created"));
-            await _ctx.Messenger.SendAsync("App", MessageType.Log, "GameManager", json.ToString(Newtonsoft.Json.Formatting.None));
+            await _ctx.Messenger.SendAsync(_ctx.Bus.MachineId, "App", MessageType.Log, "GameManager", json.ToString(Newtonsoft.Json.Formatting.None));
         }
-        public async Task StateChanged(bool hasEntered)
+
+        public void StateChanged(bool hasEntered)
         {
             if (hasEntered)
             {
                 SetGameProperties();
-                if (_ctx.Messenger.ParticipantType() != "Ds")
-                    await _ctx.Messenger.SubscribeBrokerAsync(participantType: "Client", connectionId: GameIdentifier, scope: "Registry", msgType: MessageType.Evt, operation: "#");
-            }
-            else
-            {
-                if (!string.IsNullOrEmpty(GameIdentifier) && _ctx.Messenger.ParticipantType() != "Ds")
-                    await _ctx.Messenger.UnsubscribeAsync(participantType: "Client", connectionId: GameIdentifier, scope: "Registry", msgType: MessageType.Evt, operation: "#");
             }
         }
+
         private void SetGameProperties()
         {
             SaveGamePath = Path.GetFullPath(_ctx.ModApi.Application.GetPathFor(AppFolder.SaveGame));
-            GameName = Path.GetFileName(SaveGamePath);
-            GameIdentifier = IdentifierHelper.GenerateIdentifier(GameName, 8);
-            GameMode = _ctx.ModApi.Application.Mode.ToString();
+            GameName     = Path.GetFileName(SaveGamePath);
+            GameRcId     = RoutingContextId.Game(SaveGamePath, _ctx.Bus.MachineId).Id;
+            GameMode     = _ctx.ModApi.Application.Mode.ToString();
 
-            if (GameMode == "Client" && (BlockAndItemMapping == null || BlockAndItemMapping.Count == 0))
+            if (_ctx.BusManager.ParticipantType == "Client" && (BlockAndItemMapping == null || BlockAndItemMapping.Count == 0))
             {
                 var raw = _ctx.ModApi.Application.GetBlockAndItemMapping();
                 if (raw != null && raw.Count > 0)
@@ -79,19 +75,11 @@ namespace ESB
                     BlockAndItemMapping = new Dictionary<int, string>();
                     foreach (var pair in raw)
                         BlockAndItemMapping[pair.Value] = pair.Key;
-                    _ = _ctx.Messenger.PublishRetainedAsync("Registry", MessageType.Evt, "BlockAndIdtemMapping", BuildMappingJson(), 3600u, GameIdentifier);
+                    _ = _ctx.Bus.AnnounceAsync(GameRcId, "BlockAndItemMapping", BlockAndItemMapping, 3600u);
                 }
             }
 
             _ctx.ModApi.Log($"IModApi properties: ClientPlayfield={((_ctx.ModApi.ClientPlayfield == null) ? "null" : "set")}, Network={(_ctx.ModApi.Network == null ? "null" : "set")}, GUI={(_ctx.ModApi.GUI == null ? "null" : "set")}, PDA={(_ctx.ModApi.PDA == null ? "null" : "set")}, Scripting={(_ctx.ModApi.Scripting == null ? "null" : "set")}, SoundPlayer={(_ctx.ModApi.SoundPlayer == null ? "null" : "set")}, Application={(_ctx.ModApi.Application == null ? "null" : "set")}");
-        }
-
-        private string BuildMappingJson()
-        {
-            var obj = new JObject();
-            foreach (var pair in BlockAndItemMapping)
-                obj[pair.Key.ToString()] = pair.Value;
-            return obj.ToString(Newtonsoft.Json.Formatting.None);
         }
     }
 }

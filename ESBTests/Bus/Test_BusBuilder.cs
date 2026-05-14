@@ -21,8 +21,7 @@ public class Test_BusBuilder
         public void RegisterHandler(string dispatchKey, Func<MessageContext, Task> handler)
             => Handlers[dispatchKey] = handler;
 
-        public string MachineId()       => "stub";
-        public string ClientId()        => "stub";
+        public string MachineId()       => "stub0001";
         public string ParticipantType() => "Test";
         public string AvailableTopics() => string.Join(", ", Handlers.Keys);
 
@@ -31,7 +30,7 @@ public class Test_BusBuilder
             string? password = null, string? caFilePath = null, string? willTopic = null)
             => throw new NotImplementedException();
 
-        public Task ConnectAsync(BaseContextData ctx, string participantType,
+        public Task ConnectAsync(string participantType,
             string withTcpServer = "localhost", int port = 1883,
             string? username = null, string? password = null, string? caFilePath = null)
             => throw new NotImplementedException();
@@ -39,13 +38,13 @@ public class Test_BusBuilder
         public Task DisconnectAsync() => throw new NotImplementedException();
 
         public Task SubscribeBrokerAsync(
-            string? participantType = null, string? connectionId = null,
+            string? participantType = null, string? routingContextId = null,
             string? scope = null, MessageType? msgType = null,
             string? operation = null)
             => Task.CompletedTask;
 
         public Task UnsubscribeAsync(
-            string? participantType = null, string? connectionId = null,
+            string? participantType = null, string? routingContextId = null,
             string? scope = null, MessageType? msgType = null, string? operation = null)
             => throw new NotImplementedException();
 
@@ -53,20 +52,20 @@ public class Test_BusBuilder
             => throw new NotImplementedException();
 
         public Task PublishRetainedAsync(
-            string scope, MessageType msgType, string operation, string payload,
-            uint expirySeconds = 0u, string? connectionId = null, bool compress = false)
+            string routingContextId, string scope, MessageType msgType, string operation,
+            string payload, uint expirySeconds = 0u, bool compress = false)
             => throw new NotImplementedException();
 
-        public Task SendAsync(string scope, MessageType msgType, string operation,
+        public Task SendAsync(string routingContextId, string scope, MessageType msgType, string operation,
             string payload, List<KeyValuePair<string, string>>? userProperties = null,
             bool compress = false)
             => throw new NotImplementedException();
 
-        public Task<string> RequestAsync(string scope, string operation,
+        public Task<string> RequestAsync(string routingContextId, string scope, string operation,
             string payload, TimeSpan timeout)
             => throw new NotImplementedException();
 
-        public Task<string> RequestToAsync(string targetParticipantType, string targetConnectionId,
+        public Task<string> RequestToAsync(string targetParticipantType, string targetRoutingContextId,
             string scope, string operation, string payload, TimeSpan timeout)
             => throw new NotImplementedException();
     }

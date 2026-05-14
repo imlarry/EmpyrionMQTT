@@ -19,7 +19,7 @@ namespace ESB.EventHandlers
         {
             if (_ctx.MainThreadRunner.HasActionsToProcess())
             {
-                _ = _ctx.Messenger.SendAsync("App", MessageType.Log, "Update", "Processing actions on main thread");
+                _ = _ctx.Messenger.SendAsync(_ctx.Messenger.MachineId(), "App", MessageType.Log, "Update", "Processing actions on main thread");
                 while (_ctx.MainThreadRunner.HasActionsToProcess())
                 {
                     _ctx.MainThreadRunner.ProcessActions();
@@ -47,7 +47,7 @@ namespace ESB.EventHandlers
             }
             catch (Exception ex)
             {
-                await _ctx.Messenger.SendAsync("App", MessageType.Log, "UpdateHandler", ex.ToString());
+                await _ctx.Messenger.SendAsync(_ctx.Messenger.MachineId(), "App", MessageType.Log, "UpdateHandler", ex.ToString());
             }
         }
     }

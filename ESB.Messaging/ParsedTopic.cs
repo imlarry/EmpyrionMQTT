@@ -3,16 +3,16 @@ using System.Collections.Generic;
 namespace ESB.Messaging
 {
     // ParsedTopic represents a parsed ESB/ schema topic.
-    // Fixed 6-segment form: ESB/{participantType}/{connectionId}/{scope}/{msgType}/{operation}
+    // Fixed 6-segment form: ESB/{participantType}/{routingContextId}/{scope}/{msgType}/{operation}
     public class ParsedTopic
     {
-        public string ParticipantType { get; set; }  // as passed to ConnectAsync
-        public string ConnectionId    { get; set; }  // 4-char base-36 lowercase
-        public string Scope           { get; set; }  // App | Player | Structure | Device | Registry | ...
-        public string MsgType         { get; set; }  // evt | req | res | log (lowercase)
-        public string Operation       { get; set; }  // operation name (base, no dot-suffix)
-        public string MetaOperation   { get; set; }  // non-null when dot-suffix present (e.g. "Describe")
-        public string DispatchKey     { get; set; }  // "{scope}/{msgType}/{operation}"
+        public string ParticipantType  { get; set; }  // as passed to ConnectAsync
+        public string RoutingContextId { get; set; }  // 8-char base-36 audience id (or Broadcast sentinel)
+        public string Scope            { get; set; }  // App | Player | Structure | Device | Announcements | ...
+        public string MsgType          { get; set; }  // evt | req | res | log (lowercase)
+        public string Operation        { get; set; }  // operation name (base, no dot-suffix)
+        public string MetaOperation    { get; set; }  // non-null when dot-suffix present (e.g. "Describe")
+        public string DispatchKey      { get; set; }  // "{scope}/{msgType}/{operation}"
     }
 
     // MessageContext carries everything a handler needs from an incoming message.

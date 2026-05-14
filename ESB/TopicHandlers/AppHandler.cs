@@ -17,6 +17,8 @@ namespace ESB.TopicHandlers
 
         public AppHandler(ContextData ctx) { _ctx = ctx; }
 
+        private static readonly string[] PlayfieldInfoColumns = { "PlayfieldName", "PlayfieldType", "IsInstance" };
+
         public void Register()
         {
             _ctx.Bus.OnRequest("App", "GetProperties",       GetProperties);
@@ -58,10 +60,10 @@ namespace ESB.TopicHandlers
                 new JProperty("Application",     _ctx.ModApi.Application == null ? "null" : "set"));
             try
             {
-                var list = new List<PlayfieldInfoResponse>();
+                var rows = new JArray();
                 foreach (var pf in app.GetAllPlayfields())
-                    list.Add(new PlayfieldInfoResponse { PlayfieldName = pf.PlayfieldName, PlayfieldType = pf.PlayfieldType.ToString(), IsInstance = pf.IsInstance });
-                json["Playfields"] = JArray.Parse(JsonConvert.SerializeObject(list, MessageHelpers.PascalCaseSettings));
+                    rows.Add(new JArray(pf.PlayfieldName, pf.PlayfieldType.ToString(), pf.IsInstance));
+                json["Playfields"] = MessageHelpers.Tabular(PlayfieldInfoColumns, rows);
             }
             catch { }
             try
@@ -79,6 +81,9 @@ namespace ESB.TopicHandlers
             return Task.FromResult(json.ToString(Newtonsoft.Json.Formatting.None));
         }
 
+        // =========================================================================
+        // Scalar property handlers
+        // =========================================================================
         private Task<string> GameTicks(MessageEnvelope env)
         {
             return Task.FromResult(
@@ -100,6 +105,10 @@ namespace ESB.TopicHandlers
                     .ToString(Formatting.None));
         }
 
+        // =========================================================================
+        // App/ModApiProperties -- (no payload)
+        // Reports presence ("set"/"null") of each top-level IModApi sub-API.
+        // =========================================================================
         private Task<string> ModApiProperties(MessageEnvelope env)
         {
             var json = new JObject(
@@ -113,6 +122,10 @@ namespace ESB.TopicHandlers
             return Task.FromResult(json.ToString(Formatting.None));
         }
 
+        // =========================================================================
+        // App/GetAllPlayfields -- (no payload)
+        // Returns array of { PlayfieldName, PlayfieldType, IsInstance }.
+        // =========================================================================
         private Task<string> GetAllPlayfields(MessageEnvelope env)
         {
             try
@@ -133,6 +146,10 @@ namespace ESB.TopicHandlers
             }
         }
 
+        // =========================================================================
+        // App/PfServerInfos -- (no payload)
+        // Returns raw playfield server info objects from IModApi.Application.
+        // =========================================================================
         private Task<string> GetPfServerInfos(MessageEnvelope env)
         {
             try
@@ -148,6 +165,10 @@ namespace ESB.TopicHandlers
             }
         }
 
+        // =========================================================================
+        // App/PlayerEntityIds -- (no payload)
+        // Returns int[] of currently online player entity IDs.
+        // =========================================================================
         private Task<string> GetPlayerEntityIds(MessageEnvelope env)
         {
             try
@@ -161,6 +182,10 @@ namespace ESB.TopicHandlers
             }
         }
 
+        // =========================================================================
+        // App/BlockAndItemMapping -- (no payload)
+        // Returns the engine's block-and-item name/id mapping table.
+        // =========================================================================
         private Task<string> GetBlockAndItemMapping(MessageEnvelope env)
         {
             try
@@ -174,6 +199,11 @@ namespace ESB.TopicHandlers
             }
         }
 
+        // =========================================================================
+        // App/GetPathFor -- { "AppFolder": string }
+        // AppFolder is parsed against the AppFolder enum (case-insensitive).
+        // Returns: { "AppFolder": string, "Path": string }  (absolute path; "N/A" if unknown)
+        // =========================================================================
         private Task<string> GetPathFor(MessageEnvelope env)
         {
             try
@@ -195,6 +225,10 @@ namespace ESB.TopicHandlers
             }
         }
 
+        // =========================================================================
+        // App/GetPlayerDataFor -- { "PlayerEntityId": int }
+        // Returns the engine's PlayerData record for the given entity id.
+        // =========================================================================
         private Task<string> GetPlayerDataFor(MessageEnvelope env)
         {
             try
@@ -211,6 +245,11 @@ namespace ESB.TopicHandlers
             }
         }
 
+        // =========================================================================
+        // App/GetStructure -- { "EntityId": int }
+        // Async callback pattern; resolves with structure JSON built by HandlerHelper.
+        // Returns: structure object as JSON (see HandlerHelper.BuildStructureJson).
+        // =========================================================================
         private async Task<string> GetStructureAsync(MessageEnvelope env)
         {
             try
@@ -230,6 +269,12 @@ namespace ESB.TopicHandlers
             }
         }
 
+        // =========================================================================
+        // App/GetStructures -- { "PlayfieldName": string?, "FactionId": int?, "FactionGroup": int?, "EntityType": string? }
+        // Either PlayfieldName or both FactionId+FactionGroup must be supplied.
+        // Async callback pattern; resolves with JArray of structure objects.
+        // Returns: [ structureJson, ... ] (see HandlerHelper.BuildStructureJson)
+        // =========================================================================
         private async Task<string> GetStructuresAsync(MessageEnvelope env)
         {
             try
@@ -269,6 +314,15 @@ namespace ESB.TopicHandlers
             }
         }
 
+        // =========================================================================
+        // App/SendChatMessage -- { "Text": string, "Channel": string?, "SenderType": string?,
+        //                          "SenderEntityId": int?, "SenderNameOverride": string?,
+        //                          "RecipientEntityId": int?, "IsTextLocaKey": bool?,
+        //                          "Arg1": string?, "Arg2": string? }
+        // Channel/SenderType default to Global/ServerInfo when missing or unparseable.
+        // Dispatched on the main thread.
+        // Returns: { "ok": true }
+        // =========================================================================
         private async Task<string> SendChatMessage(MessageEnvelope env)
         {
             try
@@ -301,6 +355,16 @@ namespace ESB.TopicHandlers
             }
         }
 
+        // =========================================================================
+        // App/ShowDialogBox -- { "PlayerEntityId": int?, "TitleText": string?, "BodyText": string?,
+        //                        "CloseOnLinkClick": bool?, "ButtonIdxForEsc": int?, "ButtonIdxForEnter": int?,
+        //                        "MaxChars": int?, "Placeholder": string?, "InitialContent": string?,
+        //                        "ButtonTexts": string[]?, "CustomValue": int? }
+        // PlayerEntityId defaults to LocalPlayer. Dispatched on the main thread.
+        // Player response is published as event App/DialogResponse with:
+        //   { PlayerEntityId, ButtonIdx, LinkId, InputContent, CustomValue }
+        // Returns: { "ok": true } on display, error JSON on failure.
+        // =========================================================================
         private async Task<string> ShowDialogBox(MessageEnvelope env)
         {
             try
@@ -332,7 +396,8 @@ namespace ESB.TopicHandlers
                         new JProperty("LinkId",         linkId       ?? ""),
                         new JProperty("InputContent",   inputContent ?? ""),
                         new JProperty("CustomValue",    customVal));
-                    _ = _ctx.Bus.PublishEventAsync("App", "DialogResponse", evt);
+                    var dlgRcId = _ctx.GameManager.GameRcId ?? ESB.Messaging.RoutingContextId.BroadcastValue;
+                    _ = _ctx.Bus.PublishEventAsync(dlgRcId, "App", "DialogResponse", evt);
                 }
 
                 bool displayed = await _ctx.MainThreadRunner.RunOnMainThread(() =>

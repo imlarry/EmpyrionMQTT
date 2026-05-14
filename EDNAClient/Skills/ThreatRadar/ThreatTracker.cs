@@ -13,6 +13,7 @@ namespace EDNAClient.Skills.ThreatRadar
     /// </summary>
     public class ThreatTracker
     {
+        private readonly EdnaContext     _ctx;
         private readonly IMessageBus     _bus;
         private readonly ThreatViewModel _viewModel;
 
@@ -22,9 +23,10 @@ namespace EDNAClient.Skills.ThreatRadar
         private float _playerX, _playerZ;
         private float _fwdX = 0f, _fwdZ = 1f;   // default: facing +Z (world north)
 
-        public ThreatTracker(IMessageBus bus, ThreatViewModel viewModel)
+        public ThreatTracker(EdnaContext ctx, ThreatViewModel viewModel)
         {
-            _bus       = bus;
+            _ctx       = ctx;
+            _bus       = ctx.Bus;
             _viewModel = viewModel;
         }
 
@@ -56,7 +58,8 @@ namespace EDNAClient.Skills.ThreatRadar
         private async Task RequestScanAsync()
         {
             // Feeds.Scan: pending ESB server implementation
-            await _bus.RequestAsync<object>("App", "Feeds.Scan",
+            var rcId = _ctx.CurrentPlayfieldRcId ?? _ctx.GameRcId ?? RoutingContextId.BroadcastValue;
+            await _bus.RequestAsync<object>(rcId, "App", "Feeds.Scan",
                 new { Duration = 300, RefreshRate = 2 }, System.TimeSpan.FromSeconds(30));
         }
 

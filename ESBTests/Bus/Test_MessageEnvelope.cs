@@ -12,24 +12,24 @@ public class Test_MessageEnvelope
     // -------------------------------------------------------------------------
 
     private static MessageContext MakeContext(
-        string scope          = "Player",
-        string operation      = "GameEnter",
-        string msgType        = "evt",
-        string participantType = "Pfs",
-        string connectionId   = "g2w2",
-        string payload        = "{}",
-        byte[]? correlationData = null)
+        string scope             = "Player",
+        string operation         = "GameEnter",
+        string msgType           = "evt",
+        string participantType   = "Pfs",
+        string routingContextId  = "g2w2k7v3",
+        string payload           = "{}",
+        byte[]? correlationData  = null)
     {
         return new MessageContext
         {
             ParsedTopic = new ParsedTopic
             {
-                ParticipantType = participantType,
-                ConnectionId    = connectionId,
-                Scope           = scope,
-                MsgType         = msgType,
-                Operation       = operation,
-                DispatchKey     = $"{scope}/{msgType}/{operation}"
+                ParticipantType  = participantType,
+                RoutingContextId = routingContextId,
+                Scope            = scope,
+                MsgType          = msgType,
+                Operation        = operation,
+                DispatchKey      = $"{scope}/{msgType}/{operation}"
             },
             Payload         = payload,
             CorrelationData = correlationData
@@ -54,10 +54,10 @@ public class Test_MessageEnvelope
     }
 
     [Fact]
-    public void FromContext_SenderConnectionId_IsConnectionId()
+    public void FromContext_RoutingContextId_IsRoutingContextId()
     {
-        var env = MessageEnvelope.From(MakeContext(connectionId: "ab12"));
-        Assert.Equal("ab12", env.SenderConnectionId);
+        var env = MessageEnvelope.From(MakeContext(routingContextId: "ab12cd34"));
+        Assert.Equal("ab12cd34", env.RoutingContextId);
     }
 
     [Fact]
@@ -128,7 +128,7 @@ public class Test_MessageEnvelope
     {
         var env = new MessageEnvelope("{}", "Player", "GetInfo");
         Assert.Equal(string.Empty, env.SenderType);
-        Assert.Equal(string.Empty, env.SenderConnectionId);
+        Assert.Equal(string.Empty, env.RoutingContextId);
         Assert.Equal(string.Empty, env.CorrelationId);
     }
 

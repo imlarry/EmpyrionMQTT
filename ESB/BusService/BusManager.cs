@@ -6,8 +6,6 @@ using ESB.Configuration;
 using ESB.EventHandlers;
 using ESB.Helpers;
 using ESB.Messaging;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
 
 namespace ESB
 {
@@ -27,6 +25,7 @@ namespace ESB
 
             switch (_ctx.ModApi.Application.Mode)
             {
+                case ApplicationMode.SinglePlayer:
                 case ApplicationMode.Client:          ParticipantType = "Client"; break;
                 case ApplicationMode.DedicatedServer: ParticipantType = "Ds";     break;
                 case ApplicationMode.PlayfieldServer: ParticipantType = "Pfs";    break;
@@ -50,9 +49,9 @@ namespace ESB
                 .WithCertificate(_ctx.ESBConfig.MQTThost.CAFilePath)
                 .Build();
             _ctx.Bus = bus;
-            await bus.ConnectAsync(_ctx);
+            await bus.ConnectAsync();
 
-            await PublishRegistryEntryAsync();
+            await _ctx.Bus.AnnounceAsync(RoutingContextId.BroadcastValue, "Connect", new { Type = ParticipantType });
 
             var subscriptionHandler = new SubscriptionHandler(_ctx);
             await subscriptionHandler.SubscribeAll();
@@ -68,7 +67,6 @@ namespace ESB
         public async Task Shutdown()
         {
             _eMgr.DisableEventHandlers();
-            // await ClearRegistryEntryAsync(); // a will can clear it if the client disconnects unexpectedly. Retained messages with empty payload are discarded by the broker.
             await _ctx.Bus.DisconnectAsync();
         }
 
@@ -97,16 +95,5 @@ namespace ESB
             }
         }
 
-        private async Task PublishRegistryEntryAsync()
-        {
-            var json = new JObject(new JProperty("type", ParticipantType));
-            await _ctx.Messenger.PublishRetainedAsync("Registry", MessageType.Evt, "Connect", json.ToString(Formatting.None));
-        }
-
-        private async Task ClearRegistryEntryAsync()
-        {
-            // empty retained payload instructs the broker to discard the retained message
-            await _ctx.Messenger.PublishRetainedAsync("Registry", MessageType.Evt, "Connect", "");
-        }
     }
 }

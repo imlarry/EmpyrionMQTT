@@ -37,11 +37,11 @@ namespace EDNAClient.Skills.Scripting.Api
             MessageType msgType;
             if (!System.Enum.TryParse(msgTypeStr, out msgType))
             {
-                _ = _messenger.SendAsync("App", MessageType.Log, "LuaMqttApi.InvalidMsgType",
+                _ = _messenger.SendAsync(_messenger.MachineId(), "App", MessageType.Log, "LuaMqttApi.InvalidMsgType",
                     $"{{\"Script\":\"{_engine.Name}\",\"MsgType\":{JsonConvert.SerializeObject(msgTypeStr)}}}");
                 return;
             }
-            _ = _messenger.SendAsync(scope, msgType, name, payload);
+            _ = _messenger.SendAsync(_messenger.MachineId(), scope, msgType, name, payload);
         }
 
         /// <summary>

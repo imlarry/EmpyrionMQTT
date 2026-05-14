@@ -1,12 +1,11 @@
 using System.Threading.Tasks;
-using ESB.Messaging;
 
 namespace EDNAClient.Core
 {
     public interface IEdnaSkill
     {
         string Id { get; }
-        Task StartAsync(IMessageBus bus);
+        Task StartAsync(EdnaContext ctx);
         void Stop();
         void SnapToGameWindow();
     }

@@ -46,7 +46,7 @@ namespace EDNAClient.Skills.Scripting.Api
         private void Publish(string subjectId, string message)
         {
             if (_messenger == null) return;
-            _ = _messenger.SendAsync("App", MessageType.Log, subjectId,
+            _ = _messenger.SendAsync(_messenger.MachineId(), "App", MessageType.Log, subjectId,
                 $"{{\"Script\":{JsonConvert.SerializeObject(_scriptName)},\"Message\":{JsonConvert.SerializeObject(message)}}}");
         }
     }
