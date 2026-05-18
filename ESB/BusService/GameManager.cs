@@ -11,11 +11,12 @@ namespace ESB
     {
         readonly private ContextData _ctx;
 
-        public string GameName { get; private set; }
-        public string GameRcId { get; private set; }              // RoutingContextId.Game(SaveGamePath, machineId)
-        public string CurrentPlayfieldRcId { get; set; }          // RoutingContextId.Playfield(...); set by PlayfieldLoadedHandler
+        public string GameName     { get; private set; }
+        public string GameRcId     { get; private set; }   // RoutingContextId.Game(SaveGamePath, machineId); null on Client until EnterGame
+        public string LobbyRcId    { get; private set; }   // RoutingContextId.Lobby(machineId); null for Pfs/Ds
+        public string ContextRcId  { get; private set; }   // current audience for evt publishes; lobby for Client pre-game, game otherwise
         public string SaveGamePath { get; private set; }
-        public string GameMode { get; private set; }
+        public string GameMode     { get; private set; }
         public Dictionary<int, string> BlockAndItemMapping { get; private set; }
         public IPlayfield CurrentPlayfield { get; set; }
 
@@ -42,21 +43,53 @@ namespace ESB
 
         public async Task Init()
         {
-            SaveGamePath = Path.GetFullPath(_ctx.ModApi.Application.GetPathFor(AppFolder.SaveGame));
-            GameName     = Path.GetFileName(SaveGamePath);
-            GameRcId     = RoutingContextId.Game(SaveGamePath, _ctx.Bus.MachineId).Id;
-            GameMode     = _ctx.ModApi.Application.Mode.ToString();
+            GameMode = _ctx.ModApi.Application.Mode.ToString();
+
+            var participantType = _ctx.BusManager.ParticipantType;
+            if (participantType == "Pfs" || participantType == "Ds")
+            {
+                // Service processes serve one specific game; no lobby phase.
+                SetGameProperties();
+                ContextRcId = GameRcId;
+            }
+            else
+            {
+                // Client (and any user-defined in-game participant): pre-game until EnterGame.
+                LobbyRcId   = RoutingContextId.Lobby(_ctx.Bus.MachineId).Id;
+                ContextRcId = LobbyRcId;
+            }
+
+            await _ctx.Bus.SubscribeAsync(ContextRcId);
 
             var json = new JObject(
-                new JProperty("Status", "Created"));
+                new JProperty("Status",      "Created"),
+                new JProperty("ContextRcId", ContextRcId));
             await _ctx.Messenger.SendAsync(_ctx.Bus.MachineId, "App", MessageType.Log, "GameManager", json.ToString(Newtonsoft.Json.Formatting.None));
         }
 
-        public void StateChanged(bool hasEntered)
+        // EnterGame ... Client lifecycle: swap context from Lobby to the real Game rcId.
+        public async Task EnterGame()
         {
-            if (hasEntered)
+            SetGameProperties();
+            var previous = ContextRcId;
+            ContextRcId = GameRcId;
+            if (previous != ContextRcId)
             {
-                SetGameProperties();
+                await _ctx.Bus.UnsubscribeAsync(previous);
+                await _ctx.Bus.SubscribeAsync(ContextRcId);
+            }
+        }
+
+        // ExitGame ... Client lifecycle: swap context back to Lobby.
+        public async Task ExitGame()
+        {
+            if (string.IsNullOrEmpty(LobbyRcId)) return;
+            var previous = ContextRcId;
+            ContextRcId = LobbyRcId;
+            if (previous != ContextRcId)
+            {
+                await _ctx.Bus.UnsubscribeAsync(previous);
+                await _ctx.Bus.SubscribeAsync(ContextRcId);
             }
         }
 

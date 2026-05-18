@@ -1,6 +1,9 @@
-# Mosquitto Security Guide — Empyrion MQTT Integration
+# Mosquitto Security Guide -- Empyrion MQTT Integration
 
-DISCUSSION OF REGISTRY PATTERN VS ANNOUNCEMENTS .. DOC REVIEW REQUIRED
+This guide aligns with the rcId model documented in `Docs/TopicSchema.md` sections 1, 5, and 11: four rcId kinds (Broadcast, Machine, Lobby, Game; Lobby and Game share width/shape on the wire), three standing subscriptions per participant (machine, broadcast, context-evt where the context rcId swaps Lobby<->Game on game enter/exit), and a position-1 publisher contract that names the recipient type for machine-targeted req/res/log and the sender's own type for events. Req/res/log always uses MachineId addressing; Lobby and Game rcIds carry `evt` and Announcements.
+
+> The ACL rules in Section 2 describe the intended end-state. The current code uses a single wildcard subscription `ESB/+/{myMachineId}/+/+/+` and puts the caller's own type at position 1 of requests, so a deployment running today's bus needs broader ACL rules than what is documented below until the code follow-on lands.
+
 ## Current Config Assessment
 
 Your current `mosquitto.conf` provides a minimal but workable starting point:
@@ -75,92 +78,100 @@ openssl x509 -req -days 3650 -in server.csr -CA ca.crt -CAkey ca.key -CAcreatese
 
 ## 2. ACL File
 
-The `ESB/` topic schema creates a clear access pattern. Without an ACL, any authenticated participant can publish to any topic — including another player's `Res` topic or the `Ds` command topics.
+Without an ACL, any authenticated participant can publish to any topic -- including another player's response topic or a server-side command topic. The four standing subscriptions per participant (Section 5 of `Docs/TopicSchema.md`) map cleanly to ACL rules: each grant matches one of the subs on the read side, and each grant on the write side matches one entry of the publisher contract.
 
-### Request/Response Access Model
+### Username convention
 
-The schema has an inherent tension: requesters publish to the *responder's* `req` topic. This means no simple "only write to your own subtree" rule applies. The practical ACL strategy is role-based:
+Encode the participant type and machineId in the Mosquitto username so pattern ACLs can scope each user to its own subtree. With `use_username_as_clientid true` (Section 5 below), the MQTT clientId must equal the username.
 
-- **`ds` / `pfs`** — server-side processes; need broad write access
-- **`client`** — player sessions; should only publish requests and their own registry entry
-- **custom** (e.g. `edna`) — external participants; each uses its own type string; scoped to their declared purpose
+| Username form | Example | Notes |
+|---|---|---|
+| `{type}-{machineId}` | `Ds-abc12`, `Pfs-abc12`, `Client-k3m9p`, `EDNA-k3m9p` | Type matches the participantType string passed to `ConnectAsync`; machineId is the 5-char base-36 value from `bus.token`. In co-op, Ds/Pfs/Client all share the host machineId; their usernames differ only in the type prefix. |
 
-### Recommended ACL Strategy
+The username is a credential identity, not a topic segment. The bus puts `{type}` at position 1 and `{machineId}` at position 2 of the topic; the ACL ties the username to the specific `(type, machineId)` pair using literal rules per user.
 
-Map each participant type to a **username prefix** in your `passwd.dat`:
+### Read-side grants (match the four subs)
 
-| Username | Role |
-|---|---|
-| `ds-main` | DedicatedServer process |
-| `pfs-akua`, `pfs-omicron` | PlayfieldServer per playfield |
-| `client-<playerId>` | Each connecting player |
-| `edna-01`, `{name}-{n}` | Named external participants (Mosquitto username; pick any convention) |
-
-Then in your `acl_file`:
+Every participant has three subscriptions: its own type-pinned machine sub, the broadcast sub, and a context-evt sub whose rcId target swaps between Lobby and Game on game enter/exit. Pattern ACLs do not split a single `%u` into "type" and "machineId" parts, so the cleanest approach is per-user literal rules for the machine sub and global pattern rules for the two wildcard subs.
 
 ```
 # ---------------------------------------------------------------
-# DedicatedServer — full bus access
+# Globally allowed reads -- the two wildcard subscriptions
 # ---------------------------------------------------------------
-user ds-main
-topic readwrite ESB/#
-topic readwrite ESB/Registry/#
+# Broadcast (every participant subscribes to this from ConnectAsync)
+topic read ESB/+/00000000/#
+
+# Context-evt fan-out (every participant subscribes its current context rcId, which is either
+# its Lobby rcId pre-game or the real Game rcId in-game). Lobby and Game rcIds share the same
+# 8-char base-36 shape on the wire; ACLs cannot distinguish them. The broader form below allows
+# any 8-char audience; tighten per game if you want gameId compartmentalisation.
+topic read ESB/+/+/+/evt/+
 
 # ---------------------------------------------------------------
-# PlayfieldServer — full access to own connection subtree;
-# can read requests directed to any Pfs; can write responses anywhere
+# Per-user reads -- the type-pinned machine subscription
 # ---------------------------------------------------------------
-user pfs-akua
-topic readwrite ESB/Pfs/conn-pfs-akua/#
-topic read      ESB/Registry/#
-topic write     ESB/Registry/conn-pfs-akua
-# Responses go to requester's Res topic -- Pfs must be able to write there
-# Add a write grant for each external participant type that may send requests to Pfs
-topic write     ESB/Client/+/#
-topic write     ESB/edna/+/#
-topic write     ESB/Ds/+/#
-
-# ---------------------------------------------------------------
-# Clients -- can send requests to Pfs/Ds; own their Res/Err/Log/Evt topics
-# Use %u to scope each client to their own connectionId subtree
-# ---------------------------------------------------------------
-# Pattern ACLs apply to all users -- scope clients to their own connection namespace
-pattern readwrite ESB/Client/%u/#
-# Clients need to write their registry entry and read all
-pattern write ESB/Registry/%u
-
-# Clients can send requests to server-side participants
-# Schema: ESB/{type}/{connId}/Req/{scope}/{op}
-topic write ESB/Pfs/+/Req/#
-topic write ESB/Ds/+/Req/#
-# Clients can read the registry to discover participants
-topic read  ESB/Registry/#
-# Clients should NOT be able to write to other clients' topics
-# (no rule = no access)
-
-# ---------------------------------------------------------------
-# External participants -- scoped to their own subtree; can read/write broadly for automation
-# Mosquitto username (edna-01) is a credential identity; the topic type (edna) is the
-# participantType string passed to ConnectAsync -- the two need not match.
-# ---------------------------------------------------------------
-user edna-01
-topic readwrite ESB/edna/conn-edna-01/#
-topic read      ESB/Pfs/+/#
-topic read      ESB/Ds/+/#
-topic read      ESB/Client/+/#
-topic write     ESB/Pfs/+/Req/#
-topic write     ESB/Ds/+/Req/#
-topic write     ESB/Registry/conn-edna-01
-topic read      ESB/Registry/#
+# Example for a Client whose machineId is k3m9p:
+user Client-k3m9p
+topic read ESB/Client/k3m9p/#       # machine sub: req/res/log addressed to me
 ```
 
-Add to `mosquitto.conf`:
+Req/res/log is always machine-targeted, so the only per-user read grant beyond the global Broadcast and context-evt rules is the participant's own machine subtree.
+
+### Write-side grants (match the publisher contract)
+
+The publisher contract in Section 5 of `Docs/TopicSchema.md` enumerates the four publish cases. Each maps to a write grant:
+
+```
+# ---------------------------------------------------------------
+# Req/res/log to a specific recipient (machine-targeted).
+# A Client may write to any Pfs/Ds/EDNA at any machineId, but should NOT write to
+# other Clients' machine subtrees (no rule = no access).
+# ---------------------------------------------------------------
+user Client-k3m9p
+topic write ESB/Pfs/+/+/req/+       # outbound requests to Pfs at any machineId
+topic write ESB/Ds/+/+/req/+
+topic write ESB/EDNA/+/+/req/+
+topic write ESB/Client/k3m9p/+/+/+  # own machine subtree (responses, log)
+                                    # %c / %u substitution alternative below
+
+# ---------------------------------------------------------------
+# Game-scope events (position 1 = sender's own type, position 2 = gameId).
+# Only participants who are *in* a game should be able to publish events in it.
+# Per-game dynamic rule (added when the user is granted access to a game):
+# topic write ESB/Client/{thatGameId}/+/evt/+
+# ---------------------------------------------------------------
+
+# ---------------------------------------------------------------
+# Broadcast events (Connect announcement, GameEnter/GameExit, etc.)
+# Restrict to the operations a participant is allowed to announce.
+# ---------------------------------------------------------------
+topic write ESB/Client/00000000/Announcements/evt/Connect
+topic write ESB/Client/00000000/App/evt/GameEnter
+topic write ESB/Client/00000000/App/evt/GameExit
+```
+
+### Pattern-based variant (less verbose)
+
+If you would rather avoid per-user blocks, use Mosquitto's `%u` substitution. This trades precision for brevity: %u is the whole username, so `ESB/{type}/{machineId}/#` becomes `ESB/+/{machineId-from-username}/#` and requires the username to be parseable -- or you accept a per-username rule mapping the username verbatim into the topic:
+
+```
+# Each user owns its own ESB/<username>/# subtree if you name the topic to match.
+# Not a fit for the {type}/{machineId} schema unless the username equals one of those segments.
+# Mostly useful in single-type deployments (e.g. all-Client) where the type is implicit.
+pattern readwrite ESB/+/+/+/+/+
+```
+
+In practice the per-user block style above is what scales, because the schema's *two* identity-bearing segments (type and machineId) do not collapse into a single substitution token.
+
+Add the file to `mosquitto.conf`:
 
 ```conf
 acl_file C:\mosquitto\acl.conf
 ```
 
 > **Note on `$SYS` topics:** By default, no user has access to `$SYS/#`. If you want broker stats (connection counts, message throughput), explicitly grant a monitoring user read access to `$SYS/#`.
+
+> **Dynamic ACL updates.** Compartmentalising by gameId requires re-issuing ACL rules when participants join/leave games. Mosquitto reloads `acl_file` on SIGHUP (Linux) or service restart (Windows). For per-connect dynamic ACLs, see `mosquitto-go-auth` or the dynamic security plugin in Section 9 (Future Expansion).
 
 ---
 
@@ -226,14 +237,14 @@ max_keepalive 120
 
 ## 4. Retained Message Security
 
-The schema uses retained messages for the `ESB/Registry/#` subtree. `check_retain_source` is true by default and should be left that way — it ensures that if a participant's credentials are revoked, their retained registry entry will not be re-delivered to new subscribers.
+The schema uses retained messages for `Announcements` (Connect presence, per-game reference data). `check_retain_source` is true by default and should be left that way -- it ensures that if a participant's credentials are revoked, their retained Announcement will not be re-delivered to new subscribers.
 
 ```conf
 # Confirm this is set (it is the default, but worth making explicit)
 check_retain_source true
 ```
 
-Also consider setting a session expiry to clean up stale registry entries from participants that disconnected ungracefully:
+Also consider setting a session expiry to clean up stale Announcement entries from participants that disconnected ungracefully:
 
 ```conf
 persistent_client_expiration 1h
@@ -243,14 +254,14 @@ persistent_client_expiration 1h
 
 ## 5. MQTT v5 Username-as-ClientID Locking
 
-Prevent a rogue client from using another participant's `connectionId` as their MQTT client ID (which could interfere with session state). By enforcing username as the client ID, credentials and identity are tied together.
+Prevent a rogue client from using another participant's MQTT clientId (which could interfere with session state). By enforcing username as the client ID, credentials and identity are tied together.
 
 ```conf
 # Under the listener definition
 use_username_as_clientid true
 ```
 
-This means the MQTT `clientId` used in the connection must equal the `username`. Your participants should be provisioned accordingly (e.g., username `conn-pfs-akua` connects with clientId `conn-pfs-akua`).
+This means the MQTT `clientId` used in the connection must equal the `username`. Your participants should be provisioned accordingly (e.g., username `Pfs-abc12` connects with clientId `Pfs-abc12`).
 
 ---
 
@@ -376,7 +387,7 @@ The self-signed CA approach enables a lightweight invitation workflow: the host 
 │                                                             │
 │  bundle contains:                                           │
 │  - ca.crt          (trust anchor, safe to distribute)       │
-│  - username        (their connectionId / clientId)          │
+│  - username        (their MQTT clientId)                    │
 │  - password        (one-time or permanent)                  │
 │  - host + port     (broker endpoint)                        │
 │  - install notes   (where to put the files)                 │
@@ -451,14 +462,14 @@ openssl x509 -req -days 3650 -in server.csr `
 
 #### Step 3 — Create the Initial passwd.dat and ACL
 
-Create an empty passwd.dat and seed it with a `ds` account for the DedicatedServer process:
+Create an empty passwd.dat and seed it with a Ds account for the DedicatedServer process. Use the host's machineId (5-char base-36 from `%ProgramData%\EmpyrionESB\bus.token`) as the suffix so the username matches the topic schema:
 
 ```powershell
 # Create passwd.dat with first user (will prompt for password)
-mosquitto_passwd -c C:\empyrion-mqtt\credentials\passwd.dat ds-main
+mosquitto_passwd -c C:\empyrion-mqtt\credentials\passwd.dat Ds-abc12
 ```
 
-Create `C:\empyrion-mqtt\credentials\acl.conf` with the server-side entries from Section 2 of this guide. Leave the client section empty for now — the provisioning script will append to it.
+Create `C:\empyrion-mqtt\credentials\acl.conf` with the server-side entries from Section 2 of this guide. Leave the client section empty for now -- the provisioning script will append to it.
 
 #### Step 4 — Dev mosquitto.conf
 
@@ -507,14 +518,13 @@ mosquitto -c C:\mosquitto\mosquitto-dev.conf
 
 ```powershell
 param(
-    [Parameter(Mandatory)] [string] $PlayerId,      # e.g. "7"
+    [Parameter(Mandatory)] [string] $MachineId,     # 5-char base-36 from the player's bus.token
     [Parameter(Mandatory)] [string] $PlayerEmail,
     [string] $BrokerHost = "localhost",
     [string] $BrokerPort = "8883"
 )
 
-$username    = "client-$PlayerId"
-$connId      = "conn-client-$PlayerId"
+$username    = "Client-$MachineId"
 $passwdFile  = "C:\empyrion-mqtt\credentials\passwd.dat"
 $aclFile     = "C:\empyrion-mqtt\credentials\acl.conf"
 $caCert      = "C:\empyrion-mqtt\certs\ca.crt"
@@ -526,16 +536,24 @@ $password = [System.Web.Security.Membership]::GeneratePassword(24, 4)
 # 2. Add to passwd.dat
 echo "$password" | mosquitto_passwd -b $passwdFile $username $password
 
-# 3. Append ACL entry
+# 3. Append ACL entry. Mirrors the four-subscription model from Section 2:
+#    - read: own machine subtree, own type's game subtree, event-wildcard, broadcast
+#    - write: req to Pfs/Ds/EDNA at any rcId; own machine subtree; gated broadcast announces
 $aclEntry = @"
 
-# Player $PlayerId -- provisioned $(Get-Date -Format 'yyyy-MM-ddTHH:mm:ss')
+# Client $MachineId -- provisioned $(Get-Date -Format 'yyyy-MM-ddTHH:mm:ss')
 user $username
-topic readwrite ESB/Client/$connId/#
-topic write     ESB/Registry/$connId
-topic read      ESB/Registry/#
-topic write     ESB/Pfs/+/Req/#
-topic write     ESB/Ds/+/Req/#
+topic read      ESB/Client/$MachineId/#
+topic read      ESB/Client/+/#
+topic read      ESB/+/+/+/evt/+
+topic read      ESB/+/00000000/#
+topic write     ESB/Client/$MachineId/#
+topic write     ESB/Pfs/+/+/req/+
+topic write     ESB/Ds/+/+/req/+
+topic write     ESB/EDNA/+/+/req/+
+topic write     ESB/Client/00000000/Announcements/evt/Connect
+topic write     ESB/Client/00000000/App/evt/GameEnter
+topic write     ESB/Client/00000000/App/evt/GameExit
 "@
 Add-Content -Path $aclFile -Value $aclEntry
 
@@ -543,11 +561,11 @@ Add-Content -Path $aclFile -Value $aclEntry
 New-Item -ItemType Directory -Force -Path $inviteDir | Out-Null
 Copy-Item $caCert "$inviteDir\ca.crt"
 @{
-    host     = $BrokerHost
-    port     = $BrokerPort
-    username = $username
-    password = $password
-    connId   = $connId
+    host      = $BrokerHost
+    port      = $BrokerPort
+    username  = $username
+    password  = $password
+    machineId = $MachineId
 } | ConvertTo-Json | Set-Content "$inviteDir\connection.json"
 
 # 5. Reload Mosquitto (Windows service)
@@ -567,13 +585,13 @@ Write-Host "Email $PlayerEmail with contents of $inviteDir"
 Use `mosquitto_sub` and `mosquitto_pub` to confirm TLS and ACL are working:
 
 ```powershell
-# Should connect and receive messages
+# Should connect and receive messages (Ds has broad read access; see Section 2)
 mosquitto_sub -h localhost -p 8883 --cafile C:\empyrion-mqtt\certs\ca.crt `
-  -u ds-main -P <password> -t "ESB/#" -v
+  -u Ds-abc12 -P <password> -t "ESB/#" -v
 
-# Should be rejected (wrong user for this topic -- ACL test)
+# Should be rejected (ACL test: Client-k3m9p tries to write to a different Client's machine subtree)
 mosquitto_pub -h localhost -p 8883 --cafile C:\empyrion-mqtt\certs\ca.crt `
-  -u client-7 -P <password> -t "ESB/Client/conn-client-99/Evt/App/test" -m "test"
+  -u Client-k3m9p -P <password> -t "ESB/Client/xyzab/App/evt/test" -m "test"
 ```
 
 ---

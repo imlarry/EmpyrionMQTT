@@ -60,6 +60,12 @@ namespace EDNAClient.Core
                 await _ctx.Bus.ConnectAsync();
                 EdnaLogger.Log($"MQTT connected to {mqtt.WithTcpServer ?? "localhost"}");
 
+                // EDNA shares its MachineId with the bound Client (same machine, same bus.token),
+                // so the lobby rcId derives to the same value on both sides.
+                _ctx.LobbyRcId   = RoutingContextId.Lobby(_ctx.Bus.MachineId).Id;
+                _ctx.ContextRcId = _ctx.LobbyRcId;
+                await _ctx.Bus.SubscribeAsync(_ctx.LobbyRcId);
+
                 WellKnownPaths.SaveEdnaSettings(_settings);
 
                 _ctx.Bus.OnEvent("App",       "GameEnter",  OnGameEnter);
@@ -98,30 +104,20 @@ namespace EDNAClient.Core
                 await _ctx.Bus.DisconnectAsync();
         }
 
-        private async Task OnPlayfieldLoaded(MessageEnvelope env)
+        private Task OnPlayfieldLoaded(MessageEnvelope env)
         {
             try
             {
                 var j      = env.PayloadJson ?? new JObject();
-                var ss     = (string)j["SolarSystemName"] ?? "";
-                var pf     = (string)j["Name"] ?? "";
-                var pfRcId = (string)j["PlayfieldRcId"];
+                var ss     = (string?)j["SolarSystemName"] ?? "";
+                var pf     = (string?)j["Name"] ?? "";
                 var coords = j["SolarSystemCoordinates"];
                 double x   = coords != null ? (double)(coords["X"] ?? 0) : 0;
                 double y   = coords != null ? (double)(coords["Y"] ?? 0) : 0;
                 double z   = coords != null ? (double)(coords["Z"] ?? 0) : 0;
 
-                EdnaLogger.Log($"PlayfieldLoaded: system={ss} playfield={pf} coords=({x},{y},{z}) rcId={pfRcId}");
+                EdnaLogger.Log($"PlayfieldLoaded: system={ss} playfield={pf} coords=({x},{y},{z})");
                 _tray.UpdateLocation(ss, pf);
-
-                if (!string.IsNullOrEmpty(pfRcId))
-                {
-                    // Swap subscription from old playfield to new.
-                    if (!string.IsNullOrEmpty(_ctx.CurrentPlayfieldRcId))
-                        await _ctx.Bus.UnsubscribeAsync(_ctx.CurrentPlayfieldRcId);
-                    _ctx.CurrentPlayfieldRcId = pfRcId;
-                    await _ctx.Bus.SubscribeAsync(pfRcId);
-                }
 
                 foreach (var skill in _skills.OfType<IPlayfieldObserver>())
                     skill.OnPlayfieldLoaded(ss, pf, x, y, z);
@@ -130,6 +126,7 @@ namespace EDNAClient.Core
             {
                 EdnaLogger.Error("OnPlayfieldLoaded failed", ex);
             }
+            return Task.CompletedTask;
         }
 
         private async Task OnGameEnter(MessageEnvelope env)
@@ -137,9 +134,9 @@ namespace EDNAClient.Core
             try
             {
                 var j            = env.PayloadJson ?? new JObject();
-                var gameMode     = (string)j["GameMode"];
-                var saveGamePath = (string)j["SaveGamePath"];
-                var gameRcId     = (string)j["GameRcId"];
+                var gameMode     = (string?)j["GameMode"];
+                var saveGamePath = (string?)j["SaveGamePath"];
+                var gameRcId     = (string?)j["GameRcId"];
 
                 EdnaLogger.Log($"GameEnter: mode={gameMode} path={saveGamePath} rcId={gameRcId}");
 
@@ -147,7 +144,14 @@ namespace EDNAClient.Core
                 if (!string.IsNullOrEmpty(gameRcId))
                 {
                     _ctx.GameRcId = gameRcId;
-                    await _ctx.Bus.SubscribeAsync(gameRcId);
+                    var previous = _ctx.ContextRcId;
+                    _ctx.ContextRcId = gameRcId;
+                    if (previous != gameRcId)
+                    {
+                        if (!string.IsNullOrEmpty(previous))
+                            await _ctx.Bus.UnsubscribeAsync(previous);
+                        await _ctx.Bus.SubscribeAsync(gameRcId);
+                    }
                 }
 
                 await Application.Current.Dispatcher.InvokeAsync(() =>
@@ -201,17 +205,17 @@ namespace EDNAClient.Core
             {
                 _luaHost.Broadcast("on_game_exit", env.SenderType, env.RawPayload);
                 _luaHost.Stop();
-                if (!string.IsNullOrEmpty(_ctx.CurrentPlayfieldRcId))
+                // Swap back to lobby; clear GameRcId unless offline mode has overlaid one.
+                var previous = _ctx.ContextRcId;
+                _ctx.ContextRcId = _ctx.LobbyRcId;
+                _ctx.GameRcId = null;
+                if (!string.IsNullOrEmpty(previous) && previous != _ctx.ContextRcId)
                 {
-                    await _ctx.Bus.UnsubscribeAsync(_ctx.CurrentPlayfieldRcId);
-                    _ctx.CurrentPlayfieldRcId = null;
+                    await _ctx.Bus.UnsubscribeAsync(previous);
+                    if (!string.IsNullOrEmpty(_ctx.ContextRcId))
+                        await _ctx.Bus.SubscribeAsync(_ctx.ContextRcId);
                 }
-                if (!string.IsNullOrEmpty(_ctx.GameRcId))
-                {
-                    await _ctx.Bus.UnsubscribeAsync(_ctx.GameRcId);
-                    _ctx.GameRcId = null;
-                }
-                Application.Current.Dispatcher.InvokeAsync(() =>
+                await Application.Current.Dispatcher.InvokeAsync(() =>
                 {
                     _windowHook?.Dispose();
                     _windowHook = null;

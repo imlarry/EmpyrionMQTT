@@ -164,7 +164,11 @@ namespace EDNAClient.Skills.FloorMap
             }
 
             var colIndex = new Dictionary<string, int>();
-            for (int i = 0; i < cols.Count; i++) colIndex[(string)cols[i]] = i;
+            for (int i = 0; i < cols.Count; i++)
+            {
+                var name = (string?)cols[i];
+                if (name != null) colIndex[name] = i;
+            }
 
             int ixX     = colIndex["X"];
             int ixY     = colIndex["Y"];

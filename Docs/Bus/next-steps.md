@@ -126,7 +126,7 @@ HEAD and are the primary reference for this work. Recover them with:
 | `await HandlerHelper.ReplyAsync(_ctx.Messenger, ctx, json)` | `return json` (return the string directly) |
 | `await HandlerHelper.ReplyErrorAsync(_ctx.Messenger, ctx, err)` | `return err` |
 | `args["Key"].Value<T>()` | `(T)args["Key"]` (CLAUDE.md rule -- no .Value<T>()) |
-| `_ctx.Messenger.SendAsync("App", MessageType.Evt, "Op", payload)` | `await _ctx.Bus.PublishEventAsync("App", "Op", payload)` |
+| `_ctx.Messenger.SendAsync("App", MessageType.Evt, "Op", payload)` | `await _ctx.Bus.PublishEventAsync(rcId, "App", "Op", payload)` (rcId chosen per TopicSchema.md sec 11) |
 | `GetStructureForEntity(ctx, entityId)` returning null + reply | `GetStructureForEntity(entityId)` returning null silently or throwing |
 | `if (ctx.ParsedTopic.MetaOperation != null) ...` | remove (introspection removed) |
 | `Describe` / `AppDescribe` handlers | remove (introspection removed) |
@@ -175,10 +175,11 @@ Any remaining calls to IMessenger.SendAsync, RequestAsync, or PublishRetainedAsy
 in application-level code are replaced with the corresponding IMessageBus methods.
 After this step, application code no longer holds a reference to IMessenger directly.
 
-Status: BusManager.PublishRegistryEntryAsync was migrated to Bus.AnnounceAsync (Connect)
-and the Registry scope is retired. Remaining direct IMessenger calls in application code
-are the log-message SendAsync invocations in GameManager.Init and UpdateHandler; these are
-candidates for Bus.LogAsync substitution.
+Status: BusManager.PublishRegistryEntryAsync was migrated to
+`Bus.AnnounceAsync(RoutingContextId.BroadcastValue, "Connect", ...)` and the Registry scope is
+retired. Remaining direct IMessenger calls in application code are the log-message SendAsync
+invocations in GameManager.Init and UpdateHandler; these are candidates for `Bus.LogAsync(rcId, ...)`
+substitution.
 
 ---
 
@@ -195,15 +196,39 @@ throughout the migration.
 
 ## Step 10: RoutingContextId migration -- DONE
 
-`ConnectionId` was renamed to `RoutingContextId` (8-char base-36) and is now a per-publish audience
+`ConnectionId` was renamed to `RoutingContextId` and is now a per-publish audience
 selector rather than a per-participant identity. `IMessageBus` publish/request methods take an
 explicit `routingContextId` first parameter; `SubscribeAsync(rcId)` / `UnsubscribeAsync(rcId)` manage
 audience subscriptions. Machine rcId and Broadcast rcId are auto-subscribed at connect. See
-`Docs/TopicSchema.md` section 11 for the `RoutingContextKind` taxonomy.
+`Docs/TopicSchema.md` section 11 for the current `RoutingContextKind` taxonomy and the per-kind widths
+(Broadcast 8 fixed, Machine 5, Game 8).
 
 Call-site signature deltas previously listed in Step 4 / Step 8 (e.g.
 `_ctx.Bus.PublishEventAsync("App", "Op", payload)`) are superseded by the rcId-first form
 `_ctx.Bus.PublishEventAsync(rcId, "App", "Op", payload)`.
+
+---
+
+## Step 11: Lobby/Game context unification -- DONE
+
+The pre-game/in-game split was collapsed into a single **ContextRcId** model:
+
+- `RoutingContextKind` is now `{ Broadcast, Machine, Lobby, Game }`. The dead `Playfield`,
+  `Player`, and `PlayerInGame` kinds (and their factories) have been removed; any code that
+  referenced them is now a hard compile error.
+- `RoutingContextId.Lobby(machineId)` derives an 8-char rcId from `"__lobby__" + machineId`.
+  Client and EDNA share a MachineId, so they derive the same Lobby rcId and see each other's
+  pre-game events.
+- `GameManager.ContextRcId` and `EdnaContext.ContextRcId` are the publisher's current audience.
+  Pfs/Ds set it to the real Game rcId at startup. Client/EDNA set it to Lobby at connect, swap
+  to Game on `GameEnter`, swap back to Lobby on `GameExit`.
+- Event handlers publish to `ContextRcId` directly with no `?? Broadcast` or `?? MachineId`
+  fallback.
+- Subscription model is three always-on subs (machine, broadcast, context-evt); the context
+  sub is retargeted on enter/exit rather than added/removed.
+
+Addressing rule unchanged: `req`/`res`/`log` always target a recipient MachineId; events publish
+to the current ContextRcId; lifecycle (Connect, GameEnter, GameExit) publish to Broadcast.
 
 ---
 

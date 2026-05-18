@@ -17,6 +17,19 @@ namespace ESB.EventHandlers
             if (_suppressedEvents.Contains(type))
                 return;
 
+            if (!_ctx.IsReady)
+            {
+                // queue until BusManager.Init completes; drained on the next Update tick
+                _ = Execute(() => HandleAsync(type, arg1, arg2, arg3, arg4, arg5));
+                return;
+            }
+
+            await HandleAsync(type, arg1, arg2, arg3, arg4, arg5);
+        }
+
+        private async Task HandleAsync(GameEventType type, object arg1, object arg2,
+            object arg3, object arg4, object arg5)
+        {
             ulong ticks;
             string mode;
             try { ticks = _ctx.ModApi.Application.GameTicks; mode = _ctx.ModApi.Application.Mode.ToString(); }
@@ -68,8 +81,7 @@ namespace ESB.EventHandlers
                 if (type == GameEventType.InventoryOpened)
                     TryAddContainerContents(json, arg2, arg4);
 
-                var rcId = _ctx.GameManager.GameRcId ?? ESB.Messaging.RoutingContextId.BroadcastValue;
-                await _ctx.Bus.PublishEventAsync(rcId, "App", type.ToString(), json);
+                await _ctx.Bus.PublishEventAsync(_ctx.GameManager.ContextRcId, "App", type.ToString(), json);
             }
             catch (Exception ex)
             {

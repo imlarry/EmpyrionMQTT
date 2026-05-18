@@ -50,10 +50,7 @@ namespace ESB.EventHandlers
                     new JProperty("BelongsTo", belongsTo),
                     new JProperty("DockedTo",  dockedTo),
                     new JProperty("Type",      type));
-                var rcId = _ctx.GameManager.CurrentPlayfieldRcId
-                           ?? _ctx.GameManager.GameRcId
-                           ?? RoutingContextId.BroadcastValue;
-                await _ctx.Bus.PublishEventAsync(rcId, "Playfield", "EntityLoaded", json);
+                await _ctx.Bus.PublishEventAsync(_ctx.GameManager.ContextRcId, "Entity", "EntityLoaded", json);
             }
             catch (Exception ex)
             {

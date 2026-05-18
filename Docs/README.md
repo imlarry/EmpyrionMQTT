@@ -59,33 +59,19 @@ External clients can be written in any language that supports MQTT. The game mod
 
 ## Topic Schema
 
-All messages use the `ESB/` prefix with the following base structure:
+All messages use the `ESB/` prefix and a fixed 6-segment structure:
 
 ```
-ESB/{participantType}/{connectionId}/{dir}/{scope}/{operation}
+ESB/{participantType}/{routingContextId}/{scope}/{msgType}/{operation}
 ```
 
-| Segment | Values |
-|---|---|
-| `participantType` | `Client`, `Pfs`, `Ds`, `{user-defined}` |
-| `connectionId` | 4-char Base-36 ID assigned per connection |
-| `dir` | `Req`, `Res`, `Evt`, `Err`, `Log` |
-| `scope` | `App`, `Playfield`, `Player`, `Structure` |
-| `operation` | `get/{prop}`, `set/{prop}`, `call/{method}`, `{eventName}`, `{cid}` |
+`{participantType}` carries the **recipient type** for machine-targeted traffic (so subscribers can pin their own type at position 1 and only receive what is addressed to them), and the **sender's own type** for game-wide and broadcast events (subscribers wildcard position 1 on those subs so fan-out works).
 
-Devices within a structure add a sub-scope segment:
+`{routingContextId}` is a base-36 audience selector chosen at publish time, not a per-participant identity. Four kinds exist: **Broadcast** (`00000000` sentinel), **Machine** (5-char), **Lobby** (8-char, pre-game), and **Game** (8-char, in-game). Lobby and Game share width/shape and differ only by in-process `Kind`. Since one player = one Client = one machineId, the `ESB/Client/{machineId}/...` pattern is also the player-addressing pattern.
 
-```
-ESB/{participantType}/{connectionId}/{dir}/Structure/Device/{deviceName}/{operation}
-```
+**Addressing rule:** `req`/`res`/`log` always target a specific recipient's MachineId. Events publish to the participant's current **context rcId** -- Lobby for Client/EDNA before game entry, Game once in a game; Pfs/Ds are always Game. Broadcast carries presence and lifecycle events (Connect, GameEnter, GameExit).
 
-A single wildcard subscription covers all scopes and device depths:
-
-```
-ESB/+/{connectionId}/Req/#
-```
-
-See [TopicSchema.md](TopicSchema.md) for the full schema specification including examples, error handling, event patterns, and design notes.
+`{msgType}` is one of `req`, `res`, `evt`, `log` (always lowercase). See [TopicSchema.md](TopicSchema.md) for the full specification: section 1 (topic format), section 5 (request/response and subscription patterns), section 11 (routing contexts).
 
 ---
 
@@ -99,10 +85,11 @@ See [MosquittoSecurityGuide.md](MosquittoSecurityGuide.md) for ACL configuration
 
 | Document | Description |
 |---|---|
-| [TopicSchema.md](TopicSchema.md) | Full MQTT topic schema specification |
-| [MosquittoSecurityGuide.md](MosquittoSecurityGuide.md) | Broker security configuration |
+| [TopicSchema.md](TopicSchema.md) | Full MQTT topic schema specification (canonical source for topic format and the `RoutingContextKind` taxonomy) |
+| [Bus/README.md](Bus/README.md) | `IMessageBus` developer guide: setup, handler registration, publishing, requests, announcements |
+| [Bus/message-bus-overview.md](Bus/message-bus-overview.md) | Bus model overview: envelope, dispatch, audience subscriptions |
+| [EDNA/SkillsOverview.md](EDNA/SkillsOverview.md) | EDNA skills: subscriptions and bus traffic per skill |
+| [OpenIssues.md](OpenIssues.md) | Active work items and deferred follow-ons |
+| [MosquittoSecurityGuide.md](MosquittoSecurityGuide.md) | Broker security configuration (ACL section pending rework for the rcId model) |
 | [Analysis/ApiTableOfContents.md](Analysis/ApiTableOfContents.md) | Empyrion mod API surface (DLL reflection) |
 | [Analysis/V1ApiObjectModel.md](Analysis/V1ApiObjectModel.md) | V1 ModBase API object model |
-| [Plans/topic-restructure-plan.md](Plans/topic-restructure-plan.md) | Completed: ESB/ schema, dir-before-scope layout |
-| [Plans/handler-alignment-plan.md](Plans/handler-alignment-plan.md) | Pending: ApplicationHandler and PlayerHandler style alignment |
-| [Plans/StartupEventCapture.md](Plans/StartupEventCapture.md) | Pending: startup event queue to prevent dropped events |

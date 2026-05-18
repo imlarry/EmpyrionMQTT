@@ -16,7 +16,8 @@ A developer only needs to know: scope, operation, and payload type.
 6. [Retained Announcements](#6-retained-announcements)
 7. [Error Handling](#7-error-handling)
 8. [Scopes](#8-scopes)
-9. [Identity and Diagnostics](#9-identity-and-diagnostics)
+9. [Audience Subscriptions](#9-audience-subscriptions)
+10. [Identity and Diagnostics](#10-identity-and-diagnostics)
 
 ---
 
@@ -172,7 +173,7 @@ bus.OnRequest("Player", "GetInfo", async env =>
 ## 4. Publishing Events
 
 ```csharp
-await bus.PublishEventAsync("Player", "PositionUpdate", new
+await bus.PublishEventAsync(rcId, "Player", "PositionUpdate", new
 {
     EntityId = 7,
     X = 100.0f,
@@ -180,14 +181,18 @@ await bus.PublishEventAsync("Player", "PositionUpdate", new
 });
 ```
 
-The payload is serialized to JSON automatically. The scope's first character is normalized to
-uppercase, so `"player"` and `"Player"` are equivalent.
+The first parameter is the audience `routingContextId` -- typically a Game rcId for
+gameplay events, or the Broadcast sentinel for bus-wide announcements. The payload is serialized
+to JSON automatically. The scope's first character is normalized to uppercase, so `"player"` and
+`"Player"` are equivalent.
 
 `BusScope` enum overloads are available as extension methods:
 
 ```csharp
-await bus.PublishEventAsync(BusScope.Player, "PositionUpdate", payload);
+await bus.PublishEventAsync(rcId, BusScope.Player, "PositionUpdate", payload);
 ```
+
+For the rcId-selection rules per producer, see `Docs/TopicSchema.md` section 11.
 
 ---
 
@@ -195,19 +200,26 @@ await bus.PublishEventAsync(BusScope.Player, "PositionUpdate", payload);
 
 ```csharp
 var response = await bus.RequestAsync<PlayerInfoRequest, PlayerInfoResponse>(
-    scope:     "Player",
-    operation: "GetInfo",
-    payload:   new PlayerInfoRequest { EntityId = 7 },
-    timeout:   TimeSpan.FromSeconds(5));
+    routingContextId: pfsMachineId,
+    scope:            "Player",
+    operation:        "GetInfo",
+    payload:          new PlayerInfoRequest { EntityId = 7 },
+    timeout:          TimeSpan.FromSeconds(5));
 
 Console.WriteLine(response.Body.Name);
 ```
+
+`routingContextId` for a request is always the **recipient's MachineId**. The recipient's
+type-pinned machine sub matches `ESB/{recipientType}/{recipientMachineId}/#`; its registered
+handler for the dispatch key replies, and the reply routes back to the requester's own
+Machine rcId via MQTT5 `ResponseTopic`. Discover a recipient's MachineId from its
+`Announcements/evt/Connect` retained message on Broadcast.
 
 When you do not have a typed response model, use the untyped overload and inspect the envelope:
 
 ```csharp
 var response = await bus.RequestAsync<PlayerInfoRequest>(
-    "Player", "GetInfo", new PlayerInfoRequest { EntityId = 7 },
+    pfsMachineId, "Player", "GetInfo", new PlayerInfoRequest { EntityId = 7 },
     TimeSpan.FromSeconds(5));
 
 var name = (string)response.PayloadJson["Name"];
@@ -221,17 +233,16 @@ var name = (string)response.PayloadJson["Name"];
 immediately on connect. This is how participant presence and per-game reference data are surfaced.
 
 ```csharp
-await bus.AnnounceAsync("Connect", new { Type = "Client" });
+// Bus-wide presence announcement -- any subscriber sees it
+await bus.AnnounceAsync(RoutingContextId.BroadcastValue, "Connect", new { Type = "Client" });
+
+// Per-game reference data -- only participants in this game see it
+await bus.AnnounceAsync(gameRcId, "BlockAndItemMapping", mapping, expirySeconds: 3600u);
 ```
 
-The scope (`Announcements`) is hardcoded; only the operation and payload are caller-supplied. The
-topic resolves to `ESB/{ownType}/{ownConnId}/Announcements/evt/{operation}`.
-
-An optional expiry can be set:
-
-```csharp
-await bus.AnnounceAsync("BlockAndItemMapping", mapping, expirySeconds: 3600u);
-```
+The scope (`Announcements`) is fixed by the call; the caller supplies the audience `rcId`, the
+operation, and the payload. The topic resolves to
+`ESB/{ownType}/{rcId}/Announcements/evt/{operation}`.
 
 ---
 
@@ -280,7 +291,7 @@ This convention is opt-in -- handlers that do not adopt it simply reply with the
 | `Operation` | Operation name (base, no dot-suffix) |
 | `MsgType` | Message type string: evt, req, res, log |
 | `SenderType` | Participant type of the sender |
-| `RoutingContextId` | Audience rcId the message was addressed to (8-char base-36, or `00000000` Broadcast) |
+| `RoutingContextId` | Audience rcId the message was addressed to (5-char Machine, 8-char Lobby or Game, or `00000000` Broadcast) |
 | `CorrelationId` | Correlation hex string; empty on response envelopes from RequestAsync |
 
 ---
@@ -292,10 +303,10 @@ The `BusScope` enum covers the scopes defined in the topic schema:
 | Enum value | Topic segment | Description |
 |---|---|---|
 | `App` | `App` | Application-level: startup, shutdown, diagnostics |
-| `Playfield` | `Playfield` | Playfield load/unload and state |
-| `Entity` | `Entity` | Entity load/unload within a playfield |
+| `Playfield` | `Playfield` | Playfield load/unload and state (scope name; not an rcId kind) |
+| `Entity` | `Entity` | Entity load/unload (scope name; not an rcId kind) |
 | `Chat` | `Chat` | In-game chat messages |
-| `Player` | `Player` | Player state: health, credits, inventory |
+| `Player` | `Player` | Player state: health, credits, inventory (scope name; not an rcId kind) |
 | `Structure` | `Structure` | Structures: fuel, tanks, signals, docked vessels |
 | `Device` | `Device` | Structure-mounted devices |
 | `Announcements` | `Announcements` | Retained participant-presence and state announcements |
@@ -306,15 +317,40 @@ The first character is normalized to uppercase; `"player"` and `"Player"` are eq
 
 ---
 
-## 9. Identity and Diagnostics
+## 9. Audience Subscriptions
+
+A participant maintains **three always-on subscriptions**: its own Machine rcId, the Broadcast
+rcId (`00000000`), and a **context rcId** that names its current audience for events. The first
+two are auto-subscribed by `ConnectAsync`. The third is set during participant initialization
+and **swapped** on game enter/exit; the subscription itself stays live, only its target rcId
+changes.
+
+- Pfs/Ds: context rcId is the real Game rcId from startup. No swap.
+- Client/EDNA: context rcId starts as a Lobby rcId (derived from MachineId, shared between
+  Client and its bound EDNA). On `GameEnter` it swaps to the real Game rcId; on `GameExit`
+  it swaps back to Lobby.
+
+```csharp
+// Swap context (typically performed inside the bus's GameEnter/GameExit handler):
+await bus.UnsubscribeAsync(previousContextRcId);
+await bus.SubscribeAsync(newContextRcId);
+```
+
+Subscriptions are idempotent and safe to call from event handlers. See `Docs/TopicSchema.md`
+section 11 for the per-event `rcId` selection rules and the `RoutingContextKind` taxonomy
+(Broadcast, Machine, Lobby, Game).
+
+---
+
+## 10. Identity and Diagnostics
 
 ```csharp
 Console.WriteLine(bus.ParticipantType);   // e.g. "Client"
-Console.WriteLine(bus.MachineId);         // e.g. "g2w2k7v3"  (8-char base-36, stable per machine)
+Console.WriteLine(bus.MachineId);         // e.g. "k3m9p"  (5-char base-36, stable per machine)
 Console.WriteLine(bus.AvailableTopics()); // CSV of registered dispatch keys
 ```
 
-`MachineId` is the 8-char base-36 rcId derived from a persistent per-machine GUID at
+`MachineId` is the 5-char base-36 rcId derived from a persistent per-machine GUID at
 `%ProgramData%\EmpyrionESB\bus.token`. It doubles as this participant's default `RoutingContextId`
 for response routing (auto-subscribed by `ConnectAsync`). See `Docs/TopicSchema.md` section 1 for
 the full topic format and section 11 for the `RoutingContextKind` taxonomy.

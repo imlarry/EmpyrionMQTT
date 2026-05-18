@@ -33,16 +33,10 @@ namespace ESB.EventHandlers
 
             try
             {
-                var gameRcId      = _ctx.GameManager.GameRcId ?? RoutingContextId.BroadcastValue;
-                var playfieldRcId = _ctx.GameManager.CurrentPlayfieldRcId;
                 var json = new JObject(
-                    new JProperty("GameTicks",     ticks),
-                    new JProperty("Name",          name),
-                    new JProperty("PlayfieldRcId", playfieldRcId));
-                await _ctx.Bus.PublishEventAsync(gameRcId, "Playfield", "Unloading", json);
-                if (!string.IsNullOrEmpty(playfieldRcId))
-                    await _ctx.Bus.UnsubscribeAsync(playfieldRcId);
-                _ctx.GameManager.CurrentPlayfieldRcId = null;
+                    new JProperty("GameTicks", ticks),
+                    new JProperty("Name",      name));
+                await _ctx.Bus.PublishEventAsync(_ctx.GameManager.ContextRcId, "Playfield", "Unloading", json);
             }
             catch (Exception ex)
             {

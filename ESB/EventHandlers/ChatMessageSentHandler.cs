@@ -53,8 +53,7 @@ namespace ESB.EventHandlers
                     new JProperty("Arg2",               arg2),
                     new JProperty("Channel",            channel),
                     new JProperty("Text",               text));
-                var rcId = _ctx.GameManager.GameRcId ?? RoutingContextId.BroadcastValue;
-                await _ctx.Bus.PublishEventAsync(rcId, "App", "ChatMessageSent", json);
+                await _ctx.Bus.PublishEventAsync(_ctx.GameManager.ContextRcId, "Chat", "ChatMessageSent", json);
             }
             catch (Exception ex)
             {

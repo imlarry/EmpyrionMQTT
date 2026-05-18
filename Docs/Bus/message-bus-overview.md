@@ -4,15 +4,15 @@ ESB.Messaging uses MQTT pub/sub with a fixed topic schema:
 
 ESB/{participantType}/{routingContextId}/{scope}/{msgType}/{operation}
 
-- `participantType`: actor category
-- `routingContextId`: 8-char base-36 audience id (or `00000000` Broadcast sentinel). Names the audience the message is addressed to.
+- `participantType`: recipient type when machine-targeted; sender's own type for context (Lobby or Game) and broadcast events
+- `routingContextId`: audience id; 5-char Machine, 8-char Lobby or Game, or `00000000` Broadcast sentinel
 - `scope`: namespace
 - `msgType`: `evt` | `req` | `res` | `log`
 - `operation`: semantic action
 
 The dispatch key is `{scope}/{msgType}/{operation}`. `ParsedTopic` exposes `operation` as the base name and `MetaOperation` when a dot suffix is present.
 
-See `Docs/TopicSchema.md` Section 11 for the `RoutingContextKind` taxonomy (Broadcast, Machine, Game, Playfield, Player, PlayerInGame) and per-event rcId guidance.
+See `Docs/TopicSchema.md` section 11 for the `RoutingContextKind` taxonomy and per-event rcId guidance.
 
 ## Message Envelope
 
@@ -42,11 +42,11 @@ These methods map directly to the topic schema and envelope model. Callers do no
 
 ## Request/Response Dispatch
 
-Request handling uses the participant's Machine rcId subscription, auto-installed at connect:
+Request handling uses the participant's type-pinned Machine subscription, auto-installed at connect:
 
-ESB/+/{myMachineRcId}/+/+/+
+ESB/{myType}/{myMachineId}/#
 
-Responses (and all other traffic addressed to this participant's Machine rcId) arrive on this subscription. Responses are routed by `CorrelationData` to the matching pending request; other traffic flows through the dispatch table.
+Responses (and all other traffic addressed to this participant's type at its Machine rcId) arrive on this subscription. Responses are routed by `CorrelationData` to the matching pending request; other traffic flows through the dispatch table.
 
 ## Envelope Semantics
 
@@ -58,10 +58,10 @@ MQTT is pub/sub. The envelope converts pub/sub into RPC-like request/response an
 
 ## Audience Subscriptions
 
-Beyond the auto-subscribed Machine and Broadcast rcIds, participants add per-lifecycle rcIds with `SubscribeAsync`:
+Three always-on subscriptions per participant: Machine (type-pinned, own MachineId), Broadcast, and a **context-evt** sub whose rcId target swaps on game enter/exit. The context sub is never added or removed at runtime, only retargeted.
 
-- on `GameEnter`: subscribe to the Game rcId from the event payload
-- on `Playfield/Loaded`: subscribe to the playfield rcId from the event payload
-- on `Playfield/Unloading` / `GameExit`: unsubscribe accordingly
+- Ds / Pfs: context = real Game rcId from startup (no lobby phase, no swap)
+- Client: context = Lobby rcId on connect; swap to Game on `GameEnter`, back to Lobby on `GameExit`
+- EDNA: same lifecycle as Client; derives the same Lobby rcId because it shares its bound Client's MachineId
 
-`Announcements/evt/Connect` is published on the Broadcast rcId so any subscriber sees presence.
+`Announcements/evt/Connect` is published on the Broadcast rcId so any subscriber sees presence. `App/evt/GameEnter` / `GameExit` are also Broadcast and carry the new Game rcId in payload so other participants can adopt it.

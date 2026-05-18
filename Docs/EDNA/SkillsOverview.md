@@ -17,9 +17,9 @@ PlayfieldLoaded) to skills and to the Lua script host.
 
 | Filter | Handler |
 |---|---|
-| `ESB/+/+/App/Evt/GameEnter` | Connects MQTT, starts skills and Lua host, restores workspace documents |
-| `ESB/+/+/App/Evt/GameExit` | Stops Lua host, closes game session UI |
-| `ESB/+/+/Playfield/Evt/Loaded` | Forwards solar system / playfield / coordinates to all `IPlayfieldObserver` skills |
+| `ESB/+/+/App/evt/GameEnter` | Connects MQTT, starts skills and Lua host, restores workspace documents |
+| `ESB/+/+/App/evt/GameExit` | Stops Lua host, closes game session UI |
+| `ESB/+/+/Playfield/evt/Loaded` | Forwards solar system / playfield / coordinates to all `IPlayfieldObserver` skills |
 
 **Publishes**: None directly. Lifecycle events are forwarded to the Lua host via
 `LuaScriptHost.Broadcast("on_game_enter", ...)` and `LuaScriptHost.Broadcast("on_game_exit", ...)`.
@@ -73,14 +73,14 @@ the player's facing direction.
 
 | Filter | Handler |
 |---|---|
-| `ESB/+/+/App/Evt/PlayfieldEntered` | Triggers an initial Feeds.Scan request when entering any playfield |
-| `ESB/+/+/App/Evt/Feeds.Scan` | Receives continuous position/entity snapshots; re-arms the feed when a terminal status event arrives |
+| `ESB/+/+/App/evt/PlayfieldEntered` | Triggers an initial Feeds.Scan request when entering any playfield |
+| `ESB/+/+/App/evt/Feeds.Scan` | Receives continuous position/entity snapshots; re-arms the feed when a terminal status event arrives |
 
 **Publishes**
 
 | Scope | Type | Name | Payload | Purpose |
 |---|---|---|---|---|
-| `App` | `Req` | `Feeds.Scan` | `{"Duration":300,"RefreshRate":2}` | Start a 300-second continuous scan feed at 2 Hz |
+| `App` | `req` | `Feeds.Scan` | `{"Duration":300,"RefreshRate":2}` | Start a 300-second continuous scan feed at 2 Hz |
 
 ---
 
@@ -112,17 +112,19 @@ filters via `mqtt.subscribe(filter, callback)`.
 
 | Scope | Type | Name | Payload |
 |---|---|---|---|
-| `App` | `Log` | `LuaScriptHost.Error` | `{"Script":"<name>","Error":"<message>"}` |
-| `App` | `Log` | `LuaScriptHost.WatcherError` | `{"Error":"<message>"}` |
+| `App` | `log` | `LuaScriptHost.Error` | `{"Script":"<name>","Error":"<message>"}` |
+| `App` | `log` | `LuaScriptHost.WatcherError` | `{"Error":"<message>"}` |
 
 **Lua `log` API publishes**
 
 | Scope | Type | Name | Payload |
 |---|---|---|---|
-| `App` | `Log` | `LuaLog.Warn` | `{"Script":"<name>","Message":"<text>"}` |
-| `App` | `Log` | `LuaLog.Error` | `{"Script":"<name>","Message":"<text>"}` |
+| `App` | `log` | `LuaLog.Warn` | `{"Script":"<name>","Message":"<text>"}` |
+| `App` | `log` | `LuaLog.Error` | `{"Script":"<name>","Message":"<text>"}` |
 
-**Lua `mqtt` API**: Exposes `mqtt.publish(scope, msgType, name, payload)` (maps to
-`IMessenger.SendAsync`) and `mqtt.subscribe(topicFilter, callback)` (maps to
-`IMessenger.SubscribeEventAsync`). Both let scripts interact with the bus directly; topic strings
-are authored by the script author.
+**Lua `mqtt` API**: Exposes `mqtt.publish(scope, msgType, name, payload)` (maps to a
+fire-and-forget `IMessenger.SendAsync` with the host's own Machine rcId as the audience -- Lua
+cannot yet target other rcIds) and `mqtt.subscribe(topicFilter, callback)` (currently a stub
+pending re-implementation via `OnBroadcastRequest`; see `LuaMqttApi.cs`). For now, scripts that
+need to react to bus traffic should rely on the host's `LuaScriptHost.Broadcast` lifecycle hooks
+(`on_game_enter`, `on_game_exit`).

@@ -26,10 +26,11 @@ namespace EDNAClient.Skills.FloorMap
 
         public void Stop() { _bus = null; _ctx = null; }
 
-        // Target rcId for in-game requests: playfield if known, else game, else broadcast.
+        // Target rcId for in-game requests. TODO: discover a specific server MachineId
+        // from Connect announcements; today this still routes to GameRcId which no longer
+        // carries req/res under the new addressing rule.
         private string TargetRcId() =>
-            _ctx?.CurrentPlayfieldRcId
-            ?? _ctx?.GameRcId
+            _ctx?.GameRcId
             ?? RoutingContextId.BroadcastValue;
 
         // Returns a rendered FloorMapDocument on success, null on failure.
@@ -58,7 +59,8 @@ namespace EDNAClient.Skills.FloorMap
                     return null;
                 }
 
-                int entityId = cs["EntityId"] != null ? (int)cs["EntityId"] : 0;
+                var entityIdToken = cs["EntityId"];
+                int entityId = entityIdToken != null ? (int)entityIdToken : 0;
                 var pos  = pj["Position"];
                 float worldX = pos != null ? (float)(pos["X"] ?? 0) : 0f;
                 float worldY = pos != null ? (float)(pos["Y"] ?? 0) : 0f;

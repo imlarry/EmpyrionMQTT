@@ -12,9 +12,26 @@ namespace ESB.EventHandlers
 
         public async void Handle(bool hasEntered)
         {
+            if (!_ctx.IsReady)
+            {
+                // queue until BusManager.Init completes; drained on the next Update tick
+                _ = Execute(() => HandleAsync(hasEntered));
+                return;
+            }
+
+            await HandleAsync(hasEntered);
+        }
+
+        private async Task HandleAsync(bool hasEntered)
+        {
             try
             {
-                _ctx.GameManager.StateChanged(hasEntered);
+                // Swap ContextRcId between Lobby and Game; GameManager handles the bus sub swap.
+                if (hasEntered)
+                    await _ctx.GameManager.EnterGame();
+                else
+                    await _ctx.GameManager.ExitGame();
+
                 var json = new JObject(
                     new JProperty("GameTicks",    _ctx.ModApi.Application.GameTicks),
                     new JProperty("GameName",     _ctx.GameManager.GameName),
@@ -22,13 +39,8 @@ namespace ESB.EventHandlers
                     new JProperty("SaveGamePath", _ctx.GameManager.SaveGamePath),
                     new JProperty("GameMode",     _ctx.GameManager.GameMode));
                 var operation = hasEntered ? "GameEnter" : "GameExit";
-                // Broadcast so subscribers learn the new GameRcId; they can then SubscribeAsync(GameRcId).
+                // Lifecycle stays on Broadcast so every participant can learn the new GameRcId.
                 await _ctx.Bus.PublishEventAsync(RoutingContextId.BroadcastValue, "App", operation, json);
-
-                if (hasEntered)
-                    await _ctx.Bus.SubscribeAsync(_ctx.GameManager.GameRcId);
-                else
-                    await _ctx.Bus.UnsubscribeAsync(_ctx.GameManager.GameRcId);
             }
             catch (Exception ex)
             {

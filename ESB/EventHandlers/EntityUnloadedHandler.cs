@@ -25,10 +25,7 @@ namespace ESB.EventHandlers
                     new JProperty("GameTicks", ticks),
                     new JProperty("Id",        id),
                     new JProperty("Name",      name));
-                var rcId = _ctx.GameManager.CurrentPlayfieldRcId
-                           ?? _ctx.GameManager.GameRcId
-                           ?? RoutingContextId.BroadcastValue;
-                await _ctx.Bus.PublishEventAsync(rcId, "Playfield", "EntityUnloaded", json);
+                await _ctx.Bus.PublishEventAsync(_ctx.GameManager.ContextRcId, "Entity", "EntityUnloaded", json);
             }
             catch (Exception ex)
             {

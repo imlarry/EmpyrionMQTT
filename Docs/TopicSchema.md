@@ -15,11 +15,37 @@ All ESB topics are exactly 6 segments. `{msgType}` is always lowercase.
 | Segment | Values | Notes |
 |---|---|---|
 | `ESB` | fixed | Namespace prefix |
-| `participantType` | `Client` \| `Pfs` \| `Ds` \| *(user-defined)* | Game-side types are fixed; external participants define their own string |
-| `routingContextId` | e.g. `g2w2k7v3` | 8-char base-36, or the `00000000` Broadcast sentinel. Names the audience the message is addressed to. |
+| `participantType` | `Client` \| `Pfs` \| `Ds` \| *(user-defined, e.g. `EDNA`)* | **Dual meaning** -- see below |
+| `routingContextId` | `00000000` (Broadcast), 5-char Machine, or 8-char Game/Lobby | Names the audience the message is addressed to. Lobby and Game share the same width and on-the-wire shape; only the in-process `RoutingContextKind` distinguishes them. See Section 11; also see the addressing rule below. |
 | `scope` | see Section 3 | Logical domain; open-ended string |
 | `msgType` | `req` \| `res` \| `evt` \| `log` | Always lowercase |
 | `operation` | PascalCase | May carry a dot-suffix meta-operation, e.g. `GetInfo.Describe` |
+
+### Addressing rule
+
+Each rcId kind has exactly one purpose. Events publish to the participant's **current context rcId** -- Lobby before game entry, Game once in a game. There is no game-targeted req/res/log; "any of type X in this game" fanout is not supported.
+
+| Purpose | rcId | msgType |
+|---|---|---|
+| Request/response/log between two specific processes | **Machine** of the recipient | `req`, `res`, `log` |
+| Events from a Client/EDNA before game entry (lobby fan-out) | **Lobby** | `evt` |
+| Events fired during a game (in-game fan-out) | **Game** | `evt` |
+| Retained game-scoped announcements (`Announcements/evt/*`) | **Game** | `evt` |
+| Lifecycle / presence broadcasts (Connect, GameEnter, GameExit) | **Broadcast** | `evt` |
+| Internal diagnostics from a process to itself | own **Machine** | `log` |
+
+A process publishes to its own Machine for diagnostics, to Broadcast for presence, to its current context (Lobby or Game) for events and Announcements, and to another process's Machine for point-to-point req/res. Process-to-process req/res requires that the publisher knows the recipient's MachineId (typically learned from the recipient's Connect announcement on Broadcast).
+
+**Lobby vs Game.** Pfs and Ds are service processes bound to a single game; they have no lobby phase and publish events directly to Game from startup. Client and EDNA start in Lobby (a per-machine context shared between the Client and its bound EDNA, since they share a MachineId), then swap context to the real Game rcId on `GameEnter` and back to Lobby on `GameExit`.
+
+### Position 1 semantics
+
+`{participantType}` has two meanings depending on the rcId kind:
+
+- **Machine-targeted traffic (`req`, `res`, `log`):** position 1 is the **recipient type** -- the participant type the publisher wants to deliver to. Receivers pin their own type on the subscription (`ESB/{myType}/{myMachineId}/#`), so only the intended recipient type sees the message.
+- **Game-wide events and broadcast traffic (`evt` to a gameId or `00000000`):** position 1 is the **sender's own type** (provenance). Receivers wildcard position 1 on these subs (`ESB/+/{gameId}/+/evt/+` and `ESB/+/00000000/#`), so fan-out works regardless of who published.
+
+The dual meaning lets the same 6-segment shape carry both narrow (per-recipient) and wide (per-audience) routing without an extra header property.
 
 The **dispatch key** used for handler routing is `{scope}/{msgType}/{operation}` (base operation only, no dot-suffix; the meta-operation is available separately on `ParsedTopic`).
 
@@ -68,52 +94,78 @@ There is no `err` message type. Timeout and error handling are the caller's resp
 
 ## 5. Request / Response
 
-A participant publishes a `req` addressed to a routing context. MQTT5 `ResponseTopic` is set to a topic on the requester's own Machine rcId so the reply routes back. Any participant subscribed to the request's rcId that has a registered handler for the dispatch key receives the request and replies to `ResponseTopic`, echoing `CorrelationData`.
+A participant publishes a `req` addressed to the **recipient's MachineId**, with the **recipient's type** at position 1. MQTT5 `ResponseTopic` is set to a topic on the requester's own Machine rcId (with the requester's own type at position 1) so the reply routes back to that exact recipient. The recipient's type-pinned machine sub matches the request, its registered dispatch-key handler fires, and the reply is published to `ResponseTopic`, echoing `CorrelationData`.
 
-**Subscriptions established at connect (per participant):**
+The requester must know the recipient's MachineId before sending. MachineIds are typically learned from each participant's `Announcements/evt/Connect` retained message published to Broadcast at startup.
+
+### Subscription patterns
+
+Each participant maintains **three always-on subscriptions**. The third one's rcId target swaps on `GameEnter` / `GameExit`; the subscription itself is never added or removed at runtime, just retargeted.
+
+| Subscription | Purpose | rcId target |
+|---|---|---|
+| `ESB/{myType}/{myMachineId}/#` | Req/res/log addressed to this participant | own MachineId (fixed) |
+| `ESB/+/00000000/#` | Broadcast traffic (Connect, GameEnter, GameExit) | `00000000` (fixed) |
+| `ESB/+/{contextRcId}/+/evt/+` | Events + game-scoped Announcements addressed to my current context | Lobby (Client/EDNA pre-game) or Game (everyone, in-game) |
+
+`Pfs` and `Ds` set the context rcId to their real Game rcId at startup and never change it. `Client` and `EDNA` start with the context rcId set to the Lobby rcId, swap to the real Game rcId on `GameEnter`, and swap back to Lobby on `GameExit`. EDNA may also load a separate Game rcId into its context for offline review of saved data without an active game session.
+
+There is no game-targeted req/res/log sub. Req/res addressing always uses MachineId.
+
+### Publisher contract
+
+| Publish case | Position 1 | Position 2 | Reaches |
+|---|---|---|---|
+| `req`/`res`/`log` to a specific process | recipient type | recipient machineId | only the recipient (via its machine sub) |
+| Context `evt` (Client/EDNA pre-game lobby fan-out) | sender's own type | lobby rcId | the publisher and its sibling on the same machine (Client/EDNA share a Lobby rcId) |
+| Context `evt` (in-game fan-out + game-scoped `Announcements/evt/*`) | sender's own type | gameId | every game participant (via the context evt sub) |
+| Broadcast `evt` (Connect, GameEnter, ...) and broadcast `Announcements/evt/*` | sender's own type | `00000000` | every participant (via the broadcast sub) |
+
+### Example: player info request from a Client to a specific Pfs
+
+Client `k3m9p` (5-char machineId) requests `Player/GetInfo` from Pfs `pq8r2` (whose MachineId it learned from the Pfs's Connect announcement):
 
 ```
-ESB/+/{myMachineRcId}/+/+/+    -- everything addressed to this participant's Machine rcId
-ESB/+/00000000/+/+/+           -- Broadcast bus-wide traffic
-```
-
-Additional rcIds are added with `SubscribeAsync(rcId)` as lifecycle events fire (game enter, playfield load, ...).
-
-**Example: player info request from a Client to a Pfs in game `g2w2k7v3`**
-
-```
-pub  ESB/Pfs/g2w2k7v3/Player/req/GetInfo
-     ResponseTopic:   ESB/Client/x9q1m4ab/Player/res/GetInfo
+pub  ESB/Pfs/pq8r2/Player/req/GetInfo                     <- position 1 = recipient type (Pfs)
+     ResponseTopic:   ESB/Client/k3m9p/Player/res/GetInfo  <- position 1 = sender's own type (Client)
      CorrelationData: a1b2c3d4
      payload:         {"EntityId": 7}
+```
 
-sub  ESB/Client/x9q1m4ab/Player/res/GetInfo
+The Pfs is subscribed to `ESB/Pfs/pq8r2/#` (its type-pinned machine sub); the topic matches, the handler fires, and the reply is published to the `ResponseTopic`:
+
+```
+pub  ESB/Client/k3m9p/Player/res/GetInfo
      CorrelationData: a1b2c3d4
      payload:         {"Name": "imlarry", "Health": 100, ...}
 ```
 
+The Client receives it via its `ESB/Client/k3m9p/#` machine sub.
+
 `CorrelationData` is an 8-char hex fragment generated per request. In-flight requests are tracked in a pending-response map keyed by this value.
 
-MQTT5 **User Properties** are supported on `SendAsync` for point-to-point targeting when a request must reach a specific participant.
+MQTT5 **User Properties** are supported on `SendAsync` for additional point-to-point targeting hints.
 
 ---
 
 ## 6. Events
 
-Events are server-pushed and carry no correlation. Any subscriber to the event's `routingContextId` may listen.
+Events are server-pushed and carry no correlation. Position 1 is the **sender's own type** (provenance); subscribers fan out via the context evt sub `ESB/+/{contextRcId}/+/evt/+` or the broadcast sub `ESB/+/00000000/#`.
 
 ```
-ESB/Pfs/g2w2k7v3/Playfield/evt/Loaded                    -- game-scoped (subscribers to game rcId see it)
-ESB/Pfs/p4m1z8wq/Playfield/evt/EntityLoaded              -- playfield-scoped
-ESB/Pfs/p4m1z8wq/Playfield/evt/EntityUnloaded            -- playfield-scoped
-ESB/Pfs/g2w2k7v3/Chat/evt/ChatMessageSent                -- game-scoped
-ESB/Client/00000000/App/evt/GameEnter                    -- broadcast (lifecycle announcement)
+ESB/Pfs/g2w2k7v3/Playfield/evt/Loaded         -- game-scoped (game rcId 8-char; Pfs/Ds always Game)
+ESB/Pfs/g2w2k7v3/Entity/evt/EntityLoaded      -- game-scoped
+ESB/Pfs/g2w2k7v3/Entity/evt/EntityUnloaded    -- game-scoped
+ESB/Pfs/g2w2k7v3/Chat/evt/ChatMessageSent     -- game-scoped
+ESB/Client/lby4abcd/App/evt/WindowOpened      -- lobby-scoped (Client emits this pre-game; rcId is the Client+EDNA Lobby)
+ESB/Client/g2w2k7v3/App/evt/InventoryOpened   -- game-scoped (Client emits the same event in-game; rcId is the real Game)
+ESB/Client/00000000/App/evt/GameEnter         -- broadcast (lifecycle announcement)
 ```
 
 Wildcard examples:
 
 ```
-ESB/Pfs/+/Entity/evt/#      -- all entity events across all playfields
+ESB/Pfs/+/Entity/evt/#      -- all entity events from any Pfs in any game
 ESB/+/00000000/App/evt/#    -- application events on the Broadcast rcId
 ```
 
@@ -137,12 +189,12 @@ Use `IMessageBus.AnnounceAsync(routingContextId, operation, payload, expirySecon
 
 ## 8. Logging
 
-ESB participants publish diagnostics on their own Machine rcId.
+ESB participants publish diagnostics on their own Machine rcId (5-char), with position 1 = own type.
 
 ```
-ESB/Pfs/g2w2k7v3/App/log/ConnectAsync     -- connection established (machine rcId here is the Pfs's own)
-ESB/Pfs/g2w2k7v3/App/log/Subscribed       -- subscription confirmed
-ESB/Pfs/g2w2k7v3/App/log/UpdateHandler    -- exception caught in drain loop
+ESB/Pfs/abc12/App/log/ConnectAsync     -- connection established (machineId here is the Pfs's own)
+ESB/Pfs/abc12/App/log/Subscribed       -- subscription confirmed
+ESB/Pfs/abc12/App/log/UpdateHandler    -- exception caught in drain loop
 ```
 
 ---
@@ -230,37 +282,56 @@ Entity type values appear in `EntityLoaded` and `EntityUnloaded` event payloads.
 
 ## 11. Routing Contexts
 
-`RoutingContextId` names the audience a message is addressed to. On the wire only the 8-char value is sent; the `RoutingContextKind` is an in-process aid for logging and discoverability.
+`RoutingContextId` names the audience a message is addressed to. Only the value is on the wire (position 2 of the topic); the `RoutingContextKind` is an in-process aid for logging and discoverability. Four kinds are defined; `Lobby` and `Game` share the 8-char width and on-the-wire shape (the kind distinguishes them in-process only).
 
-| Kind | Seed | Audience |
-|---|---|---|
-| `Broadcast` | fixed sentinel `00000000` | Every participant subscribed to Broadcast (bus-wide) |
-| `Machine` | persisted machine GUID at `%ProgramData%\EmpyrionESB\bus.token` | One participant instance |
-| `Game` | `saveGamePath + machineId` | All participants in a specific game on a specific machine |
-| `Playfield` | `gameId + solarSystemName + playfieldName` | A specific playfield (or fanout target for "all playfields in this game") |
-| `Player` | `IPlayer.SteamId` | A specific player anywhere |
-| `PlayerInGame` | `playerId + gameId` (canonical order) | A specific player while in a specific game |
+| Kind | Width | Seed | Audience |
+|---|---|---|---|
+| `Broadcast` | 8 (fixed `00000000`) | -- | Every participant subscribed to Broadcast (bus-wide) |
+| `Machine` | 5 base-36 chars | persisted GUID at `%ProgramData%\EmpyrionESB\bus.token`, SHA-256 truncated | One physical machine. Because one player = one Client = one machine, this is also the alternate key to a Player when paired with position 1 = `Client`. |
+| `Lobby` | 8 base-36 chars | `"__lobby__" + machineId`, SHA-256 truncated | The Client + bound EDNA on one machine before game entry. Both derive the same value because they share a MachineId. |
+| `Game` | 8 base-36 chars | `saveGamePath + machineId`, SHA-256 truncated | All participants in a specific game |
 
-**Subscription lifecycle:**
+**Game rcId distribution.** The Ds computes the gameId at startup (or, in single-player, the Client computes it for itself). Other participants do not derive it; they receive it via the Connect or GameEnter announcement and then swap their context sub to it.
+
+**Context rcId lifecycle:**
 
 | Event | Action |
 |---|---|
-| `ConnectAsync` | Bus auto-subscribes Machine rcId and Broadcast rcId |
-| `GameEnter` event | Subscriber adds Game rcId (`SubscribeAsync`) |
-| `Playfield/Loaded` event | Subscriber adds the playfield rcId |
-| `Playfield/Unloading` event | Subscriber removes the playfield rcId |
-| `GameExit` event | Subscriber removes Game rcId |
+| `ConnectAsync` | Bus auto-subscribes `ESB/{myType}/{myMachineId}/#` (machine) and `ESB/+/00000000/#` (broadcast) |
+| `GameManager.Init` -- Pfs / Ds | Context rcId set to real Game rcId; subscribe `ESB/+/{gameId}/+/evt/+` |
+| `GameManager.Init` -- Client | Context rcId set to Lobby rcId; subscribe `ESB/+/{lobbyId}/+/evt/+` |
+| `EdnaService.StartAsync` -- EDNA | Same as Client: subscribe Lobby |
+| `GameEnter` (Client / EDNA) | Swap context: unsubscribe Lobby, subscribe Game |
+| `GameExit` (Client / EDNA) | Swap context: unsubscribe Game, subscribe Lobby |
 
 **Choosing the right rcId at publish time:**
 
-| Producer | rcId |
-|---|---|
-| Connect announcement | `Broadcast` |
-| `GameEnter` / `GameExit` events | `Broadcast` (announces the new gameRcId in payload) |
-| `Playfield/Loaded` event | Game (announces the new playfieldRcId in payload) |
-| `Playfield/Unloading` event | Game |
-| Per-game events (`ChatMessageSent`, `BlockAndItemMapping`, ...) | Game |
-| Per-playfield events (`EntityLoaded`, `EntityUnloaded`) | Playfield |
-| Internal logs (`App/log/*`) | Machine |
+| Producer | rcId | Position 1 |
+|---|---|---|
+| Connect announcement | `Broadcast` | sender's own type |
+| `GameEnter` / `GameExit` events | `Broadcast` (carries the new gameId in payload) | sender's own type |
+| Events from a Client/EDNA before game entry | `ContextRcId` (= Lobby) | sender's own type |
+| Per-game events (`Entity/EntityLoaded`, `Chat/ChatMessageSent`, `Playfield/Loaded`, ...) | `ContextRcId` (= Game) | sender's own type |
+| Game-scoped Announcements (`Announcements/evt/BlockAndItemMapping`, ...) | `Game` (explicit) | sender's own type |
+| Point-to-point `req`/`res`/`log` | `Machine` of the recipient | recipient's type |
+| Internal logs (`App/log/*`) | own `Machine` | sender's own type |
 
-**Stateless fanout pattern.** When a request targets "the one that owns entity X" but the caller does not know which playfield holds it, publish under the Game rcId. All playfield participants subscribed to that game receive the request; the one with the entity replies; others ignore. No state lookup, no broker indirection.
+---
+
+## 12. Subscription Loopback
+
+The bus does not set MQTT 5's `NoLocal` subscription option, so a participant receives its own publishes on any subscription that matches them. Under the three-sub model in Section 5, loopback only occurs on the wildcard subs:
+
+| Sub | Position 1 | Loops back own publishes? |
+|---|---|---|
+| `ESB/{myType}/{myMachineId}/#` | pinned to own type | No -- req/res/log put the *recipient* type at position 1, so this participant's own outbound traffic addressed to others does not match |
+| `ESB/+/{contextRcId}/+/evt/+` | wildcard | Yes -- this participant's own context events (Lobby or Game) come back. For Client and EDNA on one machine, both are subscribed to the same Lobby rcId pre-game, so events also reach the sibling process. |
+| `ESB/+/00000000/#` | wildcard | Yes -- this participant's own broadcasts come back |
+
+Self-loopback is harmless: messages with no registered dispatch-key handler are silently dropped in `Messenger.ProcessMessageAsync`. The cost is one extra broker round-trip and a no-op dispatch per self-published event/broadcast.
+
+It is kept on because it lets one process play both producer and consumer in tests, and keeps the door open for event-sourcing (single publish-and-handle mutation path), in-process bus mediation, and request/reply where the responder happens to be the requester.
+
+Revisit if event-traffic reduction becomes a goal -- setting `WithNoLocal(true)` on the topic filter in `Messenger.SubscribeRawAsync` is a one-line change, but audit publishers first for any participant that publishes to one of its own subscribed rcIds and expects to also handle that message.
+
+> Today's code uses a single wildcard filter `ESB/+/{myMachineId}/+/+/+` at connect rather than the type-pinned machine sub, so loopback is broader than the table above describes. The table reflects the intended end-state.

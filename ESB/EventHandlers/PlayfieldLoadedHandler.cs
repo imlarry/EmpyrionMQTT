@@ -59,14 +59,9 @@ namespace ESB.EventHandlers
 
             try
             {
-                var gameRcId      = _ctx.GameManager.GameRcId ?? RoutingContextId.BroadcastValue;
-                var playfieldRcId = RoutingContextId.Playfield(gameRcId, solarSystemName, name).Id;
-                _ctx.GameManager.CurrentPlayfieldRcId = playfieldRcId;
-
                 var json = new JObject(
                     new JProperty("GameTicks",              ticks),
                     new JProperty("Name",                   name),
-                    new JProperty("PlayfieldRcId",          playfieldRcId),
                     new JProperty("PlayfieldType",          playfieldType),
                     new JProperty("PlanetType",             planetType),
                     new JProperty("PlanetClass",            planetClass),
@@ -78,10 +73,7 @@ namespace ESB.EventHandlers
                     new JProperty("IsPvP",                  isPvP),
                     new JProperty("Entities", MessageHelpers.Tabular(
                         new[] { "Id", "Name", "Type", "Position" }, entityRows)));
-                // Publish under GameRcId so other in-game subscribers learn the new playfield's rcId;
-                // they may then SubscribeAsync(playfieldRcId) for per-playfield traffic.
-                await _ctx.Bus.PublishEventAsync(gameRcId, "Playfield", "Loaded", json);
-                await _ctx.Bus.SubscribeAsync(playfieldRcId);
+                await _ctx.Bus.PublishEventAsync(_ctx.GameManager.ContextRcId, "Playfield", "Loaded", json);
             }
             catch (Exception ex)
             {

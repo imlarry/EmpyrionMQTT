@@ -204,8 +204,7 @@ namespace ESB.Messaging
                 .Build();
             await _mqttClient.SubscribeAsync(mqttSubscribeOptions, CancellationToken.None);
             var logJson = new JObject(
-                new JProperty("TopicFilter",        topicFilter),
-                new JProperty("RegisteredHandlers", AvailableTopics()));
+                new JProperty("TopicFilter", topicFilter));
             await LogInternalAsync("Subscribed", logJson.ToString(Newtonsoft.Json.Formatting.None));
         }
 
