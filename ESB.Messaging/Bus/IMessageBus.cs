@@ -7,12 +7,21 @@ namespace ESB.Messaging
     {
         string ParticipantType { get; }
         string MachineId       { get; }
+        // Current audience for this participant's events. Null until SwitchContextAsync is called.
+        // Pfs/Ds set this once at startup (real Game rcId); Client/EDNA seed it to Lobby and swap to
+        // Game on game-entry, back to Lobby on exit.
+        string ContextRcId     { get; }
         string AvailableTopics();
 
         Task ConnectAsync();
         Task DisconnectAsync();
 
         Task PublishEventAsync<T>(string routingContextId, string scope, string operation, T payload);
+
+        // Publishes an event to the participant's current ContextRcId. Equivalent to
+        // PublishEventAsync(ContextRcId, scope, operation, payload), but reads ContextRcId at send
+        // time so callers don't have to track swaps.
+        Task PublishContextEventAsync<T>(string scope, string operation, T payload);
 
         // Publishes a retained event to ESB/{ownType}/{routingContextId}/Announcements/evt/{operation}.
         Task AnnounceAsync<T>(string routingContextId, string operation, T payload, uint expirySeconds = 0u);
@@ -29,6 +38,11 @@ namespace ESB.Messaging
         // remove to stop. Machine rcId and Broadcast rcId are auto-subscribed on Connect.
         Task SubscribeAsync(string routingContextId);
         Task UnsubscribeAsync(string routingContextId);
+
+        // Atomically swap the participant's context rcId. Subscribes the new rcId first so the
+        // new audience is live before the old one is dropped, eliminating the in-process gap where
+        // events on either rcId could be missed. Sets ContextRcId to newContextRcId.
+        Task SwitchContextAsync(string newContextRcId);
 
         void OnEvent<T>(string scope, string operation,
             Func<MessageEnvelope<T>, Task> handler);

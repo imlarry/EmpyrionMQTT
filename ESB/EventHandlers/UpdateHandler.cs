@@ -26,9 +26,10 @@ namespace ESB.EventHandlers
                 }
             }
 
-            // Drain events that were enqueued before _ctx.IsReady flipped true
-            // (e.g. GameEvent / GameEntered firing during BusManager.Init).
-            if (_ctx.IsReady)
+            // Drain events that were enqueued before _ctx.IsReady flipped true (BusManager.Init)
+            // or while _ctx.IsTransitioning was true (lobby->game swap). The latter ensures queued
+            // events publish on the new ContextRcId once the swap is fully done.
+            if (_ctx.IsReady && !_ctx.IsTransitioning)
             {
                 while (_ctx.EventQueue.Count > 0)
                 {

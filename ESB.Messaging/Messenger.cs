@@ -447,7 +447,10 @@ namespace ESB.Messaging
                 if (handler != null)
                 {
 #if DEBUG
-                    var dbg = new JObject(new JProperty("Topic", topic), new JProperty("Payload", payload));
+                    JToken payloadToken;
+                    try { payloadToken = string.IsNullOrEmpty(payload) ? JValue.CreateNull() : JToken.Parse(payload); }
+                    catch { payloadToken = new JValue(payload); }
+                    var dbg = new JObject(new JProperty("Topic", topic), new JProperty("Payload", payloadToken));
                     await LogInternalAsync("ProcessingMessage", dbg.ToString(Newtonsoft.Json.Formatting.None));
 #endif
                     await handler(new MessageContext

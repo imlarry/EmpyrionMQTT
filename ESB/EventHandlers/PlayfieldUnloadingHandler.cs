@@ -2,7 +2,6 @@ using System;
 using System.Threading.Tasks;
 using Eleon.Modding;
 using ESB.Interfaces;
-using ESB.Messaging;
 using Newtonsoft.Json.Linq;
 
 namespace ESB.EventHandlers
@@ -31,12 +30,23 @@ namespace ESB.EventHandlers
             try { ticks = _ctx.ModApi.Application.GameTicks; name = playfield.Name; }
             catch { return; }
 
+            var json = new JObject(
+                new JProperty("GameTicks", ticks),
+                new JProperty("Name",      name));
+
+            if (!_ctx.IsReady || _ctx.IsTransitioning)
+            {
+                _ = Execute(() => PublishAsync(json));
+                return;
+            }
+            await PublishAsync(json);
+        }
+
+        private async Task PublishAsync(JObject json)
+        {
             try
             {
-                var json = new JObject(
-                    new JProperty("GameTicks", ticks),
-                    new JProperty("Name",      name));
-                await _ctx.Bus.PublishEventAsync(_ctx.GameManager.ContextRcId, "Playfield", "Unloading", json);
+                await _ctx.Bus.PublishContextEventAsync("Playfield", "Unloading", json);
             }
             catch (Exception ex)
             {

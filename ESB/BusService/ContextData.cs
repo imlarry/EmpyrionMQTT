@@ -26,6 +26,13 @@ namespace ESB
         public MainThreadRunner MainThreadRunner { get; } = new MainThreadRunner(); // should I constuct this here?
 
         public bool IsReady { get; set; }
+
+        // IsTransitioning ... true while the participant is mid-swap between Lobby and Game (or
+        // game-load is happening before EnterGame completes). Game-context event handlers queue
+        // their work into EventQueue when this is true; UpdateHandler drains once it flips back
+        // to false, so the queued events publish on the new ContextRcId.
+        public bool IsTransitioning { get; set; }
+
         public Queue<Func<Task>> EventQueue { get; } = new Queue<Func<Task>>();
     }
 }

@@ -14,7 +14,6 @@ namespace ESB
         public string GameName     { get; private set; }
         public string GameRcId     { get; private set; }   // RoutingContextId.Game(SaveGamePath, machineId); null on Client until EnterGame
         public string LobbyRcId    { get; private set; }   // RoutingContextId.Lobby(machineId); null for Pfs/Ds
-        public string ContextRcId  { get; private set; }   // current audience for evt publishes; lobby for Client pre-game, game otherwise
         public string SaveGamePath { get; private set; }
         public string GameMode     { get; private set; }
         public Dictionary<int, string> BlockAndItemMapping { get; private set; }
@@ -46,37 +45,43 @@ namespace ESB
             GameMode = _ctx.ModApi.Application.Mode.ToString();
 
             var participantType = _ctx.BusManager.ParticipantType;
+            string initialContext;
             if (participantType == "Pfs" || participantType == "Ds")
             {
                 // Service processes serve one specific game; no lobby phase.
                 SetGameProperties();
-                ContextRcId = GameRcId;
+                initialContext = GameRcId;
             }
             else
             {
                 // Client (and any user-defined in-game participant): pre-game until EnterGame.
-                LobbyRcId   = RoutingContextId.Lobby(_ctx.Bus.MachineId).Id;
-                ContextRcId = LobbyRcId;
+                LobbyRcId      = RoutingContextId.Lobby(_ctx.Bus.MachineId).Id;
+                initialContext = LobbyRcId;
             }
 
-            await _ctx.Bus.SubscribeAsync(ContextRcId);
+            await _ctx.Bus.SwitchContextAsync(initialContext);
 
             var json = new JObject(
                 new JProperty("Status",      "Created"),
-                new JProperty("ContextRcId", ContextRcId));
+                new JProperty("ContextRcId", _ctx.Bus.ContextRcId));
             await _ctx.Messenger.SendAsync(_ctx.Bus.MachineId, "App", MessageType.Log, "GameManager", json.ToString(Newtonsoft.Json.Formatting.None));
         }
 
         // EnterGame ... Client lifecycle: swap context from Lobby to the real Game rcId.
+        // The bus subscribes the new audience before dropping the old one, so no in-process gap.
+        // IsTransitioning gates the publisher-side EventQueue across the swap; clearing it after
+        // SwitchContextAsync returns lets UpdateHandler drain queued events on the new ContextRcId.
         public async Task EnterGame()
         {
-            SetGameProperties();
-            var previous = ContextRcId;
-            ContextRcId = GameRcId;
-            if (previous != ContextRcId)
+            _ctx.IsTransitioning = true;
+            try
             {
-                await _ctx.Bus.UnsubscribeAsync(previous);
-                await _ctx.Bus.SubscribeAsync(ContextRcId);
+                SetGameProperties();
+                await _ctx.Bus.SwitchContextAsync(GameRcId);
+            }
+            finally
+            {
+                _ctx.IsTransitioning = false;
             }
         }
 
@@ -84,12 +89,14 @@ namespace ESB
         public async Task ExitGame()
         {
             if (string.IsNullOrEmpty(LobbyRcId)) return;
-            var previous = ContextRcId;
-            ContextRcId = LobbyRcId;
-            if (previous != ContextRcId)
+            _ctx.IsTransitioning = true;
+            try
             {
-                await _ctx.Bus.UnsubscribeAsync(previous);
-                await _ctx.Bus.SubscribeAsync(ContextRcId);
+                await _ctx.Bus.SwitchContextAsync(LobbyRcId);
+            }
+            finally
+            {
+                _ctx.IsTransitioning = false;
             }
         }
 

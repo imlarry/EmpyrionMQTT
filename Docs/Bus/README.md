@@ -322,19 +322,34 @@ The first character is normalized to uppercase; `"player"` and `"Player"` are eq
 A participant maintains **three always-on subscriptions**: its own Machine rcId, the Broadcast
 rcId (`00000000`), and a **context rcId** that names its current audience for events. The first
 two are auto-subscribed by `ConnectAsync`. The third is set during participant initialization
-and **swapped** on game enter/exit; the subscription itself stays live, only its target rcId
-changes.
+and **swapped** on game enter/exit through `Bus.SwitchContextAsync(newRcId)`; the subscription
+itself stays live, only its target rcId changes.
 
-- Pfs/Ds: context rcId is the real Game rcId from startup. No swap.
-- Client/EDNA: context rcId starts as a Lobby rcId (derived from MachineId, shared between
-  Client and its bound EDNA). On `GameEnter` it swaps to the real Game rcId; on `GameExit`
-  it swaps back to Lobby.
+`SwitchContextAsync` subscribes the new rcId **before** dropping the old one, so no in-process
+delivery gap exists across the swap. After it returns, `Bus.ContextRcId` reflects the new value.
+
+- Pfs/Ds: call `SwitchContextAsync(realGameRcId)` once at startup. No further swaps.
+- Client/EDNA: call `SwitchContextAsync(lobbyRcId)` at startup; later `SwitchContextAsync(gameRcId)`
+  on `GameEnter` and `SwitchContextAsync(lobbyRcId)` on `GameExit`.
 
 ```csharp
-// Swap context (typically performed inside the bus's GameEnter/GameExit handler):
-await bus.UnsubscribeAsync(previousContextRcId);
-await bus.SubscribeAsync(newContextRcId);
+// Initial seed (Client / EDNA):
+var lobbyRcId = RoutingContextId.Lobby(bus.MachineId).Id;
+await bus.SwitchContextAsync(lobbyRcId);
+
+// On GameEnter:
+await bus.SwitchContextAsync(realGameRcId);
+
+// On GameExit:
+await bus.SwitchContextAsync(lobbyRcId);
+
+// Publish events to the current context without tracking the rcId yourself:
+await bus.PublishContextEventAsync("Entity", "EntityLoaded", payload);
 ```
+
+`PublishContextEventAsync(scope, op, payload)` is shorthand for
+`PublishEventAsync(Bus.ContextRcId, scope, op, payload)`; it reads the current `ContextRcId` at
+send time, so callers stay correct across swaps without tracking the rcId themselves.
 
 Subscriptions are idempotent and safe to call from event handlers. See `Docs/TopicSchema.md`
 section 11 for the per-event `rcId` selection rules and the `RoutingContextKind` taxonomy

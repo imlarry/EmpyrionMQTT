@@ -298,11 +298,13 @@ Entity type values appear in `EntityLoaded` and `EntityUnloaded` event payloads.
 | Event | Action |
 |---|---|
 | `ConnectAsync` | Bus auto-subscribes `ESB/{myType}/{myMachineId}/#` (machine) and `ESB/+/00000000/#` (broadcast) |
-| `GameManager.Init` -- Pfs / Ds | Context rcId set to real Game rcId; subscribe `ESB/+/{gameId}/+/evt/+` |
-| `GameManager.Init` -- Client | Context rcId set to Lobby rcId; subscribe `ESB/+/{lobbyId}/+/evt/+` |
-| `EdnaService.StartAsync` -- EDNA | Same as Client: subscribe Lobby |
-| `GameEnter` (Client / EDNA) | Swap context: unsubscribe Lobby, subscribe Game |
-| `GameExit` (Client / EDNA) | Swap context: unsubscribe Game, subscribe Lobby |
+| `GameManager.Init` -- Pfs / Ds | `Bus.SwitchContextAsync(realGameRcId)` -- subscribes `ESB/+/{gameId}/+/evt/+` |
+| `GameManager.Init` -- Client | `Bus.SwitchContextAsync(lobbyRcId)` -- subscribes `ESB/+/{lobbyId}/+/evt/+` |
+| `EdnaService.StartAsync` -- EDNA | `Bus.SwitchContextAsync(lobbyRcId)` -- same lobbyId as bound Client |
+| `GameEnter` (Client / EDNA) | `Bus.SwitchContextAsync(realGameRcId)` -- sub Game first, then unsub Lobby |
+| `GameExit` (Client / EDNA) | `Bus.SwitchContextAsync(lobbyRcId)` -- sub Lobby first, then unsub Game |
+
+`SwitchContextAsync` always subscribes the new rcId before unsubscribing the old one, so no in-process delivery gap exists across the swap. Note that this only addresses in-process timing; cross-process coordination (Client publishes on new gameRcId before EDNA's own swap completes) is a separate concern -- see `Docs/Bus/next-steps.md`.
 
 **Choosing the right rcId at publish time:**
 

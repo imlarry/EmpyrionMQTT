@@ -31,10 +31,13 @@ The envelope abstracts MQTT transport details and lets callers treat bus traffic
 ## API Surface
 
 `PublishEventAsync(routingContextId, scope, operation, payload)`
+`PublishContextEventAsync(scope, operation, payload)`          -- targets Bus.ContextRcId
 `AnnounceAsync(routingContextId, operation, payload, expirySeconds = 0)`
 `RequestAsync(routingContextId, scope, operation, payload, timeout)`
 `LogAsync(routingContextId, scope, operation, payload)`
 `SubscribeAsync(routingContextId)` / `UnsubscribeAsync(routingContextId)`
+`SwitchContextAsync(newContextRcId)`                            -- atomic sub-new-then-unsub-old
+`ContextRcId { get; }`                                          -- current audience for events
 `OnRequest(scope, operation, handler)`
 `OnEvent(scope, operation, handler)`
 
@@ -58,10 +61,10 @@ MQTT is pub/sub. The envelope converts pub/sub into RPC-like request/response an
 
 ## Audience Subscriptions
 
-Three always-on subscriptions per participant: Machine (type-pinned, own MachineId), Broadcast, and a **context-evt** sub whose rcId target swaps on game enter/exit. The context sub is never added or removed at runtime, only retargeted.
+Three always-on subscriptions per participant: Machine (type-pinned, own MachineId), Broadcast, and a **context-evt** sub whose rcId target swaps via `Bus.SwitchContextAsync(newRcId)`. The context sub is never added or removed at runtime, only retargeted; the new audience is subscribed before the old one is dropped, so messages never fall through a gap.
 
-- Ds / Pfs: context = real Game rcId from startup (no lobby phase, no swap)
-- Client: context = Lobby rcId on connect; swap to Game on `GameEnter`, back to Lobby on `GameExit`
+- Ds / Pfs: `SwitchContextAsync(realGameRcId)` once at startup (no lobby phase, no further swaps)
+- Client: `SwitchContextAsync(lobbyRcId)` at startup; swap to Game on `GameEnter`, back to Lobby on `GameExit`
 - EDNA: same lifecycle as Client; derives the same Lobby rcId because it shares its bound Client's MachineId
 
-`Announcements/evt/Connect` is published on the Broadcast rcId so any subscriber sees presence. `App/evt/GameEnter` / `GameExit` are also Broadcast and carry the new Game rcId in payload so other participants can adopt it.
+`Announcements/evt/Connect` is published on the Broadcast rcId so any subscriber sees presence. `App/evt/GameEnter` / `GameExit` are also Broadcast and carry the new Game rcId in payload so other participants can adopt it via `SwitchContextAsync`.

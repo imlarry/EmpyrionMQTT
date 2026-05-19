@@ -3,7 +3,6 @@ using System.Threading.Tasks;
 using Eleon.Modding;
 using ESB.Helpers;
 using ESB.Interfaces;
-using ESB.Messaging;
 using Newtonsoft.Json.Linq;
 
 namespace ESB.EventHandlers
@@ -57,23 +56,34 @@ namespace ESB.EventHandlers
             }
             catch { return; }
 
+            var json = new JObject(
+                new JProperty("GameTicks",              ticks),
+                new JProperty("Name",                   name),
+                new JProperty("PlayfieldType",          playfieldType),
+                new JProperty("PlanetType",             planetType),
+                new JProperty("PlanetClass",            planetClass),
+                new JProperty("SolarSystemName",        solarSystemName),
+                new JProperty("SolarSystemCoordinates", new JObject(
+                    new JProperty("X", ssX),
+                    new JProperty("Y", ssY),
+                    new JProperty("Z", ssZ))),
+                new JProperty("IsPvP",                  isPvP),
+                new JProperty("Entities", MessageHelpers.Tabular(
+                    new[] { "Id", "Name", "Type", "Position" }, entityRows)));
+
+            if (!_ctx.IsReady || _ctx.IsTransitioning)
+            {
+                _ = Execute(() => PublishAsync(json));
+                return;
+            }
+            await PublishAsync(json);
+        }
+
+        private async Task PublishAsync(JObject json)
+        {
             try
             {
-                var json = new JObject(
-                    new JProperty("GameTicks",              ticks),
-                    new JProperty("Name",                   name),
-                    new JProperty("PlayfieldType",          playfieldType),
-                    new JProperty("PlanetType",             planetType),
-                    new JProperty("PlanetClass",            planetClass),
-                    new JProperty("SolarSystemName",        solarSystemName),
-                    new JProperty("SolarSystemCoordinates", new JObject(
-                        new JProperty("X", ssX),
-                        new JProperty("Y", ssY),
-                        new JProperty("Z", ssZ))),
-                    new JProperty("IsPvP",                  isPvP),
-                    new JProperty("Entities", MessageHelpers.Tabular(
-                        new[] { "Id", "Name", "Type", "Position" }, entityRows)));
-                await _ctx.Bus.PublishEventAsync(_ctx.GameManager.ContextRcId, "Playfield", "Loaded", json);
+                await _ctx.Bus.PublishContextEventAsync("Playfield", "Loaded", json);
             }
             catch (Exception ex)
             {

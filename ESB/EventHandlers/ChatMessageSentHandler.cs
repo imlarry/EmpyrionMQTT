@@ -2,7 +2,6 @@ using System;
 using System.Threading.Tasks;
 using Eleon;
 using ESB.Interfaces;
-using ESB.Messaging;
 using Newtonsoft.Json.Linq;
 
 namespace ESB.EventHandlers
@@ -37,23 +36,34 @@ namespace ESB.EventHandlers
             }
             catch { return; }
 
+            var json = new JObject(
+                new JProperty("GameTicks",          ticks),
+                new JProperty("SenderEntityId",     senderEntityId),
+                new JProperty("SenderType",         senderType),
+                new JProperty("SenderNameOverride", senderNameOverride),
+                new JProperty("SenderFaction",      senderFaction),
+                new JProperty("RecipientEntityId",  recipientEntityId),
+                new JProperty("RecipientFaction",   recipientFaction),
+                new JProperty("GameTime",           gameTime),
+                new JProperty("IsTextLocaKey",      isTextLocaKey),
+                new JProperty("Arg1",               arg1),
+                new JProperty("Arg2",               arg2),
+                new JProperty("Channel",            channel),
+                new JProperty("Text",               text));
+
+            if (!_ctx.IsReady || _ctx.IsTransitioning)
+            {
+                _ = Execute(() => PublishAsync(json));
+                return;
+            }
+            await PublishAsync(json);
+        }
+
+        private async Task PublishAsync(JObject json)
+        {
             try
             {
-                var json = new JObject(
-                    new JProperty("GameTicks",          ticks),
-                    new JProperty("SenderEntityId",     senderEntityId),
-                    new JProperty("SenderType",         senderType),
-                    new JProperty("SenderNameOverride", senderNameOverride),
-                    new JProperty("SenderFaction",      senderFaction),
-                    new JProperty("RecipientEntityId",  recipientEntityId),
-                    new JProperty("RecipientFaction",   recipientFaction),
-                    new JProperty("GameTime",           gameTime),
-                    new JProperty("IsTextLocaKey",      isTextLocaKey),
-                    new JProperty("Arg1",               arg1),
-                    new JProperty("Arg2",               arg2),
-                    new JProperty("Channel",            channel),
-                    new JProperty("Text",               text));
-                await _ctx.Bus.PublishEventAsync(_ctx.GameManager.ContextRcId, "Chat", "ChatMessageSent", json);
+                await _ctx.Bus.PublishContextEventAsync("Chat", "ChatMessageSent", json);
             }
             catch (Exception ex)
             {

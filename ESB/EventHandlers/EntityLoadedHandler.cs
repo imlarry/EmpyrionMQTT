@@ -3,7 +3,6 @@ using System.Threading.Tasks;
 using Eleon.Modding;
 using ESB.Helpers;
 using ESB.Interfaces;
-using ESB.Messaging;
 using Newtonsoft.Json.Linq;
 
 namespace ESB.EventHandlers
@@ -36,21 +35,32 @@ namespace ESB.EventHandlers
             }
             catch { return; }
 
+            var json = new JObject(
+                new JProperty("GameTicks", ticks),
+                new JProperty("Id",        id),
+                new JProperty("Name",      name),
+                new JProperty("Faction",   faction),
+                new JProperty("Position",  position),
+                new JProperty("IsLocal",   isLocal),
+                new JProperty("IsProxy",   isProxy),
+                new JProperty("IsPoi",     isPoi),
+                new JProperty("BelongsTo", belongsTo),
+                new JProperty("DockedTo",  dockedTo),
+                new JProperty("Type",      type));
+
+            if (!_ctx.IsReady || _ctx.IsTransitioning)
+            {
+                _ = Execute(() => PublishAsync(json));
+                return;
+            }
+            await PublishAsync(json);
+        }
+
+        private async Task PublishAsync(JObject json)
+        {
             try
             {
-                var json = new JObject(
-                    new JProperty("GameTicks", ticks),
-                    new JProperty("Id",        id),
-                    new JProperty("Name",      name),
-                    new JProperty("Faction",   faction),
-                    new JProperty("Position",  position),
-                    new JProperty("IsLocal",   isLocal),
-                    new JProperty("IsProxy",   isProxy),
-                    new JProperty("IsPoi",     isPoi),
-                    new JProperty("BelongsTo", belongsTo),
-                    new JProperty("DockedTo",  dockedTo),
-                    new JProperty("Type",      type));
-                await _ctx.Bus.PublishEventAsync(_ctx.GameManager.ContextRcId, "Entity", "EntityLoaded", json);
+                await _ctx.Bus.PublishContextEventAsync("Entity", "EntityLoaded", json);
             }
             catch (Exception ex)
             {

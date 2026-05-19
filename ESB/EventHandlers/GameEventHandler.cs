@@ -17,9 +17,15 @@ namespace ESB.EventHandlers
             if (_suppressedEvents.Contains(type))
                 return;
 
-            if (!_ctx.IsReady)
+            // GameStarted is the earliest signal that a game session is launching. Flip the
+            // transition gate so subsequent game-context events queue until EnterGame completes
+            // the rcId swap; this event itself queues alongside them and publishes on the new
+            // (game) ContextRcId after the swap.
+            if (type == GameEventType.GameStarted)
+                _ctx.IsTransitioning = true;
+
+            if (!_ctx.IsReady || _ctx.IsTransitioning)
             {
-                // queue until BusManager.Init completes; drained on the next Update tick
                 _ = Execute(() => HandleAsync(type, arg1, arg2, arg3, arg4, arg5));
                 return;
             }
@@ -81,7 +87,7 @@ namespace ESB.EventHandlers
                 if (type == GameEventType.InventoryOpened)
                     TryAddContainerContents(json, arg2, arg4);
 
-                await _ctx.Bus.PublishEventAsync(_ctx.GameManager.ContextRcId, "App", type.ToString(), json);
+                await _ctx.Bus.PublishContextEventAsync("App", type.ToString(), json);
             }
             catch (Exception ex)
             {

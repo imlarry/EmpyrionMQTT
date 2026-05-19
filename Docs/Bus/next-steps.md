@@ -219,9 +219,10 @@ The pre-game/in-game split was collapsed into a single **ContextRcId** model:
 - `RoutingContextId.Lobby(machineId)` derives an 8-char rcId from `"__lobby__" + machineId`.
   Client and EDNA share a MachineId, so they derive the same Lobby rcId and see each other's
   pre-game events.
-- `GameManager.ContextRcId` and `EdnaContext.ContextRcId` are the publisher's current audience.
-  Pfs/Ds set it to the real Game rcId at startup. Client/EDNA set it to Lobby at connect, swap
-  to Game on `GameEnter`, swap back to Lobby on `GameExit`.
+- A `ContextRcId` field on `GameManager` / `EdnaContext` named the publisher's current audience
+  (Pfs/Ds set it to the real Game rcId at startup; Client/EDNA set it to Lobby at connect, swap
+  to Game on `GameEnter`, swap back to Lobby on `GameExit`). Step 12 below moved this onto the
+  bus itself; ContextRcId now lives on `IMessageBus`.
 - Event handlers publish to `ContextRcId` directly with no `?? Broadcast` or `?? MachineId`
   fallback.
 - Subscription model is three always-on subs (machine, broadcast, context-evt); the context
@@ -229,6 +230,66 @@ The pre-game/in-game split was collapsed into a single **ContextRcId** model:
 
 Addressing rule unchanged: `req`/`res`/`log` always target a recipient MachineId; events publish
 to the current ContextRcId; lifecycle (Connect, GameEnter, GameExit) publish to Broadcast.
+
+---
+
+## Step 12: Bus.SwitchContextAsync and PublishContextEventAsync -- DONE
+
+`IMessageBus` gained three members:
+
+- `string ContextRcId { get; }` -- the participant's current audience for events.
+- `Task SwitchContextAsync(string newContextRcId)` -- atomically subscribes the new rcId, sets
+  `ContextRcId`, then unsubscribes the old one. The new sub is live before the old one drops,
+  so no in-process delivery gap exists across the swap. After the swap completes the call
+  pauses for `MessageBus.SettleDelayMs` (500 ms) before returning, giving downstream subscribers
+  a window to complete their own swap before the caller resumes publishing.
+- `Task PublishContextEventAsync<T>(string scope, string operation, T payload)` -- publishes to
+  `Bus.ContextRcId`. Callers don't track the rcId; reads happen at send time.
+
+`GameManager.Init` / `EnterGame` / `ExitGame` and `EdnaService.StartAsync` / `OnGameEnter` /
+`OnGameExit` were reduced to single `Bus.SwitchContextAsync` calls. All ESB event handlers
+now publish via `Bus.PublishContextEventAsync(scope, op, payload)`.
+
+The Client publisher-side race during game-startup is gated by `_ctx.IsTransitioning` (set true
+when `GameEventType.GameStarted` arrives, cleared at the end of `EnterGame` / `ExitGame`).
+Event handlers queue work into `_ctx.EventQueue` while `IsTransitioning` is true; `UpdateHandler`
+drains the queue when `IsReady && !IsTransitioning`. Queued events read `Bus.ContextRcId` at
+drain time, so they publish on the new (Game) rcId after the swap completes.
+
+---
+
+## Open: cross-process game-enter race
+
+`SwitchContextAsync` handles the **in-process** swap correctly (no delivery gap on a single
+participant). The remaining race is **cross-process**: between the moment Client finishes its
+own `SwitchContextAsync(gameRcId)` and the moment EDNA receives the Broadcast `App/evt/GameEnter`
+and finishes its own swap, Client may publish events on the new gameRcId. EDNA is still
+subscribed to the Lobby rcId during that window and misses those publishes on its broker
+connection. Self-loop within Client is fine; the issue is purely the gap on the EDNA side.
+
+Possible follow-on approaches (not yet picked):
+
+1. **Order rearrangement on Client.** Publish `App/evt/GameEnter` to Broadcast **first**, then
+   call `SwitchContextAsync(gameRcId)` after a short delay. Subscribers get a head start on
+   their own swap. Narrows the window but doesn't eliminate it; depends on broker latency.
+
+2. **Retained context manifest.** A retained message on Broadcast (e.g.
+   `Announcements/evt/CurrentContext`) names the current gameRcId. Late joiners can
+   `SwitchContextAsync` to it on receipt without waiting for a live `GameEnter`. Combined with
+   (1), late-joining participants converge correctly.
+
+3. **Explicit subscriber acknowledgement.** Client publishes `GameEnter`, awaits an `Ack` from
+   each known subscriber (or a quorum derived from earlier `Connect` announcements) before
+   proceeding to publish on the new rcId. Strongest guarantee, most coordination cost.
+
+4. **Bus-level cross-process primitive.** `IMessageBus.AdvertiseContextSwitchAsync(newRcId)`
+   that internally bundles publish-broadcast + wait-quorum + local swap. Centralizes the
+   pattern at the cost of further API surface.
+
+Pick when the residual cross-process miss becomes observable (e.g. EDNA missing entity-load
+events on game entry). Until then, the in-process correctness from `SwitchContextAsync` plus a
+500 ms settle delay inside the swap (`MessageBus.SettleDelayMs`) is the working band-aid; it
+buys downstream subscribers time to swap but is timing-dependent, not a real guarantee.
 
 ---
 

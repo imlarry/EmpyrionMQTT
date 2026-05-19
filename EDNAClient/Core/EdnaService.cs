@@ -62,9 +62,8 @@ namespace EDNAClient.Core
 
                 // EDNA shares its MachineId with the bound Client (same machine, same bus.token),
                 // so the lobby rcId derives to the same value on both sides.
-                _ctx.LobbyRcId   = RoutingContextId.Lobby(_ctx.Bus.MachineId).Id;
-                _ctx.ContextRcId = _ctx.LobbyRcId;
-                await _ctx.Bus.SubscribeAsync(_ctx.LobbyRcId);
+                _ctx.LobbyRcId = RoutingContextId.Lobby(_ctx.Bus.MachineId).Id;
+                await _ctx.Bus.SwitchContextAsync(_ctx.LobbyRcId);
 
                 WellKnownPaths.SaveEdnaSettings(_settings);
 
@@ -144,14 +143,7 @@ namespace EDNAClient.Core
                 if (!string.IsNullOrEmpty(gameRcId))
                 {
                     _ctx.GameRcId = gameRcId;
-                    var previous = _ctx.ContextRcId;
-                    _ctx.ContextRcId = gameRcId;
-                    if (previous != gameRcId)
-                    {
-                        if (!string.IsNullOrEmpty(previous))
-                            await _ctx.Bus.UnsubscribeAsync(previous);
-                        await _ctx.Bus.SubscribeAsync(gameRcId);
-                    }
+                    await _ctx.Bus.SwitchContextAsync(gameRcId);
                 }
 
                 await Application.Current.Dispatcher.InvokeAsync(() =>
@@ -205,16 +197,9 @@ namespace EDNAClient.Core
             {
                 _luaHost.Broadcast("on_game_exit", env.SenderType, env.RawPayload);
                 _luaHost.Stop();
-                // Swap back to lobby; clear GameRcId unless offline mode has overlaid one.
-                var previous = _ctx.ContextRcId;
-                _ctx.ContextRcId = _ctx.LobbyRcId;
                 _ctx.GameRcId = null;
-                if (!string.IsNullOrEmpty(previous) && previous != _ctx.ContextRcId)
-                {
-                    await _ctx.Bus.UnsubscribeAsync(previous);
-                    if (!string.IsNullOrEmpty(_ctx.ContextRcId))
-                        await _ctx.Bus.SubscribeAsync(_ctx.ContextRcId);
-                }
+                if (!string.IsNullOrEmpty(_ctx.LobbyRcId))
+                    await _ctx.Bus.SwitchContextAsync(_ctx.LobbyRcId);
                 await Application.Current.Dispatcher.InvokeAsync(() =>
                 {
                     _windowHook?.Dispose();
