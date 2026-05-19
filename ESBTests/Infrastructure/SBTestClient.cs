@@ -31,15 +31,17 @@ public sealed class SBTestClient : IAsyncDisposable
     private readonly MqttFactory _factory;
     private readonly string      _participantType;
     private readonly string      _clientId;
+    private readonly string      _targetRcId;
     private readonly ConcurrentDictionary<string, TaskCompletionSource<JObject>> _pending
         = new ConcurrentDictionary<string, TaskCompletionSource<JObject>>();
 
-    private SBTestClient(IMqttClient client, MqttFactory factory, string participantType, string clientId)
+    private SBTestClient(IMqttClient client, MqttFactory factory, string participantType, string clientId, string targetRcId)
     {
         _client          = client;
         _factory         = factory;
         _participantType = participantType;
         _clientId        = clientId;
+        _targetRcId      = targetRcId;
         _client.ApplicationMessageReceivedAsync += OnMessageReceivedAsync;
     }
 
@@ -60,8 +62,9 @@ public sealed class SBTestClient : IAsyncDisposable
 
         await client.ConnectAsync(builder.Build(), CancellationToken.None);
 
-        var clientId = Guid.NewGuid().ToString("N").Substring(0, 8);
-        var instance = new SBTestClient(client, factory, participantType, clientId);
+        var clientId   = Guid.NewGuid().ToString("N").Substring(0, 8);
+        var targetRcId = ReadTargetMachineId();
+        var instance   = new SBTestClient(client, factory, participantType, clientId, targetRcId);
 
         // Persistent response subscription -- receives replies to all RequestAsync calls.
         var subOptions = factory.CreateSubscribeOptionsBuilder()
@@ -72,9 +75,25 @@ public sealed class SBTestClient : IAsyncDisposable
         return instance;
     }
 
+    // Reads the persisted bus.token written by the in-process ESB Messenger and derives the
+    // same MachineId. Tests run on the same machine as the ESB, so both processes resolve
+    // identical paths and identical MachineIds. This is what the test client targets for
+    // requests, since the ESB's only auto-subscription is its own MachineId rcId.
+    private static string ReadTargetMachineId()
+    {
+        var tokenDir  = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "EmpyrionESB");
+        var tokenPath = Path.Combine(tokenDir, "bus.token");
+        if (!File.Exists(tokenPath))
+            throw new InvalidOperationException("SBTestClient: bus.token not found at " + tokenPath + " -- start the ESB first so it creates the token");
+        var token = File.ReadAllText(tokenPath).Trim();
+        return RoutingContextId.Machine(token).Id;
+    }
+
     /// <summary>
     /// Sends an ESB request and awaits the response via MQTT5 ResponseTopic + CorrelationData.
-    /// Publishes to:  ESB/{participantType}/00000000/{scope}/req/{operation}  (Broadcast rcId)
+    /// Publishes to:  ESB/{participantType}/{esbMachineId}/{scope}/req/{operation}
+    ///                (esbMachineId derived from the persisted bus.token so it matches the
+    ///                ESB's own auto-subscription on its MachineId)
     /// ResponseTopic: ESB/{participantType}/{clientId}/{scope}/res/{operation}
     /// Errors are returned inside the res payload as {"Error": "..."}.
     /// </summary>
@@ -92,7 +111,7 @@ public sealed class SBTestClient : IAsyncDisposable
         try
         {
             var message = new MqttApplicationMessageBuilder()
-                .WithTopic($"ESB/{_participantType}/{RoutingContextId.BroadcastValue}/{scope}/req/{operation}")
+                .WithTopic($"ESB/{_participantType}/{_targetRcId}/{scope}/req/{operation}")
                 .WithPayload(requestJson)
                 .WithResponseTopic(responseTopic)
                 .WithCorrelationData(Encoding.ASCII.GetBytes(shortId))

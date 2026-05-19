@@ -47,7 +47,7 @@ public class Test_MessageBus
         public MqttClientOptions CreateMqttClientOptions(
             string withTcpServer = "localhost", int port = 0,
             string username = null, string password = null,
-            string caFilePath = null, string willTopic = null)
+            string caFilePath = null)
             => throw new NotImplementedException();
 
         public Task ConnectAsync(string participantType,
@@ -133,7 +133,7 @@ public class Test_MessageBus
     public async Task AnnounceAsync_PublishesToAnnouncementsScope()
     {
         var (bus, stub) = MakeBus();
-        await bus.AnnounceAsync(RoutingContextId.BroadcastValue, "Ready", new { Status = "up" });
+        await bus.AnnounceAsync("00000000", "Ready", new { Status = "up" });
         Assert.Equal("Announcements", stub.LastRetainedScope);
     }
 
@@ -141,7 +141,7 @@ public class Test_MessageBus
     public async Task AnnounceAsync_MsgTypeIsEvt()
     {
         var (bus, stub) = MakeBus();
-        await bus.AnnounceAsync(RoutingContextId.BroadcastValue, "Ready", new { Status = "up" });
+        await bus.AnnounceAsync("00000000", "Ready", new { Status = "up" });
         Assert.Equal(MessageType.Evt, stub.LastRetainedType);
     }
 
@@ -149,7 +149,7 @@ public class Test_MessageBus
     public async Task AnnounceAsync_OperationIsForwarded()
     {
         var (bus, stub) = MakeBus();
-        await bus.AnnounceAsync(RoutingContextId.BroadcastValue, "Ready", new { });
+        await bus.AnnounceAsync("00000000", "Ready", new { });
         Assert.Equal("Ready", stub.LastRetainedOperation);
     }
 
@@ -165,7 +165,7 @@ public class Test_MessageBus
     public async Task AnnounceAsync_PayloadIsSerializedJson()
     {
         var (bus, stub) = MakeBus();
-        await bus.AnnounceAsync(RoutingContextId.BroadcastValue, "Ready", new { Status = "up" });
+        await bus.AnnounceAsync("00000000", "Ready", new { Status = "up" });
         Assert.Contains("Status", stub.LastRetainedPayload);
         Assert.Contains("up",     stub.LastRetainedPayload);
     }
@@ -174,7 +174,7 @@ public class Test_MessageBus
     public async Task AnnounceAsync_ExpirySecondsIsForwarded()
     {
         var (bus, stub) = MakeBus();
-        await bus.AnnounceAsync(RoutingContextId.BroadcastValue, "Ready", new { }, expirySeconds: 300u);
+        await bus.AnnounceAsync("00000000", "Ready", new { }, expirySeconds: 300u);
         Assert.Equal(300u, stub.LastRetainedExpiry);
     }
 

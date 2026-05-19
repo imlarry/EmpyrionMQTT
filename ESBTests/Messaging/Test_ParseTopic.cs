@@ -89,13 +89,12 @@ public class Test_ParseTopic
     }
 
     // -------------------------------------------------------------------------
-    // Broadcast sentinel rcId is parsed as-is
+    // Any 8-char rcId segment is parsed as-is (Lobby and Game share the wire shape).
     // -------------------------------------------------------------------------
     [Fact]
-    public void ParseTopic_BroadcastSentinel_RoutingContextIdPreserved()
+    public void ParseTopic_EightCharRcId_RoutingContextIdPreserved()
     {
-        var pt = Parse("ESB/Client/00000000/App/evt/GameEnter");
-        Assert.Equal("00000000", pt.RoutingContextId);
-        Assert.Equal(RoutingContextId.BroadcastValue, pt.RoutingContextId);
+        var pt = Parse("ESB/Client/g2w2k7v3/App/evt/GameEnter");
+        Assert.Equal("g2w2k7v3", pt.RoutingContextId);
     }
 }

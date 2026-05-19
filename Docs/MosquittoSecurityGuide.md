@@ -1,6 +1,6 @@
 # Mosquitto Security Guide -- Empyrion MQTT Integration
 
-This guide aligns with the rcId model documented in `Docs/TopicSchema.md` sections 1, 5, and 11: four rcId kinds (Broadcast, Machine, Lobby, Game; Lobby and Game share width/shape on the wire), three standing subscriptions per participant (machine, broadcast, context-evt where the context rcId swaps Lobby<->Game on game enter/exit), and a position-1 publisher contract that names the recipient type for machine-targeted req/res/log and the sender's own type for events. Req/res/log always uses MachineId addressing; Lobby and Game rcIds carry `evt` and Announcements.
+This guide aligns with the rcId model documented in `Docs/TopicSchema.md` sections 1, 5, and 11: three rcId kinds (Machine, Lobby, Game; Lobby and Game share width/shape on the wire), two standing subscriptions per participant (machine, and a context-evt sub where the context rcId swaps Lobby<->Game on game enter/exit), and a position-1 publisher contract that names the recipient type for machine-targeted req/res/log and the sender's own type for events. Req/res/log always uses MachineId addressing; Lobby and Game rcIds carry `evt` and Announcements (Connect, GameEnter, GameExit, and any other retained announcements).
 
 > The ACL rules in Section 2 describe the intended end-state. The current code uses a single wildcard subscription `ESB/+/{myMachineId}/+/+/+` and puts the caller's own type at position 1 of requests, so a deployment running today's bus needs broader ACL rules than what is documented below until the code follow-on lands.
 
@@ -90,17 +90,14 @@ Encode the participant type and machineId in the Mosquitto username so pattern A
 
 The username is a credential identity, not a topic segment. The bus puts `{type}` at position 1 and `{machineId}` at position 2 of the topic; the ACL ties the username to the specific `(type, machineId)` pair using literal rules per user.
 
-### Read-side grants (match the four subs)
+### Read-side grants (match the two subs)
 
-Every participant has three subscriptions: its own type-pinned machine sub, the broadcast sub, and a context-evt sub whose rcId target swaps between Lobby and Game on game enter/exit. Pattern ACLs do not split a single `%u` into "type" and "machineId" parts, so the cleanest approach is per-user literal rules for the machine sub and global pattern rules for the two wildcard subs.
+Every participant has two subscriptions: its own type-pinned machine sub, and a context-evt sub whose rcId target swaps between Lobby and Game on game enter/exit. Pattern ACLs do not split a single `%u` into "type" and "machineId" parts, so the cleanest approach is per-user literal rules for the machine sub and a global pattern rule for the wildcard context-evt sub.
 
 ```
 # ---------------------------------------------------------------
-# Globally allowed reads -- the two wildcard subscriptions
+# Globally allowed reads -- the wildcard context-evt subscription
 # ---------------------------------------------------------------
-# Broadcast (every participant subscribes to this from ConnectAsync)
-topic read ESB/+/00000000/#
-
 # Context-evt fan-out (every participant subscribes its current context rcId, which is either
 # its Lobby rcId pre-game or the real Game rcId in-game). Lobby and Game rcIds share the same
 # 8-char base-36 shape on the wire; ACLs cannot distinguish them. The broader form below allows
@@ -115,7 +112,7 @@ user Client-k3m9p
 topic read ESB/Client/k3m9p/#       # machine sub: req/res/log addressed to me
 ```
 
-Req/res/log is always machine-targeted, so the only per-user read grant beyond the global Broadcast and context-evt rules is the participant's own machine subtree.
+Req/res/log is always machine-targeted, so the only per-user read grant beyond the global context-evt rule is the participant's own machine subtree.
 
 ### Write-side grants (match the publisher contract)
 
@@ -135,19 +132,13 @@ topic write ESB/Client/k3m9p/+/+/+  # own machine subtree (responses, log)
                                     # %c / %u substitution alternative below
 
 # ---------------------------------------------------------------
-# Game-scope events (position 1 = sender's own type, position 2 = gameId).
-# Only participants who are *in* a game should be able to publish events in it.
-# Per-game dynamic rule (added when the user is granted access to a game):
-# topic write ESB/Client/{thatGameId}/+/evt/+
+# Context-scoped events (position 1 = sender's own type, position 2 = Lobby or Game rcId).
+# Only participants who are *in* a game (or lobby) should be able to publish events for it.
+# Connect, GameEnter, GameExit, and any Announcements all flow through this rule -- there is
+# no separate broadcast tier.
+# Per-context dynamic rule (added when the user is granted access to a context):
+# topic write ESB/Client/{thatContextRcId}/+/evt/+
 # ---------------------------------------------------------------
-
-# ---------------------------------------------------------------
-# Broadcast events (Connect announcement, GameEnter/GameExit, etc.)
-# Restrict to the operations a participant is allowed to announce.
-# ---------------------------------------------------------------
-topic write ESB/Client/00000000/Announcements/evt/Connect
-topic write ESB/Client/00000000/App/evt/GameEnter
-topic write ESB/Client/00000000/App/evt/GameExit
 ```
 
 ### Pattern-based variant (less verbose)
@@ -536,9 +527,9 @@ $password = [System.Web.Security.Membership]::GeneratePassword(24, 4)
 # 2. Add to passwd.dat
 echo "$password" | mosquitto_passwd -b $passwdFile $username $password
 
-# 3. Append ACL entry. Mirrors the four-subscription model from Section 2:
-#    - read: own machine subtree, own type's game subtree, event-wildcard, broadcast
-#    - write: req to Pfs/Ds/EDNA at any rcId; own machine subtree; gated broadcast announces
+# 3. Append ACL entry. Mirrors the two-subscription model from Section 2:
+#    - read: own machine subtree, context-evt wildcard
+#    - write: req to Pfs/Ds/EDNA at any rcId; own machine subtree; context-scoped evts
 $aclEntry = @"
 
 # Client $MachineId -- provisioned $(Get-Date -Format 'yyyy-MM-ddTHH:mm:ss')
@@ -546,14 +537,11 @@ user $username
 topic read      ESB/Client/$MachineId/#
 topic read      ESB/Client/+/#
 topic read      ESB/+/+/+/evt/+
-topic read      ESB/+/00000000/#
 topic write     ESB/Client/$MachineId/#
 topic write     ESB/Pfs/+/+/req/+
 topic write     ESB/Ds/+/+/req/+
 topic write     ESB/EDNA/+/+/req/+
-topic write     ESB/Client/00000000/Announcements/evt/Connect
-topic write     ESB/Client/00000000/App/evt/GameEnter
-topic write     ESB/Client/00000000/App/evt/GameExit
+topic write     ESB/Client/+/+/evt/+
 "@
 Add-Content -Path $aclFile -Value $aclEntry
 

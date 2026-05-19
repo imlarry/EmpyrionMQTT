@@ -9,8 +9,8 @@ namespace ESB.Messaging
     public class MessageBus : IMessageBus
     {
         // SettleDelayMs ... after a context swap, pause briefly to give downstream subscribers
-        // (e.g. EDNA reacting to a Broadcast GameEnter) time to complete their own swap before
-        // the caller resumes publishing on the new rcId. Pragmatic cross-process band-aid; the
+        // (e.g. EDNA reacting to a context switch) time to complete their own swap before the
+        // caller resumes publishing on the new rcId. Pragmatic cross-process band-aid; the
         // proper fix is the coordinated approach described in Docs/Bus/next-steps.md.
         private const int SettleDelayMs = 500;
 
@@ -24,6 +24,7 @@ namespace ESB.Messaging
         private readonly HashSet<string> _audienceRcIds = new HashSet<string>();
         private string _contextRcId;
         private bool _connected;
+        private Func<Task> _beforeDisconnect;
 
         internal MessageBus(IMessenger messenger, string participantType,
             string host, int port, string username, string password, string caFilePath)
@@ -52,13 +53,26 @@ namespace ESB.Messaging
                 _host, _port, _username, _password, _caFilePath).ConfigureAwait(false);
             _connected = true;
 
-            // Machine rcId and Broadcast rcId are subscribed by Messenger.ConnectAsync;
-            // mirror them in the audience set for bookkeeping.
+            // Machine rcId is subscribed by Messenger.ConnectAsync;
+            // mirror it in the audience set for bookkeeping.
             _audienceRcIds.Add(_messenger.MachineId());
-            _audienceRcIds.Add(RoutingContextId.BroadcastValue);
         }
 
-        public Task DisconnectAsync() => _messenger.DisconnectAsync();
+        public async Task DisconnectAsync()
+        {
+            var hook = _beforeDisconnect;
+            if (hook != null)
+            {
+                try { await hook().ConfigureAwait(false); }
+                catch { /* best-effort cleanup; never block shutdown */ }
+            }
+            await _messenger.DisconnectAsync().ConfigureAwait(false);
+        }
+
+        public void SetBeforeDisconnect(Func<Task> handler)
+        {
+            _beforeDisconnect = handler;
+        }
 
         // -- Audience subscriptions ---------------------------------------------
 
@@ -124,7 +138,7 @@ namespace ESB.Messaging
             return PublishEventAsync(_contextRcId, scope, operation, payload);
         }
 
-        public Task AnnounceAsync<T>(string routingContextId, string operation, T payload, uint expirySeconds = 0u)
+        public Task AnnounceAsync<T>(string routingContextId, string operation, T payload, uint expirySeconds = 86400u)
         {
             var json = JsonConvert.SerializeObject(payload);
             return _messenger.PublishRetainedAsync(routingContextId, "Announcements", MessageType.Evt, operation, json, expirySeconds);

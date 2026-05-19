@@ -396,7 +396,7 @@ namespace ESB.TopicHandlers
                         new JProperty("LinkId",         linkId       ?? ""),
                         new JProperty("InputContent",   inputContent ?? ""),
                         new JProperty("CustomValue",    customVal));
-                    var dlgRcId = _ctx.GameManager.GameRcId ?? ESB.Messaging.RoutingContextId.BroadcastValue;
+                    var dlgRcId = _ctx.GameManager.GameRcId ?? _ctx.Bus.ContextRcId;
                     _ = _ctx.Bus.PublishEventAsync(dlgRcId, "App", "DialogResponse", evt);
                 }
 

@@ -181,10 +181,10 @@ await bus.PublishEventAsync(rcId, "Player", "PositionUpdate", new
 });
 ```
 
-The first parameter is the audience `routingContextId` -- typically a Game rcId for
-gameplay events, or the Broadcast sentinel for bus-wide announcements. The payload is serialized
-to JSON automatically. The scope's first character is normalized to uppercase, so `"player"` and
-`"Player"` are equivalent.
+The first parameter is the audience `routingContextId` -- typically the participant's current
+context (Lobby pre-game, Game in-game) for gameplay and lifecycle events, or another participant's
+Machine rcId for point-to-point traffic. The payload is serialized to JSON automatically. The
+scope's first character is normalized to uppercase, so `"player"` and `"Player"` are equivalent.
 
 `BusScope` enum overloads are available as extension methods:
 
@@ -213,7 +213,7 @@ Console.WriteLine(response.Body.Name);
 type-pinned machine sub matches `ESB/{recipientType}/{recipientMachineId}/#`; its registered
 handler for the dispatch key replies, and the reply routes back to the requester's own
 Machine rcId via MQTT5 `ResponseTopic`. Discover a recipient's MachineId from its
-`Announcements/evt/Connect` retained message on Broadcast.
+`Announcements/evt/Connect` retained message published on its current context rcId.
 
 When you do not have a typed response model, use the untyped overload and inspect the envelope:
 
@@ -233,16 +233,31 @@ var name = (string)response.PayloadJson["Name"];
 immediately on connect. This is how participant presence and per-game reference data are surfaced.
 
 ```csharp
-// Bus-wide presence announcement -- any subscriber sees it
-await bus.AnnounceAsync(RoutingContextId.BroadcastValue, "Connect", new { Type = "Client" });
+// Context-scoped presence announcement -- visible to participants in the same context
+await bus.AnnounceAsync(bus.ContextRcId, "Connect", new { Type = "Client" });
 
 // Per-game reference data -- only participants in this game see it
-await bus.AnnounceAsync(gameRcId, "BlockAndItemMapping", mapping, expirySeconds: 3600u);
+await bus.AnnounceAsync(gameRcId, "BlockAndItemMapping", mapping);
 ```
 
 The scope (`Announcements`) is fixed by the call; the caller supplies the audience `rcId`, the
 operation, and the payload. The topic resolves to
-`ESB/{ownType}/{rcId}/Announcements/evt/{operation}`.
+`ESB/{ownType}/{rcId}/Announcements/evt/{operation}`. **Default `expirySeconds` is 86400 (24h);**
+pass `0u` explicitly for indefinite retention.
+
+### Cleanup on disconnect
+
+Retained Announcements are cleared by null-posting on the same topic. The ESB project owns a
+`DisconnectCleanup` registry: callers `Register(rcId, scope, op)` for each retained topic they
+publish, and the registry handles two triggers:
+
+- **Graceful shutdown:** `bus.SetBeforeDisconnect(...)` is wired to `ClearAllAsync` in
+  `BusManager.Init`, so every registered topic is null-posted just before `DisconnectAsync` ends
+  the broker session.
+- **Lobby <-> Game switch:** `GameManager.EnterGame` / `ExitGame` call `ClearScopeAsync(priorRcId)`
+  after the swap, then re-publish Connect under the new context and re-register.
+
+Ungraceful exits fall back to the 24h TTL.
 
 ---
 
@@ -291,7 +306,7 @@ This convention is opt-in -- handlers that do not adopt it simply reply with the
 | `Operation` | Operation name (base, no dot-suffix) |
 | `MsgType` | Message type string: evt, req, res, log |
 | `SenderType` | Participant type of the sender |
-| `RoutingContextId` | Audience rcId the message was addressed to (5-char Machine, 8-char Lobby or Game, or `00000000` Broadcast) |
+| `RoutingContextId` | Audience rcId the message was addressed to (5-char Machine, 8-char Lobby or Game) |
 | `CorrelationId` | Correlation hex string; empty on response envelopes from RequestAsync |
 
 ---
@@ -319,11 +334,11 @@ The first character is normalized to uppercase; `"player"` and `"Player"` are eq
 
 ## 9. Audience Subscriptions
 
-A participant maintains **three always-on subscriptions**: its own Machine rcId, the Broadcast
-rcId (`00000000`), and a **context rcId** that names its current audience for events. The first
-two are auto-subscribed by `ConnectAsync`. The third is set during participant initialization
-and **swapped** on game enter/exit through `Bus.SwitchContextAsync(newRcId)`; the subscription
-itself stays live, only its target rcId changes.
+A participant maintains **two always-on subscriptions**: its own Machine rcId and a **context
+rcId** that names its current audience for events. The Machine sub is auto-subscribed by
+`ConnectAsync`. The context sub is set during participant initialization and **swapped** on game
+enter/exit through `Bus.SwitchContextAsync(newRcId)`; the subscription itself stays live, only its
+target rcId changes.
 
 `SwitchContextAsync` subscribes the new rcId **before** dropping the old one, so no in-process
 delivery gap exists across the swap. After it returns, `Bus.ContextRcId` reflects the new value.
@@ -353,7 +368,7 @@ send time, so callers stay correct across swaps without tracking the rcId themse
 
 Subscriptions are idempotent and safe to call from event handlers. See `Docs/TopicSchema.md`
 section 11 for the per-event `rcId` selection rules and the `RoutingContextKind` taxonomy
-(Broadcast, Machine, Lobby, Game).
+(Machine, Lobby, Game).
 
 ---
 

@@ -4,7 +4,6 @@ namespace ESB.Messaging
 {
     public enum RoutingContextKind
     {
-        Broadcast,
         Machine,
         Lobby,
         Game,
@@ -12,11 +11,10 @@ namespace ESB.Messaging
 
     // RoutingContextId names the audience for an ESB message.
     // On the wire only Id is sent (position 3 of the 6-segment topic).
-    // Widths are eyeball-distinguishable: Machine=5, Game=8, Broadcast fixed "00000000".
+    // Widths are eyeball-distinguishable: Machine=5, Game/Lobby=8.
     // Kind is an in-process aid for logging and discoverability; not transmitted.
     public struct RoutingContextId : IEquatable<RoutingContextId>
     {
-        public const string BroadcastValue = "00000000";
         private const int MachineWidth = 5;
         private const int GameWidth    = 8;
         private const string Sep = "|";
@@ -28,11 +26,6 @@ namespace ESB.Messaging
         {
             Id = id;
             Kind = kind;
-        }
-
-        public static RoutingContextId Broadcast()
-        {
-            return new RoutingContextId(BroadcastValue, RoutingContextKind.Broadcast);
         }
 
         public static RoutingContextId Machine(string machineToken)

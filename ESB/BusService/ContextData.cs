@@ -23,6 +23,7 @@ namespace ESB
         public IMessageBus Bus        { get; set; }
         public BusManager BusManager { get; set; }
         public GameManager GameManager { get; set; }
+        public DisconnectCleanup DisconnectCleanup { get; set; }
         public MainThreadRunner MainThreadRunner { get; } = new MainThreadRunner(); // should I constuct this here?
 
         public bool IsReady { get; set; }

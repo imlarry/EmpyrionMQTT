@@ -175,11 +175,11 @@ Any remaining calls to IMessenger.SendAsync, RequestAsync, or PublishRetainedAsy
 in application-level code are replaced with the corresponding IMessageBus methods.
 After this step, application code no longer holds a reference to IMessenger directly.
 
-Status: BusManager.PublishRegistryEntryAsync was migrated to
-`Bus.AnnounceAsync(RoutingContextId.BroadcastValue, "Connect", ...)` and the Registry scope is
-retired. Remaining direct IMessenger calls in application code are the log-message SendAsync
-invocations in GameManager.Init and UpdateHandler; these are candidates for `Bus.LogAsync(rcId, ...)`
-substitution.
+Status: BusManager.PublishRegistryEntryAsync was migrated to `Bus.AnnounceAsync` and the Registry
+scope is retired. The Broadcast scope (`00000000`) was later removed entirely; Connect is now
+published to the participant's current ContextRcId in `GameManager.Init`. Remaining direct
+IMessenger calls in application code are the log-message SendAsync invocations in GameManager.Init
+and UpdateHandler; these are candidates for `Bus.LogAsync(rcId, ...)` substitution.
 
 ---
 

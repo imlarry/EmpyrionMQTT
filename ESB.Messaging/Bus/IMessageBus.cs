@@ -16,6 +16,11 @@ namespace ESB.Messaging
         Task ConnectAsync();
         Task DisconnectAsync();
 
+        // Optional pre-disconnect hook. The bus invokes the handler at the top of DisconnectAsync,
+        // before the broker disconnect, so callers can null-post retained-state cleanup. Best-effort:
+        // exceptions thrown by the handler are swallowed so they cannot block shutdown.
+        void SetBeforeDisconnect(Func<Task> handler);
+
         Task PublishEventAsync<T>(string routingContextId, string scope, string operation, T payload);
 
         // Publishes an event to the participant's current ContextRcId. Equivalent to
@@ -24,7 +29,8 @@ namespace ESB.Messaging
         Task PublishContextEventAsync<T>(string scope, string operation, T payload);
 
         // Publishes a retained event to ESB/{ownType}/{routingContextId}/Announcements/evt/{operation}.
-        Task AnnounceAsync<T>(string routingContextId, string operation, T payload, uint expirySeconds = 0u);
+        // Default expiry is 24h; pass 0u explicitly for indefinite retention.
+        Task AnnounceAsync<T>(string routingContextId, string operation, T payload, uint expirySeconds = 86400u);
 
         Task LogAsync(string routingContextId, string scope, string operation, string payload);
 
@@ -35,7 +41,7 @@ namespace ESB.Messaging
             string routingContextId, string scope, string operation, TRequest payload, TimeSpan timeout);
 
         // Audience subscriptions. Add a routing context to receive messages addressed to it;
-        // remove to stop. Machine rcId and Broadcast rcId are auto-subscribed on Connect.
+        // remove to stop. Machine rcId is auto-subscribed on Connect.
         Task SubscribeAsync(string routingContextId);
         Task UnsubscribeAsync(string routingContextId);
 

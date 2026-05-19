@@ -39,8 +39,9 @@ namespace ESB.EventHandlers
                     new JProperty("SaveGamePath", _ctx.GameManager.SaveGamePath),
                     new JProperty("GameMode",     _ctx.GameManager.GameMode));
                 var operation = hasEntered ? "GameEnter" : "GameExit";
-                // Lifecycle stays on Broadcast so every participant can learn the new GameRcId.
-                await _ctx.Bus.PublishEventAsync(RoutingContextId.BroadcastValue, "App", operation, json);
+                // Participants compute GameRcId locally from save path + machineId; this fires inside
+                // the now-active context so peers in the new audience receive the lifecycle hint.
+                await _ctx.Bus.PublishContextEventAsync("App", operation, json);
             }
             catch (Exception ex)
             {

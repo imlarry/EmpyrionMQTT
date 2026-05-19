@@ -11,7 +11,7 @@ namespace ESB.Messaging
         string MachineId();
         string ParticipantType();
         string AvailableTopics();
-        MqttClientOptions CreateMqttClientOptions(string withTcpServer = "localhost", int port = 0, string username = null, string password = null, string caFilePath = null, string willTopic = null);
+        MqttClientOptions CreateMqttClientOptions(string withTcpServer = "localhost", int port = 0, string username = null, string password = null, string caFilePath = null);
         Task ConnectAsync(string participantType, string withTcpServer = "localhost", int port = 1883, string username = null, string password = null, string caFilePath = null);
         Task DisconnectAsync();
         void RegisterHandler(string dispatchKey, Func<MessageContext, Task> handler);

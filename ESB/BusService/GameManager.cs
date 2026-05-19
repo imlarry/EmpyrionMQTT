@@ -61,6 +61,9 @@ namespace ESB
 
             await _ctx.Bus.SwitchContextAsync(initialContext);
 
+            await _ctx.Bus.AnnounceAsync(_ctx.Bus.ContextRcId, "Connect", new { Type = _ctx.BusManager.ParticipantType });
+            _ctx.DisconnectCleanup.Register(_ctx.Bus.ContextRcId, "Announcements", "Connect");
+
             var json = new JObject(
                 new JProperty("Status",      "Created"),
                 new JProperty("ContextRcId", _ctx.Bus.ContextRcId));
@@ -76,8 +79,12 @@ namespace ESB
             _ctx.IsTransitioning = true;
             try
             {
+                var priorRcId = _ctx.Bus.ContextRcId;
                 SetGameProperties();
                 await _ctx.Bus.SwitchContextAsync(GameRcId);
+                await _ctx.DisconnectCleanup.ClearScopeAsync(_ctx.Messenger, priorRcId);
+                await _ctx.Bus.AnnounceAsync(GameRcId, "Connect", new { Type = _ctx.BusManager.ParticipantType });
+                _ctx.DisconnectCleanup.Register(GameRcId, "Announcements", "Connect");
             }
             finally
             {
@@ -92,7 +99,11 @@ namespace ESB
             _ctx.IsTransitioning = true;
             try
             {
+                var priorRcId = _ctx.Bus.ContextRcId;
                 await _ctx.Bus.SwitchContextAsync(LobbyRcId);
+                await _ctx.DisconnectCleanup.ClearScopeAsync(_ctx.Messenger, priorRcId);
+                await _ctx.Bus.AnnounceAsync(LobbyRcId, "Connect", new { Type = _ctx.BusManager.ParticipantType });
+                _ctx.DisconnectCleanup.Register(LobbyRcId, "Announcements", "Connect");
             }
             finally
             {
@@ -115,7 +126,8 @@ namespace ESB
                     BlockAndItemMapping = new Dictionary<int, string>();
                     foreach (var pair in raw)
                         BlockAndItemMapping[pair.Value] = pair.Key;
-                    _ = _ctx.Bus.AnnounceAsync(GameRcId, "BlockAndItemMapping", BlockAndItemMapping, 3600u);
+                    _ = _ctx.Bus.AnnounceAsync(GameRcId, "BlockAndItemMapping", BlockAndItemMapping, 86400u);
+                    _ctx.DisconnectCleanup.Register(GameRcId, "Announcements", "BlockAndItemMapping");
                 }
             }
 

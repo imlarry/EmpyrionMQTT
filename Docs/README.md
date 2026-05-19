@@ -65,11 +65,11 @@ All messages use the `ESB/` prefix and a fixed 6-segment structure:
 ESB/{participantType}/{routingContextId}/{scope}/{msgType}/{operation}
 ```
 
-`{participantType}` carries the **recipient type** for machine-targeted traffic (so subscribers can pin their own type at position 1 and only receive what is addressed to them), and the **sender's own type** for game-wide and broadcast events (subscribers wildcard position 1 on those subs so fan-out works).
+`{participantType}` carries the **recipient type** for machine-targeted traffic (so subscribers can pin their own type at position 1 and only receive what is addressed to them), and the **sender's own type** for context-scoped events (subscribers wildcard position 1 on the context-evt sub so fan-out works).
 
-`{routingContextId}` is a base-36 audience selector chosen at publish time, not a per-participant identity. Four kinds exist: **Broadcast** (`00000000` sentinel), **Machine** (5-char), **Lobby** (8-char, pre-game), and **Game** (8-char, in-game). Lobby and Game share width/shape and differ only by in-process `Kind`. Since one player = one Client = one machineId, the `ESB/Client/{machineId}/...` pattern is also the player-addressing pattern.
+`{routingContextId}` is a base-36 audience selector chosen at publish time, not a per-participant identity. Three kinds exist: **Machine** (5-char), **Lobby** (8-char, pre-game), and **Game** (8-char, in-game). Lobby and Game share width/shape and differ only by in-process `Kind`. Since one player = one Client = one machineId, the `ESB/Client/{machineId}/...` pattern is also the player-addressing pattern.
 
-**Addressing rule:** `req`/`res`/`log` always target a specific recipient's MachineId. Events publish to the participant's current **context rcId** -- Lobby for Client/EDNA before game entry, Game once in a game; Pfs/Ds are always Game. Broadcast carries presence and lifecycle events (Connect, GameEnter, GameExit).
+**Addressing rule:** `req`/`res`/`log` always target a specific recipient's MachineId. Events, retained Announcements (including Connect), and lifecycle hints (GameEnter, GameExit) publish to the participant's current **context rcId** -- Lobby for Client/EDNA before game entry, Game once in a game; Pfs/Ds are always Game.
 
 `{msgType}` is one of `req`, `res`, `evt`, `log` (always lowercase). See [TopicSchema.md](TopicSchema.md) for the full specification: section 1 (topic format), section 5 (request/response and subscription patterns), section 11 (routing contexts).
 

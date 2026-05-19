@@ -63,7 +63,7 @@ public class Test_Messenger_Integration
             await sub.SubscribeBrokerAsync(scope: "Game", msgType: MessageType.Evt, operation: "Ping");
 
             pub = await ConnectAsync("PubLc");
-            await pub.SendAsync(RoutingContextId.BroadcastValue, "Game", MessageType.Evt, "Ping", "{}");
+            await pub.SendAsync("00000000", "Game", MessageType.Evt, "Ping", "{}");
 
             var pt = await AwaitOrTimeout(received, 3000);
             Assert.Equal("evt", pt.MsgType);
@@ -87,7 +87,7 @@ public class Test_Messenger_Integration
             await sub.SubscribeBrokerAsync(scope: "Game", msgType: MessageType.Evt, operation: "OtherPing");
 
             pub = await ConnectAsync("PubPc");
-            await pub.SendAsync(RoutingContextId.BroadcastValue, "Game", MessageType.Evt, "Ping", "{}");
+            await pub.SendAsync("00000000", "Game", MessageType.Evt, "Ping", "{}");
             await Task.Delay(400);
 
             Assert.False(received, "filter for OtherPing must not match published Ping topic");
@@ -116,7 +116,7 @@ public class Test_Messenger_Integration
             await sub.SubscribeBrokerAsync(scope: "Game", msgType: MessageType.Evt, operation: "Ping");
 
             pub = await ConnectAsync("PubUp");
-            await pub.SendAsync(RoutingContextId.BroadcastValue, "Game", MessageType.Evt, "Ping", "{}",
+            await pub.SendAsync("00000000", "Game", MessageType.Evt, "Ping", "{}",
                 new List<KeyValuePair<string, string>>
                 {
                     new KeyValuePair<string, string>("target", "Edna"),
@@ -148,7 +148,7 @@ public class Test_Messenger_Integration
             await sub.SubscribeBrokerAsync(scope: "Game", msgType: MessageType.Evt, operation: "Ping");
 
             pub = await ConnectAsync("PubNup");
-            await pub.SendAsync(RoutingContextId.BroadcastValue, "Game", MessageType.Evt, "Ping", "{}");
+            await pub.SendAsync("00000000", "Game", MessageType.Evt, "Ping", "{}");
 
             var ctx = await AwaitOrTimeout(received, 3000);
             Assert.Null(ctx.UserProperties);
@@ -175,8 +175,8 @@ public class Test_Messenger_Integration
             await sub.SubscribeBrokerAsync(scope: "Game", operation: "Ping");
 
             pub = await ConnectAsync("PubRE");
-            await pub.SendAsync(RoutingContextId.BroadcastValue, "Game", MessageType.Req, "Ping", "{}");
-            await pub.SendAsync(RoutingContextId.BroadcastValue, "Game", MessageType.Evt, "Ping", "{}");
+            await pub.SendAsync("00000000", "Game", MessageType.Req, "Ping", "{}");
+            await pub.SendAsync("00000000", "Game", MessageType.Evt, "Ping", "{}");
 
             await AwaitOrTimeout(reqReceived, 3000);
             await AwaitOrTimeout(evtReceived, 3000);
@@ -199,7 +199,7 @@ public class Test_Messenger_Integration
             await sub.SubscribeBrokerAsync(scope: "Game", operation: "Ping");
 
             pub = await ConnectAsync("PubUdk");
-            await pub.SendAsync(RoutingContextId.BroadcastValue, "Game", MessageType.Req, "Ping", "{}");
+            await pub.SendAsync("00000000", "Game", MessageType.Req, "Ping", "{}");
             await Task.Delay(400);
 
             Assert.False(evtFired, "req message must not trigger evt handler");
@@ -228,7 +228,7 @@ public class Test_Messenger_Integration
             await sub.SubscribeBrokerAsync(scope: "Tracking", msgType: MessageType.Req, operation: "Enable");
 
             pub = await ConnectAsync("PubRt");
-            await pub.RequestAsync(RoutingContextId.BroadcastValue, "Tracking", "Enable", "{}", TimeSpan.FromSeconds(5));
+            await pub.RequestAsync("00000000", "Tracking", "Enable", "{}", TimeSpan.FromSeconds(5));
 
             Assert.NotNull(capturedResponseTopic);
             Assert.True(capturedResponseTopic!.StartsWith("ESB/"), "response topic must begin with ESB/");
@@ -254,8 +254,8 @@ public class Test_Messenger_Integration
             await sub.SubscribeBrokerAsync(scope: "Tracking", msgType: MessageType.Req, operation: "Enable");
 
             pub = await ConnectAsync("PubCd");
-            var t1 = pub.RequestAsync(RoutingContextId.BroadcastValue, "Tracking", "Enable", "payload1", TimeSpan.FromSeconds(5));
-            var t2 = pub.RequestAsync(RoutingContextId.BroadcastValue, "Tracking", "Enable", "payload2", TimeSpan.FromSeconds(5));
+            var t1 = pub.RequestAsync("00000000", "Tracking", "Enable", "payload1", TimeSpan.FromSeconds(5));
+            var t2 = pub.RequestAsync("00000000", "Tracking", "Enable", "payload2", TimeSpan.FromSeconds(5));
 
             var results = await Task.WhenAll(t1, t2);
             Assert.Contains("payload1", results);
@@ -272,7 +272,7 @@ public class Test_Messenger_Integration
         {
             pub = await ConnectAsync("PubTo");
             await Assert.ThrowsAsync<TimeoutException>(() =>
-                pub.RequestAsync(RoutingContextId.BroadcastValue, "Tracking", "NoResponder", "{}", TimeSpan.FromMilliseconds(300)));
+                pub.RequestAsync("00000000", "Tracking", "NoResponder", "{}", TimeSpan.FromMilliseconds(300)));
         }
         finally { await Disconnect(pub!); }
     }
@@ -288,7 +288,7 @@ public class Test_Messenger_Integration
 
             // First call: no responder, should time out.
             await Assert.ThrowsAsync<TimeoutException>(() =>
-                pub.RequestAsync(RoutingContextId.BroadcastValue, "Tracking", "Enable", "{}", TimeSpan.FromMilliseconds(300)));
+                pub.RequestAsync("00000000", "Tracking", "Enable", "{}", TimeSpan.FromMilliseconds(300)));
 
             // Register a responder, then issue a second call: should succeed.
             sub = await ConnectAsync("SubAt");
@@ -296,7 +296,7 @@ public class Test_Messenger_Integration
                 await sub.ReplyAsync(ctx.ResponseTopic!, ctx.CorrelationData!, "ok"));
             await sub.SubscribeBrokerAsync(scope: "Tracking", msgType: MessageType.Req, operation: "Enable");
 
-            var result = await pub.RequestAsync(RoutingContextId.BroadcastValue, "Tracking", "Enable", "{}", TimeSpan.FromSeconds(5));
+            var result = await pub.RequestAsync("00000000", "Tracking", "Enable", "{}", TimeSpan.FromSeconds(5));
             Assert.Equal("ok", result);
         }
         finally { await Disconnect(pub!); await Disconnect(sub!); }
@@ -314,7 +314,7 @@ public class Test_Messenger_Integration
             await sub.SubscribeBrokerAsync(scope: "Tracking", msgType: MessageType.Req, operation: "Enable");
 
             pub = await ConnectAsync("PubE2e");
-            var result = await pub.RequestAsync(RoutingContextId.BroadcastValue, "Tracking", "Enable", "{}", TimeSpan.FromSeconds(5));
+            var result = await pub.RequestAsync("00000000", "Tracking", "Enable", "{}", TimeSpan.FromSeconds(5));
 
             Assert.Contains("Status", result);
             Assert.Contains("ok",     result);
@@ -342,7 +342,7 @@ public class Test_Messenger_Integration
             // Requester: ConnectAsync auto-subscribes ESB/{type}/{id}/+/res/+.
             // No additional subscribe call is made.
             pub = await ConnectAsync("PubPs");
-            var result = await pub.RequestAsync(RoutingContextId.BroadcastValue, "Tracking", "Enable", "{}", TimeSpan.FromSeconds(5));
+            var result = await pub.RequestAsync("00000000", "Tracking", "Enable", "{}", TimeSpan.FromSeconds(5));
 
             Assert.Equal("pong", result);
         }

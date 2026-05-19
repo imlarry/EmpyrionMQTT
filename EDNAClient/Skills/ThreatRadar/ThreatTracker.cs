@@ -60,7 +60,7 @@ namespace EDNAClient.Skills.ThreatRadar
             // Feeds.Scan: pending ESB server implementation. TODO: target a specific
             // server MachineId discovered via Connect announcement; today this routes to
             // GameRcId which no longer carries req/res under the new addressing rule.
-            var rcId = _ctx.GameRcId ?? RoutingContextId.BroadcastValue;
+            var rcId = _ctx.GameRcId ?? _ctx.Bus.ContextRcId;
             await _bus.RequestAsync<object>(rcId, "App", "Feeds.Scan",
                 new { Duration = 300, RefreshRate = 2 }, System.TimeSpan.FromSeconds(30));
         }

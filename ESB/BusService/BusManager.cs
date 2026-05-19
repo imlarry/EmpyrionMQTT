@@ -51,7 +51,8 @@ namespace ESB
             _ctx.Bus = bus;
             await bus.ConnectAsync();
 
-            await _ctx.Bus.AnnounceAsync(RoutingContextId.BroadcastValue, "Connect", new { Type = ParticipantType });
+            _ctx.DisconnectCleanup = new DisconnectCleanup();
+            bus.SetBeforeDisconnect(() => _ctx.DisconnectCleanup.ClearAllAsync(_ctx.Messenger));
 
             var subscriptionHandler = new SubscriptionHandler(_ctx);
             await subscriptionHandler.SubscribeAll();

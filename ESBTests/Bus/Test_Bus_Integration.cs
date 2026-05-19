@@ -81,7 +81,7 @@ public class Test_Bus_Integration
 
             pub = await ConnectBusAsync("BusEvtPub");
 
-            await pub.PublishEventAsync(RoutingContextId.BroadcastValue, "BusTest", "Ping", new PingPayload { Value = 42 });
+            await pub.PublishEventAsync(pub.MachineId, "BusTest", "Ping", new PingPayload { Value = 42 });
 
             var payload = await AwaitOrTimeout(received);
             Assert.Equal(42, payload.Value);
@@ -102,7 +102,7 @@ public class Test_Bus_Integration
 
             pub = await ConnectBusAsync("BusEvtRawPub");
 
-            await pub.PublishEventAsync(RoutingContextId.BroadcastValue, "BusTest", "Status", new { Code = "ok" });
+            await pub.PublishEventAsync(pub.MachineId, "BusTest", "Status", new { Code = "ok" });
 
             var raw = await AwaitOrTimeout(received);
             Assert.Contains("ok", raw);
@@ -127,7 +127,7 @@ public class Test_Bus_Integration
             client = await ConnectBusAsync("BusReqCli");
 
             var response = await client.RequestAsync<EchoRequest, EchoResponse>(
-                RoutingContextId.BroadcastValue, "BusTest", "Echo",
+                server.MachineId, "BusTest", "Echo",
                 new EchoRequest { Data = "hello" },
                 TimeSpan.FromSeconds(5));
 
@@ -149,7 +149,7 @@ public class Test_Bus_Integration
             client = await ConnectBusAsync("BusRawCli");
 
             var response = await client.RequestAsync<EchoRequest>(
-                RoutingContextId.BroadcastValue, "BusTest", "RawEcho",
+                server.MachineId, "BusTest", "RawEcho",
                 new EchoRequest { Data = "test" },
                 TimeSpan.FromSeconds(5));
 
@@ -177,7 +177,7 @@ public class Test_Bus_Integration
 
             var ex = await Assert.ThrowsAsync<BusRequestException>(() =>
                 client.RequestAsync<EchoRequest>(
-                    RoutingContextId.BroadcastValue, "BusTest", "Fail",
+                    server.MachineId, "BusTest", "Fail",
                     new EchoRequest(),
                     TimeSpan.FromSeconds(5)));
 
@@ -207,7 +207,7 @@ public class Test_Bus_Integration
             await Task.Delay(200);
 
             pub = await ConnectBusAsync("BusDynPub");
-            await pub.PublishEventAsync(RoutingContextId.BroadcastValue, "BusTest", "Late", new PingPayload { Value = 55 });
+            await pub.PublishEventAsync(pub.MachineId, "BusTest", "Late", new PingPayload { Value = 55 });
 
             var value = await AwaitOrTimeout(received);
             Assert.Equal(55, value);
@@ -235,7 +235,7 @@ public class Test_Bus_Integration
             // Marker built from char codes so the source file stays 7-bit ASCII.
             // Codepoints: e-acute (U+00E9), snowman (U+2603), two Japanese codepoints (U+65E5, U+672C).
             var marker = "caf" + (char)0x00E9 + "_" + (char)0x2603 + "_" + (char)0x65E5 + (char)0x672C;
-            await pub.PublishEventAsync(RoutingContextId.BroadcastValue, "BusTest", "Utf8", new { Name = marker });
+            await pub.PublishEventAsync(pub.MachineId, "BusTest", "Utf8", new { Name = marker });
 
             var raw = await AwaitOrTimeout(received);
             Assert.Contains(marker, raw);
@@ -265,11 +265,11 @@ public class Test_Bus_Integration
             pub = await ConnectBusAsync("BusThrowPub");
 
             // Fire the throwing handler first; the receive loop must absorb the exception.
-            await pub.PublishEventAsync(RoutingContextId.BroadcastValue, "BusTest", "Boom", new { });
+            await pub.PublishEventAsync(pub.MachineId, "BusTest", "Boom", new { });
             await Task.Delay(200);
 
             // Then a normal message -- it must still be delivered.
-            await pub.PublishEventAsync(RoutingContextId.BroadcastValue, "BusTest", "Alive", new PingPayload { Value = 99 });
+            await pub.PublishEventAsync(pub.MachineId, "BusTest", "Alive", new PingPayload { Value = 99 });
 
             var value = await AwaitOrTimeout(alive);
             Assert.Equal(99, value);
@@ -292,7 +292,7 @@ public class Test_Bus_Integration
             // No server is registered for this op, so the request will park on the
             // pending-response TCS until either its 30s timeout fires or Disconnect drains it.
             var requestTask = client.RequestAsync<EchoRequest>(
-                RoutingContextId.BroadcastValue, "BusTest", "NoHandler",
+                client.MachineId, "BusTest", "NoHandler",
                 new EchoRequest { Data = "x" },
                 TimeSpan.FromSeconds(30));
 

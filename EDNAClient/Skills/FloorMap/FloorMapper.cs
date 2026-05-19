@@ -31,7 +31,8 @@ namespace EDNAClient.Skills.FloorMap
         // carries req/res under the new addressing rule.
         private string TargetRcId() =>
             _ctx?.GameRcId
-            ?? RoutingContextId.BroadcastValue;
+            ?? _ctx?.Bus.ContextRcId
+            ?? throw new InvalidOperationException("FloorMapper: no rcId available -- bus not connected");
 
         // Returns a rendered FloorMapDocument on success, null on failure.
         // statusCallback receives progress/error text for immediate UI feedback.

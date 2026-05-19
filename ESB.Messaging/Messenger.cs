@@ -82,7 +82,7 @@ namespace ESB.Messaging
         }
 
         // MqttClientOptions ... function used to create an MQTT client options object
-        public MqttClientOptions CreateMqttClientOptions(string withTcpServer = "localhost", int port = 0, string username = null, string password = null, string caFilePath = null, string willTopic = null)
+        public MqttClientOptions CreateMqttClientOptions(string withTcpServer = "localhost", int port = 0, string username = null, string password = null, string caFilePath = null)
         {
             int defaultPort = caFilePath != null ? 8883 : 1883;
             int resolvedPort = port > 0 ? port : defaultPort;
@@ -107,14 +107,6 @@ namespace ESB.Messaging
                     .WithClientCertificates(certificates)
                     .Build();
                 optionsBuilder.WithTlsOptions(tlsOptions);
-            }
-
-            // Will message clears the registry entry if the client disconnects unexpectedly.
-            if (!string.IsNullOrEmpty(willTopic))
-            {
-                optionsBuilder.WithWillTopic(willTopic)
-                    .WithWillPayload("")
-                    .WithWillRetain(true);
             }
 
             return optionsBuilder.Build();
@@ -157,9 +149,7 @@ namespace ESB.Messaging
 
             // Auto-subscribe at connect:
             // - this participant's Machine rcId (default identity; response routing)
-            // - the Broadcast rcId (bus-wide utility traffic)
             await SubscribeBrokerAsync(routingContextId: _machineId);
-            await SubscribeBrokerAsync(routingContextId: RoutingContextId.BroadcastValue);
         }
 
         // DisconnectAsync ... disconnect from broker

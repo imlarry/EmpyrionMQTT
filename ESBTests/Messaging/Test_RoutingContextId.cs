@@ -5,24 +5,6 @@ namespace ESBTests.Messaging;
 public class Test_RoutingContextId
 {
     // -------------------------------------------------------------------------
-    // Broadcast sentinel
-    // -------------------------------------------------------------------------
-
-    [Fact]
-    public void Broadcast_Id_IsFixedSentinel()
-    {
-        var rc = RoutingContextId.Broadcast();
-        Assert.Equal("00000000", rc.Id);
-        Assert.Equal(RoutingContextKind.Broadcast, rc.Kind);
-    }
-
-    [Fact]
-    public void Broadcast_Value_MatchesSentinelConstant()
-    {
-        Assert.Equal("00000000", RoutingContextId.BroadcastValue);
-    }
-
-    // -------------------------------------------------------------------------
     // Widths: Machine = 5, Lobby/Game = 8 (eyeball-distinguishable in a topic)
     // -------------------------------------------------------------------------
 

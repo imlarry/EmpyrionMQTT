@@ -4,8 +4,8 @@ ESB.Messaging uses MQTT pub/sub with a fixed topic schema:
 
 ESB/{participantType}/{routingContextId}/{scope}/{msgType}/{operation}
 
-- `participantType`: recipient type when machine-targeted; sender's own type for context (Lobby or Game) and broadcast events
-- `routingContextId`: audience id; 5-char Machine, 8-char Lobby or Game, or `00000000` Broadcast sentinel
+- `participantType`: recipient type when machine-targeted; sender's own type for context (Lobby or Game) events
+- `routingContextId`: audience id; 5-char Machine or 8-char Lobby/Game
 - `scope`: namespace
 - `msgType`: `evt` | `req` | `res` | `log`
 - `operation`: semantic action
@@ -32,7 +32,7 @@ The envelope abstracts MQTT transport details and lets callers treat bus traffic
 
 `PublishEventAsync(routingContextId, scope, operation, payload)`
 `PublishContextEventAsync(scope, operation, payload)`          -- targets Bus.ContextRcId
-`AnnounceAsync(routingContextId, operation, payload, expirySeconds = 0)`
+`AnnounceAsync(routingContextId, operation, payload, expirySeconds = 86400)`  -- default 24h, pass 0u for indefinite
 `RequestAsync(routingContextId, scope, operation, payload, timeout)`
 `LogAsync(routingContextId, scope, operation, payload)`
 `SubscribeAsync(routingContextId)` / `UnsubscribeAsync(routingContextId)`
@@ -61,10 +61,10 @@ MQTT is pub/sub. The envelope converts pub/sub into RPC-like request/response an
 
 ## Audience Subscriptions
 
-Three always-on subscriptions per participant: Machine (type-pinned, own MachineId), Broadcast, and a **context-evt** sub whose rcId target swaps via `Bus.SwitchContextAsync(newRcId)`. The context sub is never added or removed at runtime, only retargeted; the new audience is subscribed before the old one is dropped, so messages never fall through a gap.
+Two always-on subscriptions per participant: Machine (type-pinned, own MachineId) and a **context-evt** sub whose rcId target swaps via `Bus.SwitchContextAsync(newRcId)`. The context sub is never added or removed at runtime, only retargeted; the new audience is subscribed before the old one is dropped, so messages never fall through a gap.
 
 - Ds / Pfs: `SwitchContextAsync(realGameRcId)` once at startup (no lobby phase, no further swaps)
 - Client: `SwitchContextAsync(lobbyRcId)` at startup; swap to Game on `GameEnter`, back to Lobby on `GameExit`
 - EDNA: same lifecycle as Client; derives the same Lobby rcId because it shares its bound Client's MachineId
 
-`Announcements/evt/Connect` is published on the Broadcast rcId so any subscriber sees presence. `App/evt/GameEnter` / `GameExit` are also Broadcast and carry the new Game rcId in payload so other participants can adopt it via `SwitchContextAsync`.
+`Announcements/evt/Connect` is published on the participant's current ContextRcId (retained, 24h default expiry). It is null-posted on Lobby <-> Game swap and on graceful disconnect via the `DisconnectCleanup` registry; ungraceful exits fall back to the 24h TTL. `App/evt/GameEnter` / `GameExit` fire on the new ContextRcId after the swap as an intra-context lifecycle hint -- participants compute the Game rcId locally from the save game path and do not depend on these events for discovery.
