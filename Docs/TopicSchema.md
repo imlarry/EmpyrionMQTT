@@ -172,12 +172,23 @@ ESB/Pfs/+/Entity/evt/#      -- all entity events from any Pfs in any game
 
 Participants publish retained messages under their own `Announcements` scope so late-joining subscribers receive current state immediately. All announcements are context-scoped (Lobby or Game); there is no bus-wide broadcast.
 
+`Announcements/evt/Connect` doubles as the **context manifest**: its `ContextRcId` field names the audience the publisher is on or is moving to. Peers compare that against their own `Bus.ContextRcId` and call `SwitchContextAsync` when the values disagree. The Lobby Connect retain is preserved across Lobby <-> Game transitions for exactly this reason -- a late-joining peer can read `ContextRcId` from the Lobby retain alone and follow into the active Game without needing a live `GameEnter`.
+
 ```
 ESB/Pfs/g2w2k7v3/Announcements/evt/Connect
-payload: {"Type": "Pfs"}
+payload: {"Type":"Pfs", "MachineId":"g2w2k7v3", "ContextRcId":"g2w2k7v3",
+          "GameRcId":"g2w2k7v3", "GameName":"...", "GameMode":"...", "SaveGamePath":"..."}
 
-ESB/Client/lby4abcd/Announcements/evt/Connect
-payload: {"Type": "Client"}        -- pre-game; switches to Game rcId on EnterGame
+ESB/Client/lby4abcd/Announcements/evt/Connect          -- pre-game, Client idle on lobby
+payload: {"Type":"Client", "MachineId":"abcde", "ContextRcId":"lby4abcd"}
+
+ESB/Client/lby4abcd/Announcements/evt/Connect          -- same topic, updated when Client moves
+payload: {"Type":"Client", "MachineId":"abcde", "ContextRcId":"g2w2k7v3",
+          "GameRcId":"g2w2k7v3", "GameName":"...", "GameMode":"...", "SaveGamePath":"..."}
+
+ESB/Client/g2w2k7v3/Announcements/evt/Connect          -- in-game retain on the Game rcId
+payload: {"Type":"Client", "MachineId":"abcde", "ContextRcId":"g2w2k7v3",
+          "GameRcId":"g2w2k7v3", "GameName":"...", "GameMode":"...", "SaveGamePath":"..."}
 
 ESB/Client/g2w2k7v3/Announcements/evt/BlockAndItemMapping
 payload: {"1": "AlienBlock", "2": "AlienConsole", ...}
@@ -190,7 +201,8 @@ Use `IMessageBus.AnnounceAsync(routingContextId, operation, payload, expirySecon
 Retained Announcements are cleared by null-posting (publish empty payload, retained, expiry=0) on the same topic. Two triggers:
 
 - **Graceful disconnect:** `MessageBus.DisconnectAsync` invokes the `SetBeforeDisconnect` hook, which calls `DisconnectCleanup.ClearAllAsync`. Every retained topic the participant registered via `DisconnectCleanup.Register` is null-posted before the broker disconnect.
-- **Lobby <-> Game switch:** `GameManager.EnterGame` / `ExitGame` call `DisconnectCleanup.ClearScopeAsync(priorRcId)` after the context swap, null-posting only the entries registered under the prior scope. The new scope re-publishes Connect and re-registers.
+- **Game-exit:** `GameManager.ExitGame` calls `DisconnectCleanup.ClearScopeAsync(GameRcId)` after the swap, null-posting only the entries registered under the Game rcId (game-side Connect, BlockAndItemMapping). The Lobby Connect retain is preserved as the manifest; its payload is republished on exit with `ContextRcId=Lobby` and `GameRcId=null`.
+- **Game-enter:** the Lobby Connect retain is **not** null-posted. Its payload is republished on the lobby with `ContextRcId=GameRcId` before `SwitchContextAsync` runs so subscribers (e.g. EDNA still on the lobby audience) can follow.
 
 Ungraceful exit (process crash, kill) leaves retained values in place until the 24h TTL expires. `BlockAndItemMapping` is cached state, so a stale entry is acceptable; the 24h window keeps long-running sessions from re-publishing on every reconnect.
 
@@ -309,10 +321,11 @@ Entity type values appear in `EntityLoaded` and `EntityUnloaded` event payloads.
 | `GameManager.Init` -- Pfs / Ds | `Bus.SwitchContextAsync(realGameRcId)` -- subscribes `ESB/+/{gameId}/+/evt/+` |
 | `GameManager.Init` -- Client | `Bus.SwitchContextAsync(lobbyRcId)` -- subscribes `ESB/+/{lobbyId}/+/evt/+` |
 | `EdnaService.StartAsync` -- EDNA | `Bus.SwitchContextAsync(lobbyRcId)` -- same lobbyId as bound Client |
-| `GameEnter` (Client / EDNA) | `Bus.SwitchContextAsync(realGameRcId)` -- sub Game first, then unsub Lobby; null-post Lobby Connect, re-publish Connect on Game |
-| `GameExit` (Client / EDNA) | `Bus.SwitchContextAsync(lobbyRcId)` -- sub Lobby first, then unsub Game; null-post Game Connect, re-publish Connect on Lobby |
+| `GameEnter` (Client) | Republish Lobby Connect retain with `ContextRcId=GameRcId` (manifest signal so peers follow), then `Bus.SwitchContextAsync(realGameRcId)`, then publish Connect on Game and `App/evt/GameEnter`. The Lobby Connect retain is **kept** as the manifest. |
+| `GameExit` (Client) | (1) Republish **Lobby** Connect with cleared state (`ContextRcId=LobbyRcId`, `GameRcId=null`) -- updates the manifest *before* the signal so peers don't churn against a stale retain when they resubscribe to lobby. (2) Republish **Game** Connect with `ContextRcId=LobbyRcId` (the signal peers on the game audience follow). (3) `Bus.SwitchContextAsync(lobbyRcId)`. (4) `DisconnectCleanup.ClearScopeAsync(priorGameRcId)` to null-post game-scope retains. (5) Publish `App/evt/GameExit` on lobby. |
+| `Announcements/evt/Connect` (EDNA, any sender=Client) | Read `ContextRcId` from payload; if it differs from `Bus.ContextRcId`, `Bus.SwitchContextAsync(target)`. This is what makes EDNA follow Client across Lobby <-> Game without missing the post-swap lifecycle event. |
 
-`SwitchContextAsync` always subscribes the new rcId before unsubscribing the old one, so no in-process delivery gap exists across the swap. Note that this only addresses in-process timing; cross-process coordination (Client publishes on new gameRcId before EDNA's own swap completes) is a separate concern -- see `Docs/Bus/next-steps.md`.
+`SwitchContextAsync` always subscribes the new rcId before unsubscribing the old one, so no in-process delivery gap exists across the swap. The cross-process gap (Client publishes on the new rcId before EDNA's own swap finishes) is closed by the pre-swap Connect manifest update plus the 500 ms `SettleDelayMs` inside `SwitchContextAsync`.
 
 **Choosing the right rcId at publish time:**
 

@@ -26,11 +26,33 @@ namespace ESB.EventHandlers
         {
             try
             {
-                // Swap ContextRcId between Lobby and Game; GameManager handles the bus sub swap.
+                // Pre-switch manifest update: republish the Connect retain on the CURRENT context
+                // with ContextRcId set to the DESTINATION context. EDNA (still on the current
+                // context) sees the change and runs its own SwitchContextAsync first; the 500 ms
+                // settle inside SwitchContextAsync below gives it room to land. Without this hop
+                // EDNA never receives the post-switch GameEnter/GameExit because it is parked on
+                // the old audience.
                 if (hasEntered)
+                {
+                    _ctx.GameManager.PrepareEnterGame();
+                    await _ctx.GameManager.AnnounceConnectAsync(
+                        _ctx.Bus.ContextRcId, _ctx.GameManager.GameRcId, true);
                     await _ctx.GameManager.EnterGame();
+                }
                 else
+                {
+                    // Pre-republish the Lobby Connect retain with the cleared (post-exit) state
+                    // BEFORE signaling on the game ctx. A peer that follows the game-side signal
+                    // back to Lobby resubscribes there and the broker delivers the latest retain;
+                    // if that retain still said "in-game" the peer would churn straight back to
+                    // game and miss the subsequent GameExit. Sequential awaits ensure the lobby
+                    // retain is updated on the broker before the game-side signal goes out.
+                    await _ctx.GameManager.AnnounceConnectAsync(
+                        _ctx.GameManager.LobbyRcId, _ctx.GameManager.LobbyRcId, false);
+                    await _ctx.GameManager.AnnounceConnectAsync(
+                        _ctx.Bus.ContextRcId, _ctx.GameManager.LobbyRcId, false);
                     await _ctx.GameManager.ExitGame();
+                }
 
                 var json = new JObject(
                     new JProperty("GameTicks",    _ctx.ModApi.Application.GameTicks),
@@ -39,8 +61,6 @@ namespace ESB.EventHandlers
                     new JProperty("SaveGamePath", _ctx.GameManager.SaveGamePath),
                     new JProperty("GameMode",     _ctx.GameManager.GameMode));
                 var operation = hasEntered ? "GameEnter" : "GameExit";
-                // Participants compute GameRcId locally from save path + machineId; this fires inside
-                // the now-active context so peers in the new audience receive the lifecycle hint.
                 await _ctx.Bus.PublishContextEventAsync("App", operation, json);
             }
             catch (Exception ex)

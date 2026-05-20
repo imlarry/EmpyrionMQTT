@@ -3,6 +3,7 @@ using System.IO;
 using System.Threading.Tasks;
 using Eleon.Modding;
 using ESB.Messaging;
+using ESB.Payloads;
 using System.Collections.Generic;
 
 namespace ESB
@@ -61,8 +62,8 @@ namespace ESB
 
             await _ctx.Bus.SwitchContextAsync(initialContext);
 
-            await _ctx.Bus.AnnounceAsync(_ctx.Bus.ContextRcId, "Connect", new { Type = _ctx.BusManager.ParticipantType });
-            _ctx.DisconnectCleanup.Register(_ctx.Bus.ContextRcId, "Announcements", "Connect");
+            await AnnounceConnectAsync(initialContext, initialContext, GameRcId != null);
+            _ctx.DisconnectCleanup.Register(initialContext, "Announcements", "Connect");
 
             var json = new JObject(
                 new JProperty("Status",      "Created"),
@@ -70,20 +71,30 @@ namespace ESB
             await _ctx.Messenger.SendAsync(_ctx.Bus.MachineId, "App", MessageType.Log, "GameManager", json.ToString(Newtonsoft.Json.Formatting.None));
         }
 
+        // PrepareEnterGame ... computes GameRcId/GameName/etc. without changing the bus context.
+        // The handler calls this first so the GameRcId can be advertised on the LOBBY-scope Connect
+        // retain (signalling EDNA to follow) before SwitchContextAsync runs.
+        public void PrepareEnterGame()
+        {
+            SetGameProperties();
+        }
+
         // EnterGame ... Client lifecycle: swap context from Lobby to the real Game rcId.
         // The bus subscribes the new audience before dropping the old one, so no in-process gap.
         // IsTransitioning gates the publisher-side EventQueue across the swap; clearing it after
         // SwitchContextAsync returns lets UpdateHandler drain queued events on the new ContextRcId.
+        //
+        // The Lobby Connect retain is preserved across the swap as the context manifest: it carries
+        // ContextRcId=GameRcId and game-detail fields so a late-joining peer (e.g. EDNA started
+        // after a save is loaded) can discover the active game by reading the Lobby retain alone.
         public async Task EnterGame()
         {
             _ctx.IsTransitioning = true;
             try
             {
-                var priorRcId = _ctx.Bus.ContextRcId;
-                SetGameProperties();
+                if (string.IsNullOrEmpty(GameRcId)) SetGameProperties();
                 await _ctx.Bus.SwitchContextAsync(GameRcId);
-                await _ctx.DisconnectCleanup.ClearScopeAsync(_ctx.Messenger, priorRcId);
-                await _ctx.Bus.AnnounceAsync(GameRcId, "Connect", new { Type = _ctx.BusManager.ParticipantType });
+                await AnnounceConnectAsync(GameRcId, GameRcId, true);
                 _ctx.DisconnectCleanup.Register(GameRcId, "Announcements", "Connect");
             }
             finally
@@ -92,7 +103,9 @@ namespace ESB
             }
         }
 
-        // ExitGame ... Client lifecycle: swap context back to Lobby.
+        // ExitGame ... Client lifecycle: swap context back to Lobby. Game-scope retains
+        // (game Connect, BlockAndItemMapping) are cleared; the Lobby Connect retain is updated
+        // back to {ContextRcId=Lobby, GameRcId=null} so the manifest reflects the idle state.
         public async Task ExitGame()
         {
             if (string.IsNullOrEmpty(LobbyRcId)) return;
@@ -102,13 +115,34 @@ namespace ESB
                 var priorRcId = _ctx.Bus.ContextRcId;
                 await _ctx.Bus.SwitchContextAsync(LobbyRcId);
                 await _ctx.DisconnectCleanup.ClearScopeAsync(_ctx.Messenger, priorRcId);
-                await _ctx.Bus.AnnounceAsync(LobbyRcId, "Connect", new { Type = _ctx.BusManager.ParticipantType });
+                await AnnounceConnectAsync(LobbyRcId, LobbyRcId, false);
                 _ctx.DisconnectCleanup.Register(LobbyRcId, "Announcements", "Connect");
             }
             finally
             {
                 _ctx.IsTransitioning = false;
             }
+        }
+
+        // AnnounceConnectAsync ... publishes the Connect retain on rcIdToPublishOn. ContextRcId in
+        // the payload names the audience the publisher is on (or moving to); peers compare this
+        // against their own bus.ContextRcId and follow when the values disagree.
+        public Task AnnounceConnectAsync(string rcIdToPublishOn, string contextRcId, bool includeGameDetails)
+        {
+            var payload = new ConnectAnnouncement
+            {
+                Type        = _ctx.BusManager.ParticipantType,
+                MachineId   = _ctx.Bus.MachineId,
+                ContextRcId = contextRcId
+            };
+            if (includeGameDetails)
+            {
+                payload.GameRcId     = GameRcId;
+                payload.GameName     = GameName;
+                payload.GameMode     = GameMode;
+                payload.SaveGamePath = SaveGamePath;
+            }
+            return _ctx.Bus.AnnounceAsync(rcIdToPublishOn, "Connect", payload);
         }
 
         private void SetGameProperties()

@@ -1,5 +1,19 @@
 namespace ESB.Payloads
 {
+    // Retained Announcements/evt/Connect payload. The ContextRcId field doubles as the
+    // "context manifest": peers that see this retain follow the publisher to ContextRcId.
+    // GameRcId/GameName/GameMode/SaveGamePath are populated while in-game; null otherwise.
+    public class ConnectAnnouncement
+    {
+        public string Type         { get; set; }
+        public string MachineId    { get; set; }
+        public string ContextRcId  { get; set; }
+        public string GameRcId     { get; set; }
+        public string GameName     { get; set; }
+        public string GameMode     { get; set; }
+        public string SaveGamePath { get; set; }
+    }
+
     public class GameTicksResponse         { public ulong GameTicks { get; set; } }
     public class ModeResponse              { public string Mode     { get; set; } }
     public class StateResponse             { public string State    { get; set; } }
