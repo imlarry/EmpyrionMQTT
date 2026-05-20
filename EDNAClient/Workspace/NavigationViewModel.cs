@@ -5,7 +5,8 @@ using System.Runtime.CompilerServices;
 namespace EDNAClient.Workspace
 {
     public enum NavNodeType { Galaxy, GalaxyFilter, System, Planet, Structure, Floor, ScriptFolder, ScriptFile,
-                              MapRoot, MapSolarSystem, MapPlayfield, MapEntity, MapFloor }
+                              MapRoot, MapSolarSystem, MapPlayfield, MapEntity, MapFloor,
+                              SavesRoot, SaveFolder, SaveFile }
 
     public class NavMenuItem
     {

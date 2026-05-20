@@ -36,6 +36,21 @@ namespace EDNAClient.Workspace
 
         public NavigationViewModel NavViewModel => _navViewModel;
 
+        // Capture current navbar expansion state into _state.ExpandedNav so a later
+        // section add (e.g. on game exit when Saves is restored) reapplies it via
+        // OnNavRootsChanged. Lighter than SaveState -- no disk write, no doc capture.
+        public void CaptureNavExpansion()
+        {
+            _state.ExpandedNav = _navViewModel.CollectExpandedPaths();
+        }
+
+        // Sets the Navigator pane title (the dock-pane header text). Pass null/empty
+        // to restore the default "Navigator" label.
+        public void SetNavTitle(string? title)
+        {
+            _navPane.Title = string.IsNullOrEmpty(title) ? "Navigator" : title;
+        }
+
         public WorkspaceWindow(EdnaSettings settings)
         {
             _settings     = settings;

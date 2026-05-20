@@ -5,6 +5,8 @@ using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
 using EDNAClient.Skills.Scripting;
+using EDNAClient.Startup;
+using EDNAClient.Setup;
 using EDNAClient.Tray;
 using EDNAClient.Workspace;
 using ESB.Messaging;
@@ -43,12 +45,15 @@ namespace EDNAClient.Core
 
         public async Task StartAsync()
         {
+            var startupState = await Task.Run(() => new StartupOrchestrator().Detect());
+
+            var esbInfo = WellKnownPaths.LoadEsbInfo();
+            var mqtt    = esbInfo?.MQTThost ?? new MqttConnectionSettings();
+            _settings   = esbInfo?.EDNA ?? new EdnaInfo();
+
+            Exception? connectError = null;
             try
             {
-                var esbInfo = WellKnownPaths.LoadEsbInfo();
-                var mqtt    = esbInfo?.MQTThost ?? new MqttConnectionSettings();
-                _settings   = esbInfo?.EDNA ?? new EdnaInfo();
-
                 _ctx.Bus = new BusBuilder()
                     .WithMessenger(_ctx.Messenger)
                     .WithParticipantType("EDNA")
@@ -67,9 +72,10 @@ namespace EDNAClient.Core
 
                 WellKnownPaths.SaveEdnaSettings(_settings);
 
-                _ctx.Bus.OnEvent("App",       "GameEnter",  OnGameEnter);
-                _ctx.Bus.OnEvent("App",       "GameExit",   OnGameExit);
-                _ctx.Bus.OnEvent("Playfield", "Loaded",     OnPlayfieldLoaded);
+                _ctx.Bus.OnEvent("Announcements", "Connect", OnClientConnect);
+                _ctx.Bus.OnEvent("App",           "GameEnter", OnGameEnter);
+                _ctx.Bus.OnEvent("App",           "GameExit",  OnGameExit);
+                _ctx.Bus.OnEvent("Playfield",     "Loaded",    OnPlayfieldLoaded);
 
                 foreach (var skill in EnabledSkills())
                 {
@@ -84,11 +90,32 @@ namespace EDNAClient.Core
 
                 _tray.SetConnected();
                 EdnaLogger.Log("EDNA connected and ready");
+
+                // Lobby/offline level-0 navbar -- visible until a game is entered.
+                await Application.Current.Dispatcher.InvokeAsync(AddSavesNavSection);
             }
             catch (Exception ex)
             {
+                connectError = ex;
                 _tray.SetMqttDown();
                 EdnaLogger.Error("MQTT connect failed", ex);
+            }
+
+            // FUTURE-provisioning report. The bus-connect outcome above IS the broker probe --
+            // no separate test is run. Local log always; MQTT publish only when bus came up
+            // (in which case the broker section is necessarily REACHABLE + AUTHENTICATED).
+            var provisioningReport = ProvisioningDetector.BuildReport(startupState, mqtt, connectError);
+            EdnaLogger.Log(provisioningReport);
+            if (connectError == null)
+            {
+                try
+                {
+                    await _ctx.Bus.LogAsync(_ctx.Bus.MachineId, "Provisioning", "Detection", provisioningReport);
+                }
+                catch (Exception ex)
+                {
+                    EdnaLogger.Warn("Provisioning report publish failed: " + ex.Message);
+                }
             }
         }
 
@@ -101,6 +128,30 @@ namespace EDNAClient.Core
             _hotkeys.Dispose();
             if (_ctx.Bus != null)
                 await _ctx.Bus.DisconnectAsync();
+        }
+
+        // OnClientConnect ... EDNA follows the Client's retained context manifest. Connect carries
+        // a ContextRcId field naming where the Client is (or is about to be); when that disagrees
+        // with EDNA's current bus context, EDNA swaps. This is what unblocks game-entry: the Client
+        // republishes Connect on the lobby with ContextRcId=GameRcId BEFORE its own SwitchContextAsync,
+        // and EDNA reacts here, before GameEnter is published on the game audience.
+        private async Task OnClientConnect(MessageEnvelope env)
+        {
+            try
+            {
+                if (env.SenderType != "Client") return;
+                var j = env.PayloadJson;
+                if (j == null) return;
+                var target = (string?)j["ContextRcId"];
+                if (string.IsNullOrEmpty(target)) return;
+                if (target == _ctx.Bus.ContextRcId) return;
+                EdnaLogger.Log($"Connect manifest follow: {_ctx.Bus.ContextRcId} -> {target}");
+                await _ctx.Bus.SwitchContextAsync(target);
+            }
+            catch (Exception ex)
+            {
+                EdnaLogger.Error("OnClientConnect failed", ex);
+            }
         }
 
         private Task OnPlayfieldLoaded(MessageEnvelope env)
@@ -141,16 +192,17 @@ namespace EDNAClient.Core
 
                 _ctx.AuthoritativeSource = env.SenderType;
                 if (!string.IsNullOrEmpty(gameRcId))
-                {
                     _ctx.GameRcId = gameRcId;
-                    await _ctx.Bus.SwitchContextAsync(gameRcId);
-                }
+                // Context switch happens in OnClientConnect ahead of this event; no swap needed here.
 
                 await Application.Current.Dispatcher.InvokeAsync(() =>
                 {
                     EnsureHookInstalled();
                     SnapWindows();
                     if (!_workspace.IsVisible) _workspace.Show();
+                    _workspace.CaptureNavExpansion();
+                    _workspace.NavViewModel.RemoveRootSection(SavesNavBuilder.RootSectionName);
+                    _workspace.SetNavTitle(SaveNameFromPath(saveGamePath));
                 });
 
                 if (!string.IsNullOrEmpty(saveGamePath))
@@ -198,14 +250,15 @@ namespace EDNAClient.Core
                 _luaHost.Broadcast("on_game_exit", env.SenderType, env.RawPayload);
                 _luaHost.Stop();
                 _ctx.GameRcId = null;
-                if (!string.IsNullOrEmpty(_ctx.LobbyRcId))
-                    await _ctx.Bus.SwitchContextAsync(_ctx.LobbyRcId);
+                // Context switch happens in OnClientConnect ahead of this event; no swap needed here.
                 await Application.Current.Dispatcher.InvokeAsync(() =>
                 {
                     _windowHook?.Dispose();
                     _windowHook = null;
                     _hotkeys.UnregisterAll();
                     CloseGameSession();
+                    AddSavesNavSection();
+                    _workspace.SetNavTitle(null);
                     _tray.SetConnected();
                 });
             }
@@ -251,5 +304,25 @@ namespace EDNAClient.Core
 
         private IEnumerable<IEdnaSkill> EnabledSkills() =>
             _skills.Where(s => _settings.EnabledSkillIds.Contains(s.Id));
+
+        // Adds the lobby/offline level-0 "Games" section to the navbar. No-op when
+        // Empyrion install or Saves directory cannot be resolved. Called on lobby
+        // entry and on game exit. Must run on the UI dispatcher (ObservableCollection).
+        private void AddSavesNavSection()
+        {
+            var node = SavesNavBuilder.Build();
+            if (node == null) return;
+            _workspace.NavViewModel.AddRootSection(node);
+        }
+
+        // Derives a display-friendly save name from the saveGamePath supplied on GameEnter.
+        // Returns null when the path is empty or unparseable -- caller treats null as
+        // "fall back to default title".
+        private static string? SaveNameFromPath(string? saveGamePath)
+        {
+            if (string.IsNullOrEmpty(saveGamePath)) return null;
+            try { return Path.GetFileName(saveGamePath.TrimEnd('\\', '/')); }
+            catch { return null; }
+        }
     }
 }
