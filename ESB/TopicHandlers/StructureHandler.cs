@@ -646,7 +646,11 @@ namespace ESB.TopicHandlers
 
         // =========================================================================
         // Structure/GetAllBlocks -- { "EntityId": int }
-        // response: { EntityId, Blocks: { Columns: ["X","Y","Z","Type","Shape","Rotation","Active"], Rows: [[...], ...] } }
+        // response: { EntityId, Blocks: { Columns: ["X","Y","Z","Type","HitPoints","Active"], Rows: [[...], ...] } }
+        //
+        // HitPoints (from IBlock.GetHitPoints()) encodes the block's current hit-point pool;
+        // for an undamaged block this is a function of its shape (full cube = max, half block
+        // less, slope less still). Consumers normalize per-Type to derive a shape/solidity factor.
         //
         // GetBlock coordinate note: IStructure.MinPos/MaxPos X and Z map directly to the
         // coordinates GetBlock expects. Y does not -- MinPos/MaxPos Y is in structure-centered
@@ -681,17 +685,18 @@ namespace ESB.TopicHandlers
                         {
                             var block = structure.GetBlock(x, y, z);
                             if (block == null) continue;
-                            int type, shape, rotation;
+                            int type;
                             bool active;
-                            block.Get(out type, out shape, out rotation, out active);
+                            block.Get(out type, out _, out _, out active);
                             if (type == 0) continue;
-                            rows.Add(new JArray(x, y, z, type, shape, rotation, active));
+                            int hp = block.GetHitPoints();
+                            rows.Add(new JArray(x, y, z, type, hp, active));
                         }
 
                 var json = new JObject(
                     new JProperty("EntityId", entityId),
                     new JProperty("Blocks", MessageHelpers.Tabular(
-                        new[] { "X", "Y", "Z", "Type", "Shape", "Rotation", "Active" }, rows)));
+                        new[] { "X", "Y", "Z", "Type", "HitPoints", "Active" }, rows)));
 
                 return Task.FromResult(json.ToString(Formatting.None));
             }

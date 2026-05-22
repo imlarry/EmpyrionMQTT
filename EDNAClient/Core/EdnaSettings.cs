@@ -11,7 +11,7 @@ namespace EDNAClient.Core
         private const string StartupKey  = @"Software\Microsoft\Windows\CurrentVersion\Run";
         private const string StartupName = "EDNA";
 
-        public HashSet<string> EnabledSkillIds { get; set; } = new() { "ThreatRadar", "FloorMap", "ScriptEditor", "GalaxyMap" };
+        public HashSet<string> EnabledSkillIds { get; set; } = new() { "ThreatRadar", "FloorMap", "Tomography", "ScriptEditor", "GalaxyMap", "WindowToggle" };
 
         public static EdnaSettings Load()
         {
@@ -21,7 +21,7 @@ namespace EDNAClient.Core
             {
                 EnabledSkillIds = info?.EnabledSkillIds is { Count: > 0 }
                     ? info.EnabledSkillIds
-                    : new HashSet<string> { "ThreatRadar", "FloorMap", "ScriptEditor", "GalaxyMap" },
+                    : new HashSet<string> { "ThreatRadar", "FloorMap", "Tomography", "ScriptEditor", "GalaxyMap", "WindowToggle" },
             };
         }
 

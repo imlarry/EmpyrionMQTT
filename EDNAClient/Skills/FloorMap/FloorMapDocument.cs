@@ -18,11 +18,9 @@ namespace EDNAClient.Skills.FloorMap
     // dict can be rebuilt from the list on load without extra metadata.
     public sealed class BlockEntry
     {
-        public int X        { get; set; }
-        public int Z        { get; set; }
-        public int Type     { get; set; }
-        public int Shape    { get; set; }
-        public int Rotation { get; set; }
+        public int X    { get; set; }
+        public int Z    { get; set; }
+        public int Type { get; set; }
     }
 
     // One captured structure: raw GetAllBlocks data + metadata + rendered bitmap.
@@ -170,13 +168,11 @@ namespace EDNAClient.Skills.FloorMap
                 if (name != null) colIndex[name] = i;
             }
 
-            int ixX     = colIndex["X"];
-            int ixY     = colIndex["Y"];
-            int ixZ     = colIndex["Z"];
-            int ixType  = colIndex["Type"];
-            int ixShape = colIndex["Shape"];
-            int ixRot   = colIndex["Rotation"];
-            int minCols = Math.Max(Math.Max(ixX, ixY), Math.Max(Math.Max(ixZ, ixType), Math.Max(ixShape, ixRot))) + 1;
+            int ixX    = colIndex["X"];
+            int ixY    = colIndex["Y"];
+            int ixZ    = colIndex["Z"];
+            int ixType = colIndex["Type"];
+            int minCols = Math.Max(Math.Max(ixX, ixY), Math.Max(ixZ, ixType)) + 1;
 
             var wallBlocks  = new List<BlockEntry>();
             var floorBlocks = new List<BlockEntry>();
@@ -190,10 +186,8 @@ namespace EDNAClient.Skills.FloorMap
                 int bz   = (int)(arr[ixZ]    ?? 0);
                 int type = (int)(arr[ixType] ?? 0);
                 if (type == 0 || SkippedTypes.Contains(type)) continue;
-                int shape = (int)(arr[ixShape] ?? 0);
-                int rot   = (int)(arr[ixRot]   ?? 0);
 
-                var entry = new BlockEntry { X = bx, Z = bz, Type = type, Shape = shape, Rotation = rot };
+                var entry = new BlockEntry { X = bx, Z = bz, Type = type };
                 if      (by == Y)     wallBlocks .Add(entry);
                 else if (by == Y - 1) floorBlocks.Add(entry);
             }
@@ -257,8 +251,7 @@ namespace EDNAClient.Skills.FloorMap
                                       : category == TileCategory.Console ? "C"
                                                                          : block.Type.ToString();
 
-                        dc.DrawGeometry(brush, null, ShapeGeometry.Get(block.Shape, block.Rotation, cellRect));
-                        dc.DrawRectangle(null, GridPen, cellRect);
+                        dc.DrawRectangle(brush, GridPen, cellRect);
 
                         var lbl = MakeLabel(labelText);
                         dc.DrawText(lbl, new Point(

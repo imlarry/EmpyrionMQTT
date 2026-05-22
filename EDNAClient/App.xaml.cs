@@ -6,6 +6,8 @@ using EDNAClient.Skills.FloorMap;
 using EDNAClient.Skills.Scripting.ScriptEditor;
 using EDNAClient.Skills.GalaxyMap;
 using EDNAClient.Skills.ThreatRadar;
+using EDNAClient.Skills.Tomography;
+using EDNAClient.Skills.WindowToggle;
 using EDNAClient.Tray;
 using EDNAClient.Workspace;
 
@@ -42,11 +44,13 @@ namespace EDNAClient
 
             var threatRadar  = new ThreatRadarSkill(new ThreatViewModel());
             var floorMap     = new FloorMapSkill(_workspace);
+            var tomography   = new TomographySkill(_workspace);
             var scriptEditor = new ScriptEditorSkill(_workspace);
             var galaxyMap    = new GalaxyMapSkill(_workspace);
+            var windowToggle = new WindowToggleSkill(_workspace);
 
             _service = new EdnaService(
-                skills:    new IEdnaSkill[] { threatRadar, floorMap, scriptEditor, galaxyMap },
+                skills:    new IEdnaSkill[] { threatRadar, floorMap, tomography, scriptEditor, galaxyMap, windowToggle },
                 tray:      _tray,
                 workspace: _workspace);
 

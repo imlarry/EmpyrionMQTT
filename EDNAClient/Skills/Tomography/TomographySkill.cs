@@ -1,30 +1,34 @@
+using System;
+using System.Collections.Generic;
+using System.ComponentModel;
 using System.IO;
+using System.Linq;
+using System.Threading.Tasks;
+using System.Windows;
 using EDNAClient.Core;
 using EDNAClient.Helpers;
 using EDNAClient.Workspace;
-using ESB.Messaging;
-using Newtonsoft.Json.Linq;
 
-namespace EDNAClient.Skills.FloorMap
+namespace EDNAClient.Skills.Tomography
 {
-    public class FloorMapSkill : IEdnaSkill, IGameContextReceiver, IDocumentSkill, IPlayfieldObserver
+    public class TomographySkill : IEdnaSkill, IGameContextReceiver, IDocumentSkill, IPlayfieldObserver
     {
         private readonly ISkillWorkspace _workspace;
 
-        private FloorMapper? _mapper;
-        private NavNode?     _rootNode;
-        private string?      _mapsDir;
+        private TomographyScanner? _scanner;
+        private NavNode?           _rootNode;
+        private string?            _scansDir;
 
         private string _solarSystem = "Unknown";
         private string _playfield   = "Unknown";
 
-        private readonly DocumentTracker                      _docs     = new DocumentTracker();
-        private readonly Dictionary<string, FloorMapDocument> _openData = new Dictionary<string, FloorMapDocument>();
+        private readonly DocumentTracker                        _docs     = new DocumentTracker();
+        private readonly Dictionary<string, TomographyDocument> _openData = new Dictionary<string, TomographyDocument>();
 
-        public string Id    => "FloorMap";
-        public string Title => "Floor Map";
+        public string Id    => "Tomography";
+        public string Title => "Tomography";
 
-        public FloorMapSkill(ISkillWorkspace workspace)
+        public TomographySkill(ISkillWorkspace workspace)
         {
             _workspace = workspace;
         }
@@ -33,16 +37,15 @@ namespace EDNAClient.Skills.FloorMap
 
         public async Task StartAsync(EdnaContext ctx)
         {
-            _mapper = new FloorMapper();
-            await _mapper.StartAsync(ctx);
+            _scanner = new TomographyScanner();
+            await _scanner.StartAsync(ctx);
         }
 
-        // Full stop: close UI then tear down MQTT.
         public void Stop()
         {
             OnGameExit();
-            _mapper?.Stop();
-            _mapper = null;
+            _scanner?.Stop();
+            _scanner = null;
         }
 
         public void SnapToGameWindow() { }
@@ -53,18 +56,17 @@ namespace EDNAClient.Skills.FloorMap
         {
             try
             {
-                _mapsDir = Path.Combine(saveGamePath, "Content", "Mods", "ESB", "EDNA", "skills", "floormap");
-                Directory.CreateDirectory(_mapsDir);
-                EdnaLogger.Log($"FloorMap mapsDir={_mapsDir}");
+                _scansDir = Path.Combine(saveGamePath, "Content", "Mods", "ESB", "EDNA", "skills", "tomography");
+                Directory.CreateDirectory(_scansDir);
+                EdnaLogger.Log($"Tomography scansDir={_scansDir}");
                 UI.Invoke(BuildNavTree);
             }
             catch (Exception ex)
             {
-                EdnaLogger.Error("FloorMapSkill.OnGameEnter failed", ex);
+                EdnaLogger.Error("TomographySkill.OnGameEnter failed", ex);
             }
         }
 
-        // Closes all open documents and removes the nav section. Keeps MQTT alive.
         public void OnGameExit()
         {
             UI.Invoke(() =>
@@ -76,63 +78,66 @@ namespace EDNAClient.Skills.FloorMap
                 _openData.Clear();
                 _docs.CloseAll(_workspace);
             });
-            _mapsDir = null;
+            _scansDir = null;
         }
 
         // ── IDocumentSkill ────────────────────────────────────────────────────
 
-        public IReadOnlyList<string> GetOpenDocumentIds() =>
-            _docs.GetOpenIds();
+        public IReadOnlyList<string> GetOpenDocumentIds() => _docs.GetOpenIds();
 
-        // Searches _mapsDir recursively for each saved document file and re-opens it.
         public void RestoreDocuments(IReadOnlyList<string> contentIds)
         {
-            if (_mapsDir == null) return;
+            if (_scansDir == null) return;
             foreach (var id in contentIds)
             {
-                EdnaLogger.Log($"[FloorMap] restoring document '{id}'");
-                var matches = Directory.GetFiles(_mapsDir, $"{id}.json", SearchOption.AllDirectories);
+                EdnaLogger.Log($"[Tomography] restoring document '{id}'");
+                // Persisted file name uses the entity id (matches FloorMap); document id has 'tomo-' prefix.
+                var entitySegment = id.StartsWith("tomo-") ? id.Substring(5) : id;
+                var matches = Directory.GetFiles(_scansDir, $"{entitySegment}.json", SearchOption.AllDirectories);
                 if (matches.Length > 0)
                     OpenFromFile(matches[0]);
                 else
-                    EdnaLogger.Warn($"[FloorMap] restore: no file found for document '{id}'");
+                    EdnaLogger.Warn($"[Tomography] restore: no file found for document '{id}'");
             }
         }
 
-        // ── Capture trigger ───────────────────────────────────────────────────
+        // ── Scan trigger ──────────────────────────────────────────────────────
 
-        // Invoked from the FloorMap nav root context menu ("Capture Floor Map").
-        // The previous Ctrl+Shift+R hotkey was reassigned to a window-focus toggle
-        // (the only key Empyrion's raw-input layer reliably surfaces to EDNA).
-        private void StartCapture()
+        // Invoked from the Tomography nav root context menu ("Scan Current Structure").
+        // Hotkeys were attempted but Empyrion's raw-input capture swallows global Win32
+        // hotkeys before EDNA sees them, so this is the only reliable trigger.
+        private void StartScan()
         {
-            EdnaLogger.Log($"[FloorMap] StartCapture invoked: mapper={_mapper != null} mapsDir={_mapsDir}");
-            if (_mapper == null) { EdnaLogger.Warn("[FloorMap] capture ignored: mapper not started"); return; }
+            EdnaLogger.Log($"[Tomography] StartScan invoked: scanner={_scanner != null} scansDir={_scansDir} ss={_solarSystem} pf={_playfield}");
+            if (_scanner == null) { EdnaLogger.Warn("[Tomography] scan ignored: scanner not started"); return; }
 
             var ss = _solarSystem;
             var pf = _playfield;
 
-            var dir = _mapsDir;
             _ = Task.Run(async () =>
             {
-                FloorMapDocument? doc = null;
+                EdnaLogger.Log("[Tomography] background scan task started");
+                TomographyDocument? doc = null;
                 try
                 {
-                    doc = await _mapper.RefreshAsync(ss, pf, dir, status =>
-                        UI.Invoke(() => UpdateOrShowStatus(status)));
+                    doc = await _scanner.ScanAsync(ss, pf, status =>
+                    {
+                        EdnaLogger.Log($"[Tomography] status: {status}");
+                        UI.Invoke(() => UpdateOrShowStatus(status));
+                    });
                 }
                 catch (Exception ex)
                 {
-                    EdnaLogger.Error("FloorMapSkill capture failed", ex);
+                    EdnaLogger.Error("TomographySkill capture failed", ex);
                 }
 
                 if (doc == null)
                 {
-                    EdnaLogger.Warn("[FloorMap] RefreshAsync returned null -- no document produced");
+                    EdnaLogger.Warn("[Tomography] ScanAsync returned null -- no document produced");
                     return;
                 }
 
-                EdnaLogger.Log($"[FloorMap] capture succeeded: docId={doc.DocumentId} Y={doc.Y}");
+                EdnaLogger.Log($"[Tomography] capture succeeded: docId={doc.DocumentId} tris={doc.Indices.Length / 3}");
                 UI.Invoke(() => ApplyCapturedDocument(doc));
             });
         }
@@ -143,7 +148,7 @@ namespace EDNAClient.Skills.FloorMap
                 d.StatusText = status;
         }
 
-        private void ApplyCapturedDocument(FloorMapDocument incoming)
+        private void ApplyCapturedDocument(TomographyDocument incoming)
         {
             var docId = incoming.DocumentId;
 
@@ -151,18 +156,18 @@ namespace EDNAClient.Skills.FloorMap
             {
                 existing.UpdateFrom(incoming);
                 _docs.TryActivate(docId);
-                if (_mapsDir != null)
+                if (_scansDir != null)
                 {
-                    var path = MapFilePath(incoming);
+                    var path = ScanFilePath(incoming);
                     if (File.Exists(path)) incoming.Save(path);
                 }
                 return;
             }
 
             bool fileExists = false;
-            if (_mapsDir != null)
+            if (_scansDir != null)
             {
-                var path = MapFilePath(incoming);
+                var path = ScanFilePath(incoming);
                 if (File.Exists(path))
                 {
                     incoming.Save(path);
@@ -175,26 +180,26 @@ namespace EDNAClient.Skills.FloorMap
             if (fileExists) RebuildNavTree();
         }
 
-        // ── MQTT event handler ────────────────────────────────────────────────
+        // ── IPlayfieldObserver ────────────────────────────────────────────────
 
         public void OnPlayfieldLoaded(string solarSystem, string playfield, double x, double y, double z)
         {
             if (!string.IsNullOrEmpty(solarSystem)) _solarSystem = solarSystem;
             if (!string.IsNullOrEmpty(playfield))   _playfield   = playfield;
-            EdnaLogger.Log($"[FloorMap] location updated: solarSystem={_solarSystem} playfield={_playfield}");
+            EdnaLogger.Log($"[Tomography] location updated: solarSystem={_solarSystem} playfield={_playfield}");
         }
 
         // ── Document lifecycle ────────────────────────────────────────────────
 
-        private void OpenDocumentTab(FloorMapDocument doc, bool dirty)
+        private void OpenDocumentTab(TomographyDocument doc, bool dirty)
         {
             var docId = doc.DocumentId;
             _openData[docId] = doc;
             _docs.Open(_workspace,
                 title:     dirty ? $"*{doc.ShortTitle}" : doc.ShortTitle,
                 contentId: docId,
-                content:   new FloorMapPanel(doc),
-                onClosing: dirty ? (EventHandler<System.ComponentModel.CancelEventArgs>)((_, e) => OnDirtyDocumentClosing(doc, e)) : null,
+                content:   new TomographyPanel(doc),
+                onClosing: dirty ? (EventHandler<CancelEventArgs>)((_, e) => OnDirtyDocumentClosing(doc, e)) : null,
                 onClosed:  () => _openData.Remove(docId));
 
             _workspace.SetDocumentMenuItems(docId, new[]
@@ -206,8 +211,8 @@ namespace EDNAClient.Skills.FloorMap
 
         private void SaveDocument(string docId)
         {
-            if (_mapsDir == null || !_openData.TryGetValue(docId, out var doc)) return;
-            var path = MapFilePath(doc);
+            if (_scansDir == null || !_openData.TryGetValue(docId, out var doc)) return;
+            var path = ScanFilePath(doc);
             Directory.CreateDirectory(Path.GetDirectoryName(path)!);
             doc.Save(path);
             _docs.UpdateTitle(docId, doc.ShortTitle);
@@ -216,29 +221,25 @@ namespace EDNAClient.Skills.FloorMap
 
         private void DeleteDocument(string docId)
         {
-            if (_mapsDir == null || !_openData.TryGetValue(docId, out var doc)) return;
-            DeleteMapFile(MapFilePath(doc));
+            if (_scansDir == null || !_openData.TryGetValue(docId, out var doc)) return;
+            DeleteScanFile(ScanFilePath(doc));
         }
 
-        private void OnDirtyDocumentClosing(FloorMapDocument doc, System.ComponentModel.CancelEventArgs e)
+        private void OnDirtyDocumentClosing(TomographyDocument doc, CancelEventArgs e)
         {
-            if (_mapsDir == null) return;
+            if (_scansDir == null) return;
 
             var result = MessageBox.Show(_workspace.DialogOwner,
-                $"Save floor map for entity {doc.EntityId} Y={doc.Y}?",
-                "Save Floor Map",
+                $"Save tomography for entity {doc.EntityId}?",
+                "Save Tomography",
                 MessageBoxButton.YesNoCancel,
                 MessageBoxImage.Question);
 
-            if (result == MessageBoxResult.Cancel)
-            {
-                e.Cancel = true;
-                return;
-            }
+            if (result == MessageBoxResult.Cancel) { e.Cancel = true; return; }
 
             if (result == MessageBoxResult.Yes)
             {
-                var path = MapFilePath(doc);
+                var path = ScanFilePath(doc);
                 try
                 {
                     doc.Save(path);
@@ -246,14 +247,14 @@ namespace EDNAClient.Skills.FloorMap
                 }
                 catch (Exception ex)
                 {
-                    EdnaLogger.Warn($"FloorMap save failed: {ex.Message}");
+                    EdnaLogger.Warn($"Tomography save failed: {ex.Message}");
                 }
             }
         }
 
         private void OpenFromFile(string path)
         {
-            var doc = FloorMapDocument.Load(path);
+            var doc = TomographyDocument.Load(path);
             if (doc == null) return;
 
             var docId = doc.DocumentId;
@@ -265,7 +266,7 @@ namespace EDNAClient.Skills.FloorMap
 
         private void BuildNavTree()
         {
-            if (_mapsDir == null) return;
+            if (_scansDir == null) return;
 
             _rootNode = new NavNode
             {
@@ -274,26 +275,34 @@ namespace EDNAClient.Skills.FloorMap
                 IsExpanded = true,
                 ContextItems = new List<NavMenuItem>
                 {
-                    new NavMenuItem { Header = "Capture Floor Map", Execute = () => UI.Invoke(StartCapture) },
+                    new NavMenuItem
+                    {
+                        Header  = "Scan Current Structure",
+                        Execute = () =>
+                        {
+                            EdnaLogger.Log("[Tomography] context menu click");
+                            UI.Invoke(StartScan);
+                        }
+                    },
                 },
             };
 
-            PopulateNavFromDisk(_rootNode, _mapsDir);
+            PopulateNavFromDisk(_rootNode, _scansDir);
             _workspace.NavViewModel.AddRootSection(_rootNode);
         }
 
         private void RebuildNavTree()
         {
-            if (_rootNode == null || _mapsDir == null) return;
+            if (_rootNode == null || _scansDir == null) return;
             _rootNode.Children.Clear();
-            PopulateNavFromDisk(_rootNode, _mapsDir);
+            PopulateNavFromDisk(_rootNode, _scansDir);
         }
 
-        private void PopulateNavFromDisk(NavNode root, string mapsDir)
+        private void PopulateNavFromDisk(NavNode root, string scansDir)
         {
-            if (!Directory.Exists(mapsDir)) return;
+            if (!Directory.Exists(scansDir)) return;
 
-            foreach (var ssDir in Directory.GetDirectories(mapsDir).OrderBy(Path.GetFileName))
+            foreach (var ssDir in Directory.GetDirectories(scansDir).OrderBy(Path.GetFileName))
             {
                 var ssName = Path.GetFileName(ssDir);
                 var ssNode = new NavNode { Name = ssName, NodeType = NavNodeType.MapSolarSystem };
@@ -305,9 +314,9 @@ namespace EDNAClient.Skills.FloorMap
 
                     foreach (var file in Directory.GetFiles(pfDir, "*.json").OrderBy(Path.GetFileName))
                     {
-                        var f       = file;
-                        var entId   = Path.GetFileNameWithoutExtension(file);
-                        var leaf = new NavNode
+                        var f     = file;
+                        var entId = Path.GetFileNameWithoutExtension(file);
+                        var leaf  = new NavNode
                         {
                             Name       = $"Entity {entId}",
                             NodeType   = NavNodeType.MapEntity,
@@ -317,43 +326,42 @@ namespace EDNAClient.Skills.FloorMap
                         leaf.ContextItems = new List<NavMenuItem>
                         {
                             new NavMenuItem { Header = "Open",   Execute = () => UI.Invoke(() => OpenFromFile(f)) },
-                            new NavMenuItem { Header = "Delete", Execute = () => UI.Invoke(() => DeleteMapFile(f)) },
+                            new NavMenuItem { Header = "Delete", Execute = () => UI.Invoke(() => DeleteScanFile(f)) },
                         };
                         pfNode.Children.Add(leaf);
                     }
 
-                    if (pfNode.Children.Count > 0)
-                        ssNode.Children.Add(pfNode);
+                    if (pfNode.Children.Count > 0) ssNode.Children.Add(pfNode);
                 }
 
-                if (ssNode.Children.Count > 0)
-                    root.Children.Add(ssNode);
+                if (ssNode.Children.Count > 0) root.Children.Add(ssNode);
             }
         }
 
-        private void DeleteMapFile(string path)
+        private void DeleteScanFile(string path)
         {
             var name = Path.GetFileNameWithoutExtension(path);
-            if (MessageBox.Show(_workspace.DialogOwner, $"Delete map '{name}'?", "Delete Floor Map",
+            if (MessageBox.Show(_workspace.DialogOwner, $"Delete tomography '{name}'?", "Delete Tomography",
                     MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes)
                 return;
 
-            var docId = name;
+            // Filename is the entity id; document id has 'tomo-' prefix.
+            var docId = $"tomo-{name}";
             _docs.Remove(_workspace, docId);
             _openData.Remove(docId);
 
             try { File.Delete(path); }
-            catch (Exception ex) { EdnaLogger.Warn($"FloorMap delete '{path}' failed: {ex.Message}"); }
+            catch (Exception ex) { EdnaLogger.Warn($"Tomography delete '{path}' failed: {ex.Message}"); }
 
             RebuildNavTree();
         }
 
         // ── Helpers ───────────────────────────────────────────────────────────
 
-        private string MapFilePath(FloorMapDocument doc)
+        private string ScanFilePath(TomographyDocument doc)
         {
-            var safe = (string s) => string.Join("_", s.Split(Path.GetInvalidFileNameChars()));
-            return Path.Combine(_mapsDir!,
+            Func<string, string> safe = s => string.Join("_", s.Split(Path.GetInvalidFileNameChars()));
+            return Path.Combine(_scansDir!,
                 safe(doc.SolarSystem),
                 safe(doc.Playfield),
                 $"{doc.EntityId}.json");
