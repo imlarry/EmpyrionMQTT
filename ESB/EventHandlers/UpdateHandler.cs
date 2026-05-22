@@ -1,7 +1,6 @@
 using System;
 using System.Threading.Tasks;
 using ESB.Interfaces;
-using ESB.Messaging;
 
 
 namespace ESB.EventHandlers
@@ -19,7 +18,7 @@ namespace ESB.EventHandlers
         {
             if (_ctx.MainThreadRunner.HasActionsToProcess())
             {
-                _ = _ctx.Messenger.SendAsync(_ctx.Messenger.MachineId(), "App", MessageType.Log, "Update", "Processing actions on main thread");
+                _ = _ctx.Bus.LogAsync(_ctx.Bus.MachineId, "App", "Update", "Processing actions on main thread");
                 while (_ctx.MainThreadRunner.HasActionsToProcess())
                 {
                     _ctx.MainThreadRunner.ProcessActions();
@@ -47,7 +46,7 @@ namespace ESB.EventHandlers
             }
             catch (Exception ex)
             {
-                await _ctx.Messenger.SendAsync(_ctx.Messenger.MachineId(), "App", MessageType.Log, "UpdateHandler", ex.ToString());
+                await _ctx.Bus.LogAsync(_ctx.Bus.MachineId, "App", "UpdateHandler", ex.ToString());
             }
         }
     }

@@ -68,7 +68,7 @@ namespace ESB
             var json = new JObject(
                 new JProperty("Status",      "Created"),
                 new JProperty("ContextRcId", _ctx.Bus.ContextRcId));
-            await _ctx.Messenger.SendAsync(_ctx.Bus.MachineId, "App", MessageType.Log, "GameManager", json.ToString(Newtonsoft.Json.Formatting.None));
+            await _ctx.Bus.LogAsync(_ctx.Bus.MachineId, "App", "GameManager", json.ToString(Newtonsoft.Json.Formatting.None));
         }
 
         // PrepareEnterGame ... computes GameRcId/GameName/etc. without changing the bus context.

@@ -38,12 +38,6 @@ Supersedes Docs/Plans/. Plans directory can be removed once this document is rev
 
 ---
 
-## ESB.Messaging Follow-on
-
-- [ ] **GZip payload compression.** Implemented in `IMessenger`/`Messenger`: `CompressionThreshold` property (default 2048); `compress` override on `SendAsync`/`PublishRetainedAsync`; auto-detect via GZip magic bytes on receive; `ctx.Payload` always arrives as plain string. Pending: live test against running game to verify wire behavior and log output.
-
----
-
 ## EDNAClient Deferred
 
 - [x] **Detection layer (foothold for installers, tray, and lobby navbar).** Landed as `EDNAClient/Setup/ProvisioningDetector.cs`. Done: (a) Steam library lookup via `SteamLocator.GetEmpyrionPath()` -- now also available to the lobby/offline navbar item; (b) ESB mod folder + `ESB_Info.yaml` presence detection; (c) MQTT broker status derived from the actual `Bus.ConnectAsync()` outcome -- classifies `MqttConnectingFailedException.ResultCode` to distinguish `Authenticated` / `AuthFailed` / `Unreachable`; no separate probe runs. Report is published as a `Provisioning/Detection` MQTT log when the bus comes up, and always written to the local EDNA log. Deliberately dropped: local-Mosquitto install detection -- too unreliable across install methods (MSI, chocolatey, scoop, custom path); the connect outcome is ground truth. Remaining: drive non-Ready `StartupState` values (NoEmpyrion, NoEsb) into distinct tray icon variants -- folded into the Tray context menu bullet below.
