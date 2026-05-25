@@ -2,6 +2,7 @@ using System.Windows;
 using WinFormsApp = System.Windows.Forms.Application;
 using EDNAClient.Configuration;
 using EDNAClient.Core;
+using EDNAClient.Core.ShapeBake;
 using EDNAClient.Skills.FloorMap;
 using EDNAClient.Skills.Scripting.ScriptEditor;
 using EDNAClient.Skills.GalaxyMap;
@@ -34,6 +35,18 @@ namespace EDNAClient
 
             EdnaLogger.Init(WellKnownPaths.LogsDirectory);
             EdnaLogger.Log("EDNA starting");
+
+            // Spike: load BlocksConfig.ecf and log a summary so we can verify the
+            // parser works end-to-end against the user's Empyrion install.
+            if (BlocksConfig.TryLoadFromEmpyrionInstall(out var blocksErr))
+                EdnaLogger.Log(BlocksConfig.Summarize());
+            else
+                EdnaLogger.Warn("BlocksConfig load skipped: " + blocksErr);
+
+            if (ShapeStampCatalog.TryLoadFromBaseDirectory(out var stampErr))
+                EdnaLogger.Log(ShapeStampCatalog.Summarize());
+            else
+                EdnaLogger.Warn("ShapeStampCatalog load skipped: " + stampErr);
 
             ShutdownMode = ShutdownMode.OnExplicitShutdown;
             WinFormsApp.EnableVisualStyles();

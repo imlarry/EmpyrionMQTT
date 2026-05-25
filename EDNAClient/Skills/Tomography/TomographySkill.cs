@@ -103,12 +103,71 @@ namespace EDNAClient.Skills.Tomography
 
         // ── Scan trigger ──────────────────────────────────────────────────────
 
-        // Invoked from the Tomography nav root context menu ("Scan Current Structure").
-        // Hotkeys were attempted but Empyrion's raw-input capture swallows global Win32
-        // hotkeys before EDNA sees them, so this is the only reliable trigger.
-        private void StartScan()
+        // Invoked from a Tomography nav root context-menu entry. Hotkeys were
+        // attempted but Empyrion's raw-input capture swallows global Win32 hotkeys
+        // before EDNA sees them, so the context menu is the only reliable trigger.
+        // One menu entry per preset (see TomographyScanner.Presets) lets the user
+        // rescan the same structure with different smoothing/iso settings to compare.
+        // One context-menu entry per reconstruction preset.  TomographyScanner.Presets[0]
+        // is the default and is labeled accordingly; the rest are listed in declaration order.
+        private List<NavMenuItem> BuildScanMenu()
         {
-            EdnaLogger.Log($"[Tomography] StartScan invoked: scanner={_scanner != null} scansDir={_scansDir} ss={_solarSystem} pf={_playfield}");
+            var items = new List<NavMenuItem>();
+            for (int i = 0; i < TomographyScanner.Presets.Length; i++)
+            {
+                var p = TomographyScanner.Presets[i];
+                string label = i == 0
+                    ? $"Scan Current Structure  ({p.Name})"
+                    : $"Scan Current Structure  ({p.Name})";
+                items.Add(new NavMenuItem
+                {
+                    Header  = label,
+                    Execute = () =>
+                    {
+                        EdnaLogger.Log($"[Tomography] context menu click preset={p.Name}");
+                        UI.Invoke(() => StartScan(p));
+                    },
+                });
+            }
+            items.Add(new NavMenuItem
+            {
+                Header  = "Calibrate: Set Rotation Atlas (in-game)",
+                Execute = () =>
+                {
+                    EdnaLogger.Log("[Tomography] context menu click SetRotationAtlas");
+                    UI.Invoke(StartSetRotationAtlas);
+                },
+            });
+            return items;
+        }
+
+        private void StartSetRotationAtlas()
+        {
+            if (_scanner == null)
+            {
+                EdnaLogger.Warn("[Tomography] SetRotationAtlas ignored: scanner not started");
+                return;
+            }
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await _scanner.SetRotationAtlasAsync(status =>
+                    {
+                        EdnaLogger.Log($"[Tomography] {status}");
+                        UI.Invoke(() => UpdateOrShowStatus(status));
+                    });
+                }
+                catch (Exception ex)
+                {
+                    EdnaLogger.Error("TomographySkill.SetRotationAtlas failed", ex);
+                }
+            });
+        }
+
+        private void StartScan(TomographyPreset preset)
+        {
+            EdnaLogger.Log($"[Tomography] StartScan invoked preset={preset.Name}: scanner={_scanner != null} scansDir={_scansDir} ss={_solarSystem} pf={_playfield}");
             if (_scanner == null) { EdnaLogger.Warn("[Tomography] scan ignored: scanner not started"); return; }
 
             var ss = _solarSystem;
@@ -120,7 +179,7 @@ namespace EDNAClient.Skills.Tomography
                 TomographyDocument? doc = null;
                 try
                 {
-                    doc = await _scanner.ScanAsync(ss, pf, status =>
+                    doc = await _scanner.ScanAsync(ss, pf, preset, status =>
                     {
                         EdnaLogger.Log($"[Tomography] status: {status}");
                         UI.Invoke(() => UpdateOrShowStatus(status));
@@ -152,6 +211,21 @@ namespace EDNAClient.Skills.Tomography
         {
             var docId = incoming.DocumentId;
 
+            // Shape Gallery is reproducible from shapes.bake, so it lives only
+            // in-memory: no Save/Delete menu, no save-on-close prompt, no
+            // nav-tree entry. Re-running the menu item just refreshes the tab.
+            if (incoming.IsGallery)
+            {
+                if (_openData.TryGetValue(docId, out var existingGallery))
+                {
+                    existingGallery.UpdateFrom(incoming);
+                    _docs.TryActivate(docId);
+                    return;
+                }
+                OpenGalleryTab(incoming);
+                return;
+            }
+
             if (_openData.TryGetValue(docId, out var existing))
             {
                 existing.UpdateFrom(incoming);
@@ -178,6 +252,19 @@ namespace EDNAClient.Skills.Tomography
             OpenDocumentTab(incoming, dirty: !fileExists);
 
             if (fileExists) RebuildNavTree();
+        }
+
+        private void OpenGalleryTab(TomographyDocument doc)
+        {
+            var docId = doc.DocumentId;
+            _openData[docId] = doc;
+            _docs.Open(_workspace,
+                title:     doc.ShortTitle,
+                contentId: docId,
+                content:   new TomographyPanel(doc),
+                onClosing: null,
+                onClosed:  () => _openData.Remove(docId));
+            // Deliberately no Save / Delete actions for the gallery.
         }
 
         // ── IPlayfieldObserver ────────────────────────────────────────────────
@@ -273,18 +360,7 @@ namespace EDNAClient.Skills.Tomography
                 Name       = Title,
                 NodeType   = NavNodeType.MapRoot,
                 IsExpanded = true,
-                ContextItems = new List<NavMenuItem>
-                {
-                    new NavMenuItem
-                    {
-                        Header  = "Scan Current Structure",
-                        Execute = () =>
-                        {
-                            EdnaLogger.Log("[Tomography] context menu click");
-                            UI.Invoke(StartScan);
-                        }
-                    },
-                },
+                ContextItems = BuildScanMenu(),
             };
 
             PopulateNavFromDisk(_rootNode, _scansDir);

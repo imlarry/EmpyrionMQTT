@@ -34,6 +34,7 @@ namespace ESB.TopicHandlers
             _ctx.Bus.OnRequest("Structure", "GlobalToStructPos",       GlobalToStructPos);
             _ctx.Bus.OnRequest("Structure", "ScanFloor",               ScanFloor);
             _ctx.Bus.OnRequest("Structure", "GetAllBlocks",            GetAllBlocks);
+            _ctx.Bus.OnRequest("Structure", "SetRotationAtlas",        SetRotationAtlas);
             // LCD
             _ctx.Bus.OnRequest("Structure", "GetLcd",                  GetLcd);
             _ctx.Bus.OnRequest("Structure", "SetLcdText",              SetLcdText);
@@ -646,7 +647,14 @@ namespace ESB.TopicHandlers
 
         // =========================================================================
         // Structure/GetAllBlocks -- { "EntityId": int }
-        // response: { EntityId, Blocks: { Columns: ["X","Y","Z","Type","HitPoints","Active"], Rows: [[...], ...] } }
+        // response: { EntityId, Blocks: { Columns: ["X","Y","Z","Type","HitPoints","Active","Shape","Rotation"], Rows: [[...], ...] } }
+        //
+        // Shape (0..N) indexes into the per-Type ChildShapes list in BlocksConfig.ecf
+        // and resolves to a canonical shape name (Cube, RampA, CornerHalfA3, ...);
+        // Rotation (0..23) is one of the 24 axis-aligned cube orientations the
+        // game permits for each block. Both come from IBlock.Get(...) and let
+        // consumers (Tomography) render the actual per-block geometry instead
+        // of inferring volume from HitPoints.
         //
         // HitPoints (from IBlock.GetHitPoints()) encodes the block's current hit-point pool;
         // for an undamaged block this is a function of its shape (full cube = max, half block
@@ -685,19 +693,107 @@ namespace ESB.TopicHandlers
                         {
                             var block = structure.GetBlock(x, y, z);
                             if (block == null) continue;
-                            int type;
+                            int type, shape, rotation;
                             bool active;
-                            block.Get(out type, out _, out _, out active);
+                            block.Get(out type, out shape, out rotation, out active);
                             if (type == 0) continue;
                             int hp = block.GetHitPoints();
-                            rows.Add(new JArray(x, y, z, type, hp, active));
+                            rows.Add(new JArray(x, y, z, type, hp, active, shape, rotation));
                         }
 
                 var json = new JObject(
                     new JProperty("EntityId", entityId),
                     new JProperty("Blocks", MessageHelpers.Tabular(
-                        new[] { "X", "Y", "Z", "Type", "HitPoints", "Active" }, rows)));
+                        new[] { "X", "Y", "Z", "Type", "HitPoints", "Active", "Shape", "Rotation" }, rows)));
 
+                return Task.FromResult(json.ToString(Formatting.None));
+            }
+            catch (Exception ex)
+            {
+                return Task.FromResult(MessageHelpers.ExceptionJson(ex));
+            }
+        }
+
+        // =========================================================================
+        // Structure/SetRotationAtlas -- writes rotations 0..Count-1 onto a
+        // linear strip of indicator blocks along Z so the EDNA Rotation Atlas
+        // / Sharp scan can be calibrated against the in-game render.
+        //
+        // Payload (all fields optional, defaults aligned to the canonical test rig):
+        //   EntityId   : int    -- target structure
+        //   X          : int    -- x-coord of the strip (default 0)
+        //   Y          : int    -- y-plane in block-space the strip sits on (default 129)
+        //   StartZ     : int    -- z-coord of the rot=0 marker (default 2; closest to core at z=0)
+        //   Pitch      : int    -- spacing in blocks between adjacent markers (default 2)
+        //   Count      : int    -- number of rotations to write (default 24)
+        //   BlockType  : int    -- indicator block type to filter (default 1840)
+        //   BlockShape : int    -- indicator block shape to filter (default 26; -1 = any)
+        //
+        // Walk: rotation r is written to block at (X, Y, StartZ + r * Pitch).
+        // With defaults: rot 0 lands at z=2, rot 23 lands at z=48.
+        //
+        // Response: { EntityId, X, Y, BlockType, Set: int, Missed: [{Rot,X,Z,Reason}] }
+        // =========================================================================
+        public Task<string> SetRotationAtlas(MessageEnvelope env)
+        {
+            try
+            {
+                var args     = env.PayloadJson;
+                int entityId = (int)args["EntityId"];
+
+                int x        = args["X"]         != null && args["X"].Type         != JTokenType.Null ? (int)args["X"]         : 0;
+                int y        = args["Y"]         != null && args["Y"].Type         != JTokenType.Null ? (int)args["Y"]         : 129;
+                int startZ   = args["StartZ"]    != null && args["StartZ"].Type    != JTokenType.Null ? (int)args["StartZ"]    : 2;
+                int pitch    = args["Pitch"]     != null && args["Pitch"].Type     != JTokenType.Null ? (int)args["Pitch"]     : 2;
+                int count    = args["Count"]     != null && args["Count"].Type     != JTokenType.Null ? (int)args["Count"]     : 24;
+                int typeId   = args["BlockType"] != null && args["BlockType"].Type != JTokenType.Null ? (int)args["BlockType"] : 1840;
+                int shapeId  = args["BlockShape"]!= null && args["BlockShape"].Type!= JTokenType.Null ? (int)args["BlockShape"]: 26;
+
+                var structure = GetStructureForEntity(entityId);
+                if (structure == null) return Task.FromResult<string>(null);
+
+                var missed = new JArray();
+                int set = 0;
+
+                for (int rot = 0; rot < count; rot++)
+                {
+                    int bz = startZ + rot * pitch;
+
+                    var block = structure.GetBlock(x, y, bz);
+                    if (block == null)
+                    {
+                        missed.Add(new JObject(
+                            new JProperty("Rot",    rot),
+                            new JProperty("X",      x),
+                            new JProperty("Z",      bz),
+                            new JProperty("Reason", "no block")));
+                        continue;
+                    }
+
+                    int curType, curShape, curRot;
+                    bool curActive;
+                    block.Get(out curType, out curShape, out curRot, out curActive);
+                    if (curType != typeId || (shapeId >= 0 && curShape != shapeId))
+                    {
+                        missed.Add(new JObject(
+                            new JProperty("Rot",    rot),
+                            new JProperty("X",      x),
+                            new JProperty("Z",      bz),
+                            new JProperty("Reason", string.Format("type/shape mismatch (got {0}/{1})", curType, curShape))));
+                        continue;
+                    }
+
+                    block.Set(null, null, rot, null);
+                    set++;
+                }
+
+                var json = new JObject(
+                    new JProperty("EntityId",  entityId),
+                    new JProperty("X",         x),
+                    new JProperty("Y",         y),
+                    new JProperty("BlockType", typeId),
+                    new JProperty("Set",       set),
+                    new JProperty("Missed",    missed));
                 return Task.FromResult(json.ToString(Formatting.None));
             }
             catch (Exception ex)

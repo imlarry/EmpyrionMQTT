@@ -12,14 +12,20 @@
                        Foreground="#CCCCCC"/>
         </ToolBar>
 
-        <ScrollViewer HorizontalScrollBarVisibility="Auto"
+        <ScrollViewer x:Name="MapScroller"
+                      HorizontalScrollBarVisibility="Auto"
                       VerticalScrollBarVisibility="Auto"
                       Background="#0A0A0A">
-            <Image Source="{Binding MapImage}"
+            <Image x:Name="MapImage"
+                   Source="{Binding MapImage}"
                    Stretch="None"
                    RenderOptions.BitmapScalingMode="NearestNeighbor"
                    HorizontalAlignment="Left"
-                   VerticalAlignment="Top"/>
+                   VerticalAlignment="Top">
+                <Image.LayoutTransform>
+                    <ScaleTransform x:Name="MapScale" ScaleX="1" ScaleY="1"/>
+                </Image.LayoutTransform>
+            </Image>
         </ScrollViewer>
 
     </DockPanel>

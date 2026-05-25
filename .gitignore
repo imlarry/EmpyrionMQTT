@@ -91,6 +91,9 @@ StyleCopReport.xml
 *.tmp_proj
 *_wpftmp.csproj
 *.log
+# ShapeBaker writes a per-submesh diagnostic TSV alongside the bake; we
+# track shapes.bake itself but the TSV is regenerated on every run.
+Tools/ShapeBaker/*.submeshes.tsv
 *.vspscc
 *.vssscc
 .builds

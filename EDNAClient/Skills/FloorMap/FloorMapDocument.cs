@@ -47,20 +47,6 @@ namespace EDNAClient.Skills.FloorMap
         private static Brush Freeze(SolidColorBrush b) { b.Freeze(); return b; }
         private static System.Windows.Media.Pen FreezePen(System.Windows.Media.Pen p) { p.Freeze(); return p; }
 
-        private enum TileCategory { None, Door, Console, Walkway }
-
-        private static readonly Dictionary<int, TileCategory> TypeCategory =
-            new Dictionary<int, TileCategory>
-            {
-                [1817] = TileCategory.Door,    [1886] = TileCategory.Door,
-                [1816] = TileCategory.Door,    [2014] = TileCategory.Door,
-                [258]  = TileCategory.Console, [261]  = TileCategory.Console,
-                [1243] = TileCategory.Console, [635]  = TileCategory.Console,
-                [727]  = TileCategory.Console, [1469] = TileCategory.Console,
-                [1087] = TileCategory.Console, [636]  = TileCategory.Console,
-                [884]  = TileCategory.Walkway, [972]  = TileCategory.Walkway,
-            };
-
         // Block type IDs invisible in-game; excluded from the rendered map.
         private static readonly HashSet<int> SkippedTypes = new HashSet<int>();
 
@@ -238,18 +224,18 @@ namespace EDNAClient.Skills.FloorMap
                         var cellRect = new Rect(cx, LabelTop + cy, TileSize, TileSize);
                         var block    = hasWall ? wallDict[key] : floorDict[key];
 
-                        TypeCategory.TryGetValue(block.Type, out var category);
+                        var category = BlockClassifier.Classify(block.Type);
 
-                        var brush = category == TileCategory.Door    ? WallBrush
-                                  : category == TileCategory.Console ? FloorBrush
-                                  : category == TileCategory.Walkway ? WalkwayBrush
-                                  : hasWall && hasFloor              ? WallFloorBrush
-                                  : hasWall                          ? WallBrush
-                                                                     : FloorBrush;
+                        var brush = category == BlockCategory.Door    ? WallBrush
+                                  : category == BlockCategory.Console ? FloorBrush
+                                  : category == BlockCategory.Walkway ? WalkwayBrush
+                                  : hasWall && hasFloor               ? WallFloorBrush
+                                  : hasWall                           ? WallBrush
+                                                                      : FloorBrush;
 
-                        var labelText = category == TileCategory.Door    ? "D"
-                                      : category == TileCategory.Console ? "C"
-                                                                         : block.Type.ToString();
+                        var labelText = category == BlockCategory.Door    ? "D"
+                                      : category == BlockCategory.Console ? "C"
+                                                                          : block.Type.ToString();
 
                         dc.DrawRectangle(brush, GridPen, cellRect);
 

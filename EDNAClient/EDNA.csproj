@@ -28,6 +28,16 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Baked Empyrion shape stamps consumed by the Tomography skill.
+         Produced by Tools/ShapeBaker; loaded once at app startup by
+         ShapeStampCatalog from AppContext.BaseDirectory. -->
+    <Content Include="..\Tools\ShapeBaker\shapes.bake">
+      <Link>shapes.bake</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
+  <ItemGroup>
 <PackageReference Include="AvalonEdit" Version="6.3.0.90" />
     <PackageReference Include="Dirkster.AvalonDock" Version="4.72.1" />
     <PackageReference Include="Dirkster.AvalonDock.Themes.VS2013" Version="4.72.1" />
@@ -44,7 +54,7 @@
 
   <Target Name="DeployEDNA" AfterTargets="Build">
     <ItemGroup>
-      <_DeployFiles   Include="$(TargetDir)*.exe;$(TargetDir)*.dll;$(TargetDir)*.yaml;$(TargetDir)*.json;$(TargetDir)*.runtimeconfig.json" />
+      <_DeployFiles   Include="$(TargetDir)*.exe;$(TargetDir)*.dll;$(TargetDir)*.yaml;$(TargetDir)*.json;$(TargetDir)*.runtimeconfig.json;$(TargetDir)*.bake" />
       <_DeployScripts Include="$(TargetDir)scripts\*.lua" />
     </ItemGroup>
     <Message Importance="High" Text="EDNA deploy -> Empyrion client: @(_DeployFiles->'%(Filename)%(Extension)', ', ')"

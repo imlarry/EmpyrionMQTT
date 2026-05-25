@@ -45,6 +45,18 @@ namespace EDNAClient.Skills.WindowToggle
         [DllImport("user32.dll", SetLastError = true)]
         private static extern bool ClientToScreen(IntPtr hWnd, ref POINT lpPoint);
 
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
+
+        [DllImport("kernel32.dll")]
+        private static extern uint GetCurrentThreadId();
+
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern bool AttachThreadInput(uint idAttach, uint idAttachTo, bool fAttach);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern bool BringWindowToTop(IntPtr hWnd);
+
         [StructLayout(LayoutKind.Sequential)]
         private struct POINT { public int X, Y; }
 
@@ -74,6 +86,29 @@ namespace EDNAClient.Skills.WindowToggle
                 OnToggleHotkey);
         }
 
+        // Win32 forbids SetForegroundWindow from "stealing" focus unless the calling
+        // thread already owns the foreground window. When Empyrion holds focus, that
+        // restriction would silently drop our request -- so we temporarily attach our
+        // input queue to the foreground thread's queue, which lifts the restriction
+        // for the duration of the call.
+        private static void ForceForeground(IntPtr hWnd)
+        {
+            if (hWnd == IntPtr.Zero) return;
+            var fg = GetForegroundWindow();
+            if (fg == hWnd) return;
+
+            uint fgThread   = fg != IntPtr.Zero ? GetWindowThreadProcessId(fg, out _) : 0;
+            uint thisThread = GetCurrentThreadId();
+            bool attached   = false;
+            if (fgThread != 0 && fgThread != thisThread)
+                attached = AttachThreadInput(thisThread, fgThread, true);
+
+            BringWindowToTop(hWnd);
+            SetForegroundWindow(hWnd);
+
+            if (attached) AttachThreadInput(thisThread, fgThread, false);
+        }
+
         private void OnToggleHotkey()
         {
             UI.Invoke(() =>
@@ -94,7 +129,7 @@ namespace EDNAClient.Skills.WindowToggle
                     }
 
                     if (IsIconic(gameHwnd)) ShowWindow(gameHwnd, SW_RESTORE);
-                    SetForegroundWindow(gameHwnd);
+                    ForceForeground(gameHwnd);
                     EdnaLogger.Detail("[WindowToggle] -> game");
                 }
                 else
@@ -103,7 +138,7 @@ namespace EDNAClient.Skills.WindowToggle
                     if (_workspace.WindowState == WindowState.Minimized) _workspace.WindowState = WindowState.Normal;
                     if (ednaHwnd != IntPtr.Zero && IsIconic(ednaHwnd)) ShowWindow(ednaHwnd, SW_RESTORE);
                     _workspace.Activate();
-                    if (ednaHwnd != IntPtr.Zero) SetForegroundWindow(ednaHwnd);
+                    if (ednaHwnd != IntPtr.Zero) ForceForeground(ednaHwnd);
 
                     // Restore the saved cursor position, or default to (20, 20) inside the EDNA client area.
                     if (ednaHwnd != IntPtr.Zero)
