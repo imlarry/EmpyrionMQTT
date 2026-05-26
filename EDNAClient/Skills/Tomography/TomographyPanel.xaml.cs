@@ -102,7 +102,8 @@ namespace EDNAClient.Skills.Tomography
                 e.PropertyName == nameof(TomographyDocument.WindowMesh) ||
                 e.PropertyName == nameof(TomographyDocument.RedTipMesh) ||
                 e.PropertyName == nameof(TomographyDocument.GreenTipMesh) ||
-                e.PropertyName == nameof(TomographyDocument.BlueTipMesh))
+                e.PropertyName == nameof(TomographyDocument.BlueTipMesh) ||
+                e.PropertyName == nameof(TomographyDocument.FallbackMesh))
                 RebuildVisual();
         }
 
@@ -110,18 +111,20 @@ namespace EDNAClient.Skills.Tomography
 
         private void RebuildVisual()
         {
-            var hullMesh   = _document.HullMesh;
-            var windowMesh = _document.WindowMesh;
-            var redMesh    = _document.RedTipMesh;
-            var greenMesh  = _document.GreenTipMesh;
-            var blueMesh   = _document.BlueTipMesh;
-            bool haveHull   = hullMesh   != null && hullMesh.Positions   != null && hullMesh.TriangleIndices.Count   > 0;
-            bool haveWindow = windowMesh != null && windowMesh.Positions != null && windowMesh.TriangleIndices.Count > 0;
-            bool haveRed    = redMesh    != null && redMesh.Positions    != null && redMesh.TriangleIndices.Count    > 0;
-            bool haveGreen  = greenMesh  != null && greenMesh.Positions  != null && greenMesh.TriangleIndices.Count  > 0;
-            bool haveBlue   = blueMesh   != null && blueMesh.Positions   != null && blueMesh.TriangleIndices.Count   > 0;
+            var hullMesh     = _document.HullMesh;
+            var windowMesh   = _document.WindowMesh;
+            var redMesh      = _document.RedTipMesh;
+            var greenMesh    = _document.GreenTipMesh;
+            var blueMesh     = _document.BlueTipMesh;
+            var fallbackMesh = _document.FallbackMesh;
+            bool haveHull     = hullMesh     != null && hullMesh.Positions     != null && hullMesh.TriangleIndices.Count     > 0;
+            bool haveWindow   = windowMesh   != null && windowMesh.Positions   != null && windowMesh.TriangleIndices.Count   > 0;
+            bool haveRed      = redMesh      != null && redMesh.Positions      != null && redMesh.TriangleIndices.Count      > 0;
+            bool haveGreen    = greenMesh    != null && greenMesh.Positions    != null && greenMesh.TriangleIndices.Count    > 0;
+            bool haveBlue     = blueMesh     != null && blueMesh.Positions     != null && blueMesh.TriangleIndices.Count     > 0;
+            bool haveFallback = fallbackMesh != null && fallbackMesh.Positions != null && fallbackMesh.TriangleIndices.Count > 0;
 
-            if (!haveHull && !haveWindow && !haveRed && !haveGreen && !haveBlue)
+            if (!haveHull && !haveWindow && !haveRed && !haveGreen && !haveBlue && !haveFallback)
             {
                 MeshHost.Content = null;
                 return;
@@ -173,6 +176,25 @@ namespace EDNAClient.Skills.Tomography
             if (haveRed)   AddTipModel(group, redMesh!,   Color.FromRgb(0xE0, 0x20, 0x20));
             if (haveGreen) AddTipModel(group, greenMesh!, Color.FromRgb(0x20, 0xC0, 0x20));
             if (haveBlue)  AddTipModel(group, blueMesh!,  Color.FromRgb(0x30, 0x60, 0xF0));
+
+            if (haveFallback)
+            {
+                // Magenta + emissive: classic "missing texture" cue. Reads
+                // unmistakably against the teal hull so the user can count and
+                // locate every block that fell back to the Cube placeholder.
+                var fbDiffuse  = new DiffuseMaterial(new SolidColorBrush(Color.FromRgb(0xE0, 0x20, 0xA0)));
+                var fbEmissive = new EmissiveMaterial(new SolidColorBrush(Color.FromRgb(0x60, 0x10, 0x40)));
+                var fbMaterial = new MaterialGroup();
+                fbMaterial.Children.Add(fbDiffuse);
+                fbMaterial.Children.Add(fbEmissive);
+
+                group.Children.Add(new GeometryModel3D
+                {
+                    Geometry     = fallbackMesh,
+                    Material     = fbMaterial,
+                    BackMaterial = fbDiffuse,
+                });
+            }
 
             MeshHost.Content = group;
 

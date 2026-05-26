@@ -425,6 +425,7 @@ namespace EDNAClient.Skills.Tomography
             var redIdx    = new List<int>();
             var greenIdx  = new List<int>();
             var blueIdx   = new List<int>();
+            var fbIdx     = new List<int>();
             var labels    = new List<TomographyLabel>();
 
             // Built lazily so non-calibration scans skip the cost.
@@ -474,8 +475,8 @@ namespace EDNAClient.Skills.Tomography
                     continue;
                 }
 
-                BakedStamp stamp = null;
-                string shapeName;
+                BakedStamp? stamp = null;
+                string? shapeName;
                 if (StampOverrides.TryGetValue((b.Type, b.Shape), out var ovr))
                 {
                     shapeName = ovr;
@@ -495,9 +496,9 @@ namespace EDNAClient.Skills.Tomography
                     stamp = ShapeStampCatalog.GetStamp(shapeName);
                     if (stamp == null) missingStamps.Add(shapeName);
                 }
-                if (stamp == null)
+                bool isFallback = stamp == null;
+                if (isFallback)
                 {
-                    stamp = cubeStamp;
                     fellBackToCube++;
                     var cat = BlockClassifier.Classify(b.Type);
                     fallbacksByCategory.TryGetValue(cat, out int n);
@@ -505,8 +506,9 @@ namespace EDNAClient.Skills.Tomography
                 }
                 stampedBlocks++;
 
-                var rotated = RotateStamp(stamp, b.Rotation, subRes);
-                EmitStampVoxelCubes(rotated, subRes, voxSize, cx, cy, cz, positions, normals, indices);
+                var rotated = RotateStamp(stamp ?? cubeStamp, b.Rotation, subRes);
+                var dstIdx = isFallback ? fbIdx : indices;
+                EmitStampVoxelCubes(rotated, subRes, voxSize, cx, cy, cz, positions, normals, dstIdx);
             }
 
             if (fellBackToCube > 0 || remapsApplied > 0)
@@ -543,7 +545,8 @@ namespace EDNAClient.Skills.Tomography
                 entityId, solarSystem, playfield,
                 minX, minY, minZ, maxX, maxY, maxZ, 0,
                 0f, positions.ToArray(), indices.ToArray(), Array.Empty<int>(), normals.ToArray(),
-                redIdx.ToArray(), greenIdx.ToArray(), blueIdx.ToArray());
+                redIdx.ToArray(), greenIdx.ToArray(), blueIdx.ToArray(),
+                fbIdx.ToArray());
             if (doc != null && labels.Count > 0) doc.GalleryLabels = labels;
             return doc;
         }

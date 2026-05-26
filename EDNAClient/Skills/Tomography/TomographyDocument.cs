@@ -68,6 +68,11 @@ namespace EDNAClient.Skills.Tomography
         public int[] GreenTipIndices { get; set; } = Array.Empty<int>();
         public int[] BlueTipIndices  { get; set; } = Array.Empty<int>();
 
+        // Triangles for blocks that resolved to no stamp and fell back to the
+        // Cube placeholder. Rendered in a glaring "missing-texture" material
+        // so the user can visually count what Sharp is failing to represent.
+        public int[] FallbackIndices { get; set; } = Array.Empty<int>();
+
         // Shape-gallery hover labels. Populated only by BuildGallery; persisted so
         // a re-opened gallery still picks. Positions are in the same coord space
         // as Positions (pre-Center subtraction); the panel applies the offset.
@@ -119,6 +124,13 @@ namespace EDNAClient.Skills.Tomography
             private set { _blueTipMesh = value; OnPropertyChanged(); }
         }
 
+        [JsonIgnore] private MeshGeometry3D? _fallbackMesh;
+        [JsonIgnore] public MeshGeometry3D? FallbackMesh
+        {
+            get => _fallbackMesh;
+            private set { _fallbackMesh = value; OnPropertyChanged(); }
+        }
+
         // Center of the structure's bounding box in field-local coords (post-halo).
         [JsonIgnore]
         public Point3D Center => new Point3D(
@@ -156,14 +168,15 @@ namespace EDNAClient.Skills.Tomography
             return FromMesh(entityId, solarSystem, playfield,
                 minX, minY, minZ, maxX, maxY, maxZ, halo,
                 iso, positions, hullIndices, windowIndices, normals,
-                Array.Empty<int>(), Array.Empty<int>(), Array.Empty<int>());
+                Array.Empty<int>(), Array.Empty<int>(), Array.Empty<int>(), Array.Empty<int>());
         }
 
         public static TomographyDocument FromMesh(
             int entityId, string solarSystem, string playfield,
             int minX, int minY, int minZ, int maxX, int maxY, int maxZ, int halo,
             float iso, float[] positions, int[] hullIndices, int[] windowIndices, float[] normals,
-            int[] redTipIndices, int[] greenTipIndices, int[] blueTipIndices)
+            int[] redTipIndices, int[] greenTipIndices, int[] blueTipIndices,
+            int[] fallbackIndices)
         {
             var doc = new TomographyDocument
             {
@@ -182,6 +195,7 @@ namespace EDNAClient.Skills.Tomography
                 RedTipIndices   = redTipIndices,
                 GreenTipIndices = greenTipIndices,
                 BlueTipIndices  = blueTipIndices,
+                FallbackIndices = fallbackIndices,
             };
             doc.RebuildMesh();
             return doc;
@@ -206,6 +220,7 @@ namespace EDNAClient.Skills.Tomography
             RedTipIndices   = source.RedTipIndices;
             GreenTipIndices = source.GreenTipIndices;
             BlueTipIndices  = source.BlueTipIndices;
+            FallbackIndices = source.FallbackIndices;
             GalleryLabels   = source.GalleryLabels;
             RebuildMesh();
         }
@@ -298,13 +313,15 @@ namespace EDNAClient.Skills.Tomography
 
             if (Positions == null || Positions.Length < 3 ||
                 (HullIndices.Length < 3 && WindowIndices.Length < 3 &&
-                 RedTipIndices.Length < 3 && GreenTipIndices.Length < 3 && BlueTipIndices.Length < 3))
+                 RedTipIndices.Length < 3 && GreenTipIndices.Length < 3 && BlueTipIndices.Length < 3 &&
+                 FallbackIndices.Length < 3))
             {
                 HullMesh     = new MeshGeometry3D();
                 WindowMesh   = null;
                 RedTipMesh   = null;
                 GreenTipMesh = null;
                 BlueTipMesh  = null;
+                FallbackMesh = null;
                 return;
             }
 
@@ -331,6 +348,7 @@ namespace EDNAClient.Skills.Tomography
             RedTipMesh   = RedTipIndices.Length   >= 3 ? BuildSubMesh(points, normals, RedTipIndices)   : null;
             GreenTipMesh = GreenTipIndices.Length >= 3 ? BuildSubMesh(points, normals, GreenTipIndices) : null;
             BlueTipMesh  = BlueTipIndices.Length  >= 3 ? BuildSubMesh(points, normals, BlueTipIndices)  : null;
+            FallbackMesh = FallbackIndices.Length >= 3 ? BuildSubMesh(points, normals, FallbackIndices) : null;
         }
 
         // Triangle winding is reversed (i0, i2, i1) to compensate for the Z
