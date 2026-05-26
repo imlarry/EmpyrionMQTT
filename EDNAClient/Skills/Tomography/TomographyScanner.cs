@@ -1,5 +1,4 @@
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -12,117 +11,95 @@ namespace EDNAClient.Skills.Tomography
 {
     // Orchestrates the scan -> reconstruction pipeline:
     //   1. Player/GetProperties      -> current structure EntityId
-    //   2. Structure/GetAllBlocks    -> [X, Y, Z, Type, HitPoints, Active] tabular
-    //   3. Per-Type max-HP pass      -> normalize HP into a shape solidity factor in [0, 1]
-    //   4. Populate DensityField     -> sparse splat into bbox + halo
-    //   5. Gaussian smoothing        -> soften voxel edges
-    //   6. Marching cubes            -> iso-surface mesh
-    //   7. Per-vertex gradient normals
-    // Reconstruction tuning. Different combinations produce visibly different
-    // surfaces; the context menu offers one entry per preset so you can rescan
-    // a structure with each and compare.
-    //
-    //   Sigma   -- Gaussian standard deviation (larger = softer curves, more bloom)
-    //   Radius  -- kernel half-width in voxels (capped reach of the smoothing)
-    //   Iso     -- iso-surface threshold (raise to track block boundaries, lower to bloom)
-    //   Halo    -- empty-voxel padding around the bounding box (must >= Radius)
+    //   2. Structure/GetAllBlocks    -> [X, Y, Z, Type, HitPoints, Active, Shape, Rotation] tabular
+    //   3. Per-block stamp lookup    -> ShapeStampCatalog.GetStamp(BlocksConfig.ResolveShape(...))
+    //   4. Per-mode geometry emit    -> see TomographyMode
     //
     // Mode selects the geometry pipeline:
-    //   Smoothed -- density splat + Gaussian smoothing + marching cubes (default)
-    //   Blocky   -- one cube per kept block with face culling, no smoothing.
-    //               Sigma/Radius/Iso/Halo are ignored.
-    //   Gallery  -- synthetic: bypass the structure scan and array every baked
-    //               stamp from ShapeStampCatalog in a grid so you can see what
-    //               actually got baked and which shapes are missing. Each voxel
-    //               of each stamp is emitted as a tiny cube.
-    //   RotationAtlas -- synthetic: 24 cells, one per rotation index, of a
-    //               single asymmetric marker stamp. Used to calibrate the
-    //               textbook Rotations24 table against Empyrion's actual
-    //               IBlock rotation indices.
-    //   VoxelCubes -- per-block stamp + rotation, emitted as one tiny cube
-    //               per occupied voxel with intra-stamp face culling. No
-    //               density field, no marching cubes, no smoothing -- each
-    //               block reads as its exact subRes^3 voxel arrangement so
-    //               shapes and rotations are unambiguous.
-    public enum TomographyMode { Smoothed, Blocky, Gallery, RotationAtlas, VoxelCubes }
+    //   VoxelCubes    -- per-block stamp + rotation, emitted as one tiny cube
+    //                    per occupied voxel with intra-stamp face culling. The
+    //                    only mode that renders blocks at full shape fidelity.
+    //   Blocky        -- one cube per kept block with face culling, no stamps.
+    //                    Coarse overview; ignores Shape.
+    //   Gallery       -- synthetic: array every baked stamp in a grid so you
+    //                    can see what's baked and what's missing. Hover labels.
+    //   RotationAtlas -- synthetic: 24 cells, one per rotation index, of an
+    //                    asymmetric marker stamp. Used to calibrate the
+    //                    textbook Rotations24 table against Empyrion's actual
+    //                    IBlock rotation indices.
+    public enum TomographyMode { VoxelCubes, Blocky, Gallery, RotationAtlas }
 
     public sealed class TomographyPreset
     {
-        public string         Name       { get; }
-        public TomographyMode Mode       { get; }
-        public double         Sigma      { get; }
-        public int            Radius     { get; }
-        public float          Iso        { get; }
-        public int            Halo       { get; }
+        public string         Name { get; }
+        public TomographyMode Mode { get; }
 
-        // false: Sigma/Radius are in BLOCK units and get multiplied by subRes
-        //        before smoothing (legacy v1 behavior -- kernel spans whole blocks).
-        // true:  Sigma/Radius are in VOXEL units and used as-is. Lets a preset
-        //        smooth within a stamp without leaking across block boundaries.
-        public bool           VoxelScale { get; }
-
-        public TomographyPreset(string name, double sigma, int radius, float iso, int halo)
-            : this(name, TomographyMode.Smoothed, sigma, radius, iso, halo, voxelScale: false) { }
-
-        public TomographyPreset(string name, TomographyMode mode, double sigma, int radius, float iso, int halo)
-            : this(name, mode, sigma, radius, iso, halo, voxelScale: false) { }
-
-        public TomographyPreset(string name, TomographyMode mode, double sigma, int radius, float iso, int halo, bool voxelScale)
+        public TomographyPreset(string name, TomographyMode mode)
         {
-            Name = name; Mode = mode; Sigma = sigma; Radius = radius;
-            Iso = iso; Halo = halo; VoxelScale = voxelScale;
+            Name = name;
+            Mode = mode;
         }
     }
 
     internal class TomographyScanner
     {
         // ── Presets ───────────────────────────────────────────────────────────
-        // Soft     : v1 settings -- heavy smoothing, low iso. Curvy but balloons walls.
-        // Balanced : v1 smoothing, higher iso -- same curves, walls land at the cell edge.
-        // Crisp    : tighter kernel, mid iso -- less curvy, walls tight to grid.
-        // Sharp    : per-block voxel cubes -- bypasses smoothing entirely. Each
-        //            block emits its (shape, rotation)-resolved stamp as
-        //            subRes^3 tiny cubes with intra-stamp face culling. No
-        //            marching-cubes rounding so corners and detail read exactly.
-        public static readonly TomographyPreset Soft     = new TomographyPreset("Soft",     0.9,  2, 0.25f, 3);
-        public static readonly TomographyPreset Balanced = new TomographyPreset("Balanced", 0.9,  2, 0.34f, 3);
-        public static readonly TomographyPreset Crisp    = new TomographyPreset("Crisp",    0.65, 1, 0.40f, 2);
-        public static readonly TomographyPreset Sharp    = new TomographyPreset(
-            "Sharp", TomographyMode.VoxelCubes, 0, 0, 0f, 0);
+        // Sharp   : VoxelCubes -- per-block stamp + rotation emitted as tiny
+        //           cubes with intra-stamp face culling. Faithful to the
+        //           per-block Shape + Rotation data.
+        // Blocky  : one axis-aligned unit cube per kept block with neighbor
+        //           face culling. Coarse overview that ignores Shape.
+        // Gallery : diagnostic. Doesn't scan -- renders every entry in
+        //           ShapeStampCatalog with hover labels so you can see what's
+        //           baked and spot ones that look wrong.
+        // Atlas   : diagnostic. Doesn't scan -- renders 24 copies of an
+        //           asymmetric marker stamp under each of our 24 rotation
+        //           matrices for calibration against Empyrion's rotation
+        //           indexing.
+        public static readonly TomographyPreset Sharp   = new TomographyPreset("Sharp",         TomographyMode.VoxelCubes);
+        public static readonly TomographyPreset Blocky  = new TomographyPreset("Blocky",        TomographyMode.Blocky);
+        public static readonly TomographyPreset Gallery = new TomographyPreset("Shape Gallery", TomographyMode.Gallery);
+        public static readonly TomographyPreset Atlas   = new TomographyPreset("Rotation Atlas", TomographyMode.RotationAtlas);
 
-        // Blocky: bypass the density / smoothing / marching-cubes pipeline and
-        // emit one axis-aligned unit cube per kept block, with neighbor face
-        // culling. Exposes Phase 1's "every block is a cube" approximation
-        // (no Shape / Rotation yet) without smoothing masking the artifacts.
-        public static readonly TomographyPreset Blocky   = new TomographyPreset("Blocky", TomographyMode.Blocky, 0, 0, 0f, 0);
+        public static readonly TomographyPreset[] Presets = { Sharp, Blocky, Gallery, Atlas };
+        public static readonly TomographyPreset Default = Sharp;
 
-        // Gallery: diagnostic. Doesn't scan -- just renders every entry in
-        // ShapeStampCatalog so you can see what's baked. Hover-pick reveals
-        // names so you can spot the ones that look wrong.
-        public static readonly TomographyPreset Gallery  = new TomographyPreset("Shape Gallery", TomographyMode.Gallery, 0, 0, 0f, 0);
-
-        // Rotation Atlas: diagnostic. Doesn't scan -- renders 24 copies of an
-        // asymmetric marker stamp (arms of lengths 4/3/2 along +X/+Y/+Z) under
-        // each of our 24 textbook rotation matrices, one per cell, labeled
-        // "Rot N". Lets you read off Empyrion's rotation-index convention and
-        // remap our table if needed.
-        public static readonly TomographyPreset Atlas    = new TomographyPreset("Rotation Atlas", TomographyMode.RotationAtlas, 0, 0, 0f, 0);
-
-        public static readonly TomographyPreset[] Presets = { Balanced, Soft, Crisp, Sharp, Blocky, Gallery, Atlas };
-        public static readonly TomographyPreset Default = Balanced;
-
-        // Block categories treated as void during reconstruction. Blocks classified
-        // into one of these are dropped before the density splat, so the iso surface
-        // sees through them as if they were empty air. Edit via BlockClassifier.
+        // Block categories dropped from reconstruction. Blocks classified into
+        // one of these are skipped during the build so they render as empty air.
+        // Edit via BlockClassifier.
         private static readonly HashSet<BlockCategory> SkippedCategories = new HashSet<BlockCategory>
         {
             BlockCategory.EmptySpace,
             BlockCategory.Truss,
         };
 
-        // Block categories whose splatted voxels are tagged into a parallel mask
-        // so the post-MC partitioning step can route those triangles to a
-        // distinct render material instead of dropping the blocks as void.
+        // Per-Type skip list. Blocks whose Type is in this set are dropped
+        // exactly like SkippedCategories members. Use for one-off block IDs
+        // that don't warrant a whole BlockCategory entry. Populate with IDs
+        // surfaced by the Sharp fallback diagnostic log.
+        private static readonly HashSet<int> SkippedTypeIds = new HashSet<int>
+        {
+            806,                          // window variant
+            1191, 1193, 1195, 1967,       // railings
+        };
+
+        // (Type, Shape) -> baked stamp name. Consulted BEFORE
+        // BlocksConfig.ResolveShape so the override wins. Use to redirect a
+        // block whose ChildShapes entry is missing from the bake (or visually
+        // wrong) to a stamp we know works. The user's observation that a
+        // 1x1 window is geometrically a 1x1 thin cube belongs here: e.g.
+        // (770, 0) -> "Wall".
+        private static readonly Dictionary<(int Type, int Shape), string> StampOverrides =
+            new Dictionary<(int Type, int Shape), string>
+        {
+            { (770, 0), "ConcreteThin" },
+            { (796, 0), "ConcreteThin" },
+            { (798, 0), "ConcreteThin" },
+        };
+
+        // Block categories routed to the WindowIndices list in Blocky mode so
+        // the renderer can give them a glass material. Sharp does not currently
+        // differentiate; everything goes to the hull list.
         private static readonly HashSet<BlockCategory> WindowCategories = new HashSet<BlockCategory>
         {
             BlockCategory.Window,
@@ -369,260 +346,15 @@ namespace EDNAClient.Skills.Tomography
                 return BuildBlocky(entityId, solarSystem, playfield, blocks);
             if (preset.Mode == TomographyMode.VoxelCubes)
                 return BuildVoxelCubes(entityId, solarSystem, playfield, blocks);
-
-            var cols = blocks["Columns"] as JArray;
-            var rows = blocks["Rows"]    as JArray;
-            if (cols == null || rows == null || rows.Count == 0) return null;
-
-            var colIndex = new Dictionary<string, int>();
-            for (int i = 0; i < cols.Count; i++)
-            {
-                var name = (string?)cols[i];
-                if (name != null) colIndex[name] = i;
-            }
-            if (!colIndex.TryGetValue("X",         out int ixX)  ||
-                !colIndex.TryGetValue("Y",         out int ixY)  ||
-                !colIndex.TryGetValue("Z",         out int ixZ)  ||
-                !colIndex.TryGetValue("Type",      out int ixT)  ||
-                !colIndex.TryGetValue("HitPoints", out int ixHp))
-                return null;
-
-            // Shape / Rotation are optional -- older mod payloads may omit
-            // them. Shape: fall back to 0 (Cube). Rotation: fall back to 0
-            // (identity).
-            int ixShape    = colIndex.TryGetValue("Shape",    out int sh) ? sh : -1;
-            int ixRotation = colIndex.TryGetValue("Rotation", out int rh) ? rh : -1;
-
-            int minCols = Math.Max(Math.Max(ixX, ixY), Math.Max(Math.Max(ixZ, ixT), ixHp)) + 1;
-
-            // Pass 1: bounding box.
-            int minX = int.MaxValue, minY = int.MaxValue, minZ = int.MaxValue;
-            int maxX = int.MinValue, maxY = int.MinValue, maxZ = int.MinValue;
-            int kept = 0;
-
-            foreach (JToken row in rows)
-            {
-                var arr = row as JArray;
-                if (arr == null || arr.Count < minCols) continue;
-                int type = (int)(arr[ixT] ?? 0);
-                if (type == 0) continue;
-                if (SkippedCategories.Contains(BlockClassifier.Classify(type))) continue;
-                int hp = (int)(arr[ixHp] ?? 0);
-                if (hp <= 0) continue;
-
-                int x = (int)(arr[ixX] ?? 0);
-                int y = (int)(arr[ixY] ?? 0);
-                int z = (int)(arr[ixZ] ?? 0);
-                if (x < minX) minX = x; if (x > maxX) maxX = x;
-                if (y < minY) minY = y; if (y > maxY) maxY = y;
-                if (z < minZ) minZ = z; if (z > maxZ) maxZ = z;
-
-                kept++;
-            }
-            if (kept == 0) return null;
-
-            // Sub-voxel resolution comes from the bake. Each block occupies
-            // subRes^3 voxels in the DensityField; the kernel radius / sigma
-            // and the final mesh positions get scaled to keep visual output
-            // comparable to the original 1-voxel-per-block splat. Per-block
-            // stamp is resolved in Pass 2 via BlocksConfig.ResolveShape;
-            // Cube is the fallback when the shape isn't catalogued.
-            if (!ShapeStampCatalog.IsLoaded)
-            {
-                EdnaLogger.Warn("Tomography: shapes.bake not loaded; cannot scan");
-                return null;
-            }
-            int subRes = ShapeStampCatalog.Resolution;
-            var cubeStamp = ShapeStampCatalog.GetStamp("Cube");
-            if (cubeStamp == null || subRes <= 0)
-            {
-                EdnaLogger.Warn("Tomography: Cube stamp missing from bake");
-                return null;
-            }
-
-            int blockHalo = preset.Halo;
-            int blockW = (maxX - minX + 1) + 2 * blockHalo;
-            int blockH = (maxY - minY + 1) + 2 * blockHalo;
-            int blockD = (maxZ - minZ + 1) + 2 * blockHalo;
-            int W = blockW * subRes;
-            int H = blockH * subRes;
-            int D = blockD * subRes;
-            var field = new DensityField(W, H, D, blockHalo * subRes);
-            var windowMask = new BitArray(W * H * D);
-
-            // Pass 2: resolve each block's stamp via BlocksConfig.ResolveShape
-            // and splat its occupied sub-voxels at density=1.0. The stamp now
-            // encodes the block's volume, so HP-based density modulation is
-            // dropped here -- it was an accidental shape proxy in Phase 1 and
-            // would now conflate damage with shape. Rotation is applied per
-            // voxel via Rotations24[rot] -- see the RotationAtlas preset for
-            // calibration of Empyrion's rotation indices against our table.
-            var unknownShapes = new HashSet<string>();
-            int blockCount = 0, fellBackToCube = 0;
-            foreach (JToken row in rows)
-            {
-                var arr = row as JArray;
-                if (arr == null || arr.Count < minCols) continue;
-                int type = (int)(arr[ixT] ?? 0);
-                if (type == 0) continue;
-                var category = BlockClassifier.Classify(type);
-                if (SkippedCategories.Contains(category)) continue;
-                int hp = (int)(arr[ixHp] ?? 0);
-                if (hp <= 0) continue;
-
-                int x = (int)(arr[ixX] ?? 0);
-                int y = (int)(arr[ixY] ?? 0);
-                int z = (int)(arr[ixZ] ?? 0);
-                int shape = ixShape >= 0 && arr.Count > ixShape ? (int)(arr[ixShape] ?? 0) : 0;
-                int rotation = ixRotation >= 0 && arr.Count > ixRotation ? (int)(arr[ixRotation] ?? 0) : 0;
-                if (rotation < 0 || rotation >= 24) rotation = 0;
-
-                BakedStamp? stamp = null;
-                var shapeName = BlocksConfig.ResolveShape(type, shape);
-                if (!string.IsNullOrEmpty(shapeName))
-                {
-                    stamp = ShapeStampCatalog.GetStamp(shapeName);
-                    if (stamp == null) unknownShapes.Add(shapeName);
-                }
-                if (stamp == null) { stamp = cubeStamp; fellBackToCube++; }
-
-                int bx = (x - minX + blockHalo) * subRes;
-                int by = (y - minY + blockHalo) * subRes;
-                int bz = (z - minZ + blockHalo) * subRes;
-                bool isWindow = WindowCategories.Contains(category);
-                int[] rotMat = Rotations24[rotation];
-
-                for (int sx = 0; sx < subRes; sx++)
-                for (int sy = 0; sy < subRes; sy++)
-                for (int sz = 0; sz < subRes; sz++)
-                {
-                    if (!stamp.IsSet(sx, sy, sz)) continue;
-                    RotateVoxel(rotMat, sx, sy, sz, subRes, out int dx, out int dy, out int dz);
-                    int vx = bx + dx, vy = by + dy, vz = bz + dz;
-                    field.Splat(vx, vy, vz, 1f);
-                    if (isWindow) windowMask[vx + vy * W + vz * W * H] = true;
-                }
-                blockCount++;
-            }
-
-            if (fellBackToCube > 0 || unknownShapes.Count > 0)
-            {
-                string preview = unknownShapes.Count == 0
-                    ? ""
-                    : "; missing stamps: " + string.Join(", ", unknownShapes.Take(10))
-                      + (unknownShapes.Count > 10 ? ", ..." : "");
-                EdnaLogger.Log(
-                    $"[Tomography] {preset.Name}: {blockCount} blocks splatted, {fellBackToCube} fell back to Cube" + preview);
-            }
-
-            // Smooth: separable 3D Gaussian. Legacy presets author Sigma/Radius
-            // in block units and we scale up to sub-voxel units to match the v1
-            // 1-voxel-per-block baseline. Presets with VoxelScale=true (e.g.
-            // Sharp) author directly in voxel units so the kernel can be kept
-            // smaller than a block -- block boundaries stay crisp while the
-            // subRes^3 staircase inside a stamp is dissolved.
-            double sigma = preset.VoxelScale ? preset.Sigma : preset.Sigma * subRes;
-            int    radius = preset.VoxelScale ? preset.Radius : preset.Radius * subRes;
-            field.GaussianSmooth(DensityField.MakeGaussian(sigma, radius));
-
-            // Extract iso-surface.
-            MarchingCubes.Extract(field, preset.Iso, out float[] positions, out int[] indices);
-            if (positions.Length == 0 || indices.Length == 0) return null;
-
-            // Per-vertex normals via central-difference gradient on the smoothed field.
-            // Sampled at field-voxel coords BEFORE the position rescale below.
-            float[] normals = ComputeGradientNormals(field, positions);
-
-            // Partition triangles into hull vs window by sampling the windowMask
-            // at each triangle's centroid. Done in field-voxel coords, before the
-            // position rescale below, so the integer-voxel lookup is direct.
-            PartitionByWindowMask(
-                positions, indices, windowMask, W, H, D,
-                out int[] hullIndices, out int[] windowIndices);
-
-            // Rescale mesh positions from sub-voxel coords back to block-cell
-            // coords so the viewport renders at the same physical size as the
-            // original point-splat output and the stored halo stays in block
-            // units.
-            if (subRes != 1)
-            {
-                float inv = 1f / subRes;
-                for (int i = 0; i < positions.Length; i++) positions[i] *= inv;
-            }
-
-            return TomographyDocument.FromMesh(
-                entityId, solarSystem, playfield,
-                minX, minY, minZ, maxX, maxY, maxZ, blockHalo,
-                preset.Iso, positions, hullIndices, windowIndices, normals);
+            throw new InvalidOperationException("Build does not handle mode " + preset.Mode);
         }
 
-        // Split the marching-cubes triangle list into hull-surface and
-        // window-surface subsets. A triangle is classified as window if its
-        // centroid (in field-voxel coords) falls in a windowMask voxel. The
-        // mask is dilated by one voxel along the 6-connected neighborhood
-        // first so triangles sitting right on the window-block boundary read
-        // as window rather than flipping with sub-voxel noise.
-        private static void PartitionByWindowMask(
-            float[] positions, int[] indices, BitArray windowMask,
-            int W, int H, int D,
-            out int[] hullIndices, out int[] windowIndices)
-        {
-            int total = W * H * D;
-            var dilated = new BitArray(total);
-            int stepZ = W * H;
-            for (int z = 0; z < D; z++)
-            for (int y = 0; y < H; y++)
-            for (int x = 0; x < W; x++)
-            {
-                int idx = x + y * W + z * stepZ;
-                if (!windowMask[idx]) continue;
-                dilated[idx] = true;
-                if (x > 0)       dilated[idx - 1]     = true;
-                if (x < W - 1)   dilated[idx + 1]     = true;
-                if (y > 0)       dilated[idx - W]     = true;
-                if (y < H - 1)   dilated[idx + W]     = true;
-                if (z > 0)       dilated[idx - stepZ] = true;
-                if (z < D - 1)   dilated[idx + stepZ] = true;
-            }
-
-            var hull = new List<int>(indices.Length);
-            var win  = new List<int>();
-            for (int t = 0; t + 2 < indices.Length; t += 3)
-            {
-                int i0 = indices[t], i1 = indices[t + 1], i2 = indices[t + 2];
-                float cx = (positions[i0 * 3]     + positions[i1 * 3]     + positions[i2 * 3])     / 3f;
-                float cy = (positions[i0 * 3 + 1] + positions[i1 * 3 + 1] + positions[i2 * 3 + 1]) / 3f;
-                float cz = (positions[i0 * 3 + 2] + positions[i1 * 3 + 2] + positions[i2 * 3 + 2]) / 3f;
-                int vx = (int)Math.Round(cx);
-                int vy = (int)Math.Round(cy);
-                int vz = (int)Math.Round(cz);
-                if (vx < 0) vx = 0; else if (vx >= W) vx = W - 1;
-                if (vy < 0) vy = 0; else if (vy >= H) vy = H - 1;
-                if (vz < 0) vz = 0; else if (vz >= D) vz = D - 1;
-                var list = dilated[vx + vy * W + vz * stepZ] ? win : hull;
-                list.Add(i0); list.Add(i1); list.Add(i2);
-            }
-            hullIndices   = hull.ToArray();
-            windowIndices = win.ToArray();
-        }
-
-        // Blocky reconstruction. One axis-aligned unit cube per kept block;
-        // faces facing an occupied neighbor are culled. Window-category blocks
-        // route their faces into windowIndices so the existing dual-material
-        // renderer picks them up. Sigma / Radius / Iso / Halo on the preset
-        // are ignored.
-        //
-        // The point of this mode is to expose the "every block is a cube"
-        // approximation directly: no stamp splat, no smoothing, no marching
-        // cubes. Phase 2's Shape + Rotation work will replace the unit cube
-        // with the actual per-block parametric mesh in this same pipeline.
-        // Voxel-Cubes reconstruction. Per-block stamp + rotation, emitted as
-        // one tiny axis-aligned cube per occupied voxel. Face culling is
+        // VoxelCubes reconstruction (Sharp). Per-block stamp + rotation, emitted
+        // as one tiny axis-aligned cube per occupied voxel. Face culling is
         // intra-stamp only -- each block stays visibly distinct from its
-        // neighbors, which is exactly what we want for shape/rotation debugging.
-        // No smoothing, no marching cubes, no corner rounding: what you see
-        // is the raw subRes^3 occupancy after rotation, the sharpest possible
-        // rendering of the bake.
+        // neighbours. No smoothing, no marching cubes, no corner rounding: what
+        // you see is the raw subRes^3 occupancy after rotation, the sharpest
+        // possible rendering of the bake.
         private static TomographyDocument? BuildVoxelCubes(
             int entityId, string solarSystem, string playfield, JObject blocks)
         {
@@ -667,6 +399,7 @@ namespace EDNAClient.Skills.Tomography
                 if (arr == null || arr.Count < minCols) continue;
                 int type = (int)(arr[ixT] ?? 0);
                 if (type == 0) continue;
+                if (SkippedTypeIds.Contains(type)) continue;
                 if (SkippedCategories.Contains(BlockClassifier.Classify(type))) continue;
                 int hp = (int)(arr[ixHp] ?? 0);
                 if (hp <= 0) continue;
@@ -696,6 +429,18 @@ namespace EDNAClient.Skills.Tomography
 
             // Built lazily so non-calibration scans skip the cost.
             CalibrationMarker? baseMarker = null;
+
+            // Stamp-resolution diagnostics. Track every block that fell back to
+            // cubeStamp, broken down by reason and category so we can see e.g.
+            // "all 42 Window blocks fell back -- (type 770, shape 0) had no
+            // ChildShapes entry" vs "shape name 'WindowFull' missing from bake".
+            int stampedBlocks = 0;
+            int fellBackToCube = 0;
+            int remapsApplied = 0;
+            var fallbacksByCategory   = new Dictionary<BlockCategory, int>();
+            var unresolvedTypeShapes  = new HashSet<(int Type, int Shape)>();
+            var missingStamps         = new HashSet<string>();
+            var remapKeysHit          = new HashSet<(int Type, int Shape)>();
 
             foreach (var b in kept)
             {
@@ -729,14 +474,69 @@ namespace EDNAClient.Skills.Tomography
                     continue;
                 }
 
-                BakedStamp? stamp = null;
-                var shapeName = BlocksConfig.ResolveShape(b.Type, b.Shape);
-                if (!string.IsNullOrEmpty(shapeName))
+                BakedStamp stamp = null;
+                string shapeName;
+                if (StampOverrides.TryGetValue((b.Type, b.Shape), out var ovr))
+                {
+                    shapeName = ovr;
+                    remapsApplied++;
+                    remapKeysHit.Add((b.Type, b.Shape));
+                }
+                else
+                {
+                    shapeName = BlocksConfig.ResolveShape(b.Type, b.Shape);
+                }
+                if (string.IsNullOrEmpty(shapeName))
+                {
+                    unresolvedTypeShapes.Add((b.Type, b.Shape));
+                }
+                else
+                {
                     stamp = ShapeStampCatalog.GetStamp(shapeName);
-                if (stamp == null) stamp = cubeStamp;
+                    if (stamp == null) missingStamps.Add(shapeName);
+                }
+                if (stamp == null)
+                {
+                    stamp = cubeStamp;
+                    fellBackToCube++;
+                    var cat = BlockClassifier.Classify(b.Type);
+                    fallbacksByCategory.TryGetValue(cat, out int n);
+                    fallbacksByCategory[cat] = n + 1;
+                }
+                stampedBlocks++;
 
                 var rotated = RotateStamp(stamp, b.Rotation, subRes);
                 EmitStampVoxelCubes(rotated, subRes, voxSize, cx, cy, cz, positions, normals, indices);
+            }
+
+            if (fellBackToCube > 0 || remapsApplied > 0)
+            {
+                string byCat = fallbacksByCategory.Count == 0 ? "" :
+                    " [" + string.Join(", ",
+                        fallbacksByCategory
+                            .OrderByDescending(kv => kv.Value)
+                            .Select(kv => kv.Key + "=" + kv.Value)) + "]";
+                string remap = remapsApplied == 0 ? "" :
+                    ", " + remapsApplied + " remapped via override (" +
+                    string.Join(", ", remapKeysHit
+                        .OrderBy(p => p.Type).ThenBy(p => p.Shape)
+                        .Take(20)
+                        .Select(p => "(" + p.Type + "," + p.Shape + ")")) +
+                    (remapKeysHit.Count > 20 ? ", ..." : "") + ")";
+                string unr = unresolvedTypeShapes.Count == 0 ? "" :
+                    "; unresolved (type,shape): " +
+                    string.Join(", ", unresolvedTypeShapes
+                        .OrderBy(p => p.Type).ThenBy(p => p.Shape)
+                        .Take(20)
+                        .Select(p => "(" + p.Type + "," + p.Shape + ")")) +
+                    (unresolvedTypeShapes.Count > 20 ? ", ..." : "");
+                string miss = missingStamps.Count == 0 ? "" :
+                    "; missing stamps: " +
+                    string.Join(", ", missingStamps.OrderBy(s => s, StringComparer.Ordinal).Take(20)) +
+                    (missingStamps.Count > 20 ? ", ..." : "");
+                EdnaLogger.Log(
+                    "[Tomography] Sharp: " + stampedBlocks + " blocks" + remap +
+                    ", " + fellBackToCube + " fell back to Cube" + byCat + unr + miss);
             }
 
             var doc = TomographyDocument.FromMesh(
@@ -836,6 +636,7 @@ namespace EDNAClient.Skills.Tomography
                 if (arr == null || arr.Count < minCols) continue;
                 int type = (int)(arr[ixT] ?? 0);
                 if (type == 0) continue;
+                if (SkippedTypeIds.Contains(type)) continue;
                 var category = BlockClassifier.Classify(type);
                 if (SkippedCategories.Contains(category)) continue;
                 int hp = (int)(arr[ixHp] ?? 0);
@@ -1309,32 +1110,5 @@ namespace EDNAClient.Skills.Tomography
             indices.Add(baseIdx);     indices.Add(baseIdx + 2); indices.Add(baseIdx + 3);
         }
 
-        // Central-difference gradient of the density field at each vertex,
-        // negated to face outward from the solid region.
-        private static float[] ComputeGradientNormals(DensityField field, float[] positions)
-        {
-            var normals = new float[positions.Length];
-            for (int i = 0; i + 2 < positions.Length; i += 3)
-            {
-                float x = positions[i];
-                float y = positions[i + 1];
-                float z = positions[i + 2];
-
-                float gx = field.SampleTrilinear(x + 1f, y,      z     ) - field.SampleTrilinear(x - 1f, y,      z     );
-                float gy = field.SampleTrilinear(x,      y + 1f, z     ) - field.SampleTrilinear(x,      y - 1f, z     );
-                float gz = field.SampleTrilinear(x,      y,      z + 1f) - field.SampleTrilinear(x,      y,      z - 1f);
-
-                // Outward normal points opposite the gradient (density increases inward).
-                float nx = -gx, ny = -gy, nz = -gz;
-                float len = (float)Math.Sqrt(nx * nx + ny * ny + nz * nz);
-                if (len > 1e-6f) { nx /= len; ny /= len; nz /= len; }
-                else { nx = 0f; ny = 1f; nz = 0f; }
-
-                normals[i]     = nx;
-                normals[i + 1] = ny;
-                normals[i + 2] = nz;
-            }
-            return normals;
-        }
     }
 }

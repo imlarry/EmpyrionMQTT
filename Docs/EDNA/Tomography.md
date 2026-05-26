@@ -34,28 +34,30 @@ Code layout under `EDNAClient/Skills/Tomography/`:
 | File | Role |
 |---|---|
 | [TomographySkill.cs](../../EDNAClient/Skills/Tomography/TomographySkill.cs) | Lifecycle, nav-root context menu, document open/save/delete. |
-| [TomographyScanner.cs](../../EDNAClient/Skills/Tomography/TomographyScanner.cs) | MQTT scan + reconstruction pipeline. Holds the preset definitions and the skipped-category set. |
-| [DensityField.cs](../../EDNAClient/Skills/Tomography/DensityField.cs) | Bounded 3D scalar field + populated-mask + separable 3D Gaussian smoothing. |
-| [MarchingCubes.cs](../../EDNAClient/Skills/Tomography/MarchingCubes.cs) | Standard MC edge/triangle tables + sparse extraction (skips cells far from populated voxels). |
+| [TomographyScanner.cs](../../EDNAClient/Skills/Tomography/TomographyScanner.cs) | MQTT scan + per-mode geometry builders. Holds the preset definitions, the skipped-category set, and the calibrated 24-entry rotation table. |
 | [TomographyDocument.cs](../../EDNAClient/Skills/Tomography/TomographyDocument.cs) | POCO with mesh arrays; rebuilt into a `MeshGeometry3D` on load. JSON-serialized to disk. |
 | [TomographyPanel.xaml.cs](../../EDNAClient/Skills/Tomography/TomographyPanel.xaml.cs) | WPF `Viewport3D` view with free-fly camera. |
+
+Supporting catalogs (shared with other skills) under `EDNAClient/Core/`:
+
+| File | Role |
+|---|---|
+| [BlockClassifier.cs](../../EDNAClient/Core/BlockClassifier.cs) | Block Type -> `BlockCategory` table. |
+| [BlocksConfig.cs](../../EDNAClient/Core/BlocksConfig.cs) | Parses `BlocksConfig.ecf` for `ChildShapes` lists; `ResolveShape(type, shapeIndex)` returns the canonical shape name. |
+| [ShapeBake/ShapeStampCatalog.cs](../../EDNAClient/Core/ShapeBake/ShapeStampCatalog.cs) | Loads `shapes.bake` (produced by `Tools/ShapeBaker`) at startup; `GetStamp(name)` returns a sub-voxel occupancy stamp. |
 
 ### Scan pipeline
 
 1. `Player/GetProperties` returns `CurrentStructure.EntityId` (or null if not
    inside a structure).
 2. `Structure/GetAllBlocks {EntityId}` returns a tabular payload with columns
-   `[X, Y, Z, Type, HitPoints, Active]`.
-3. Per-`Type` max-HP pass over the rows: for each block type, record the
-   highest HitPoints value seen in the structure. This becomes the per-type
-   normalizer; a block's density is `HitPoints / max(HitPoints for Type)`,
-   giving a shape-solidity factor in `[0, 1]` (full cube = 1.0, half block
-   ~ 0.5, slope ~ 0.25).
-4. Sparse splat of normalized density into a `DensityField` sized to the
-   structure bounding box plus a halo for smoothing bleed.
-5. Separable 3D Gaussian smoothing across the field.
-6. Marching cubes at the preset's iso threshold extracts the iso surface.
-7. Per-vertex normals via central-difference gradient on the smoothed field.
+   `[X, Y, Z, Type, HitPoints, Active, Shape, Rotation]`.
+3. The selected mode's builder iterates rows: filter via `BlockClassifier` +
+   `SkippedCategories`, resolve each block's stamp via
+   `BlocksConfig.ResolveShape` + `ShapeStampCatalog.GetStamp`, apply the
+   per-block rotation matrix to the stamp's voxels, and emit geometry. Sharp
+   emits per-voxel cubes with intra-stamp face culling; Blocky emits a single
+   unit cube per block with neighbour culling.
 
 Saved documents land at
 `{saveGame}/Content/Mods/ESB/EDNA/skills/tomography/{ss}/{pf}/{entityId}.json`
@@ -65,21 +67,19 @@ and reappear in the nav tree on the next session.
 
 [BlockClassifier.cs](../../EDNAClient/Core/BlockClassifier.cs) is the single
 source of truth for block-Type -> `BlockCategory` mapping. The scanner drops
-any block whose category is in its `SkippedCategories` set before splatting --
-`Window`, `EmptySpace`, and `Truss` today. Those blocks read as void in the
-reconstructed surface.
+any block whose category is in its `SkippedCategories` set -- `EmptySpace`
+and `Truss` today -- before emitting geometry.
 
-### Presets (reconstruction tuning)
+### Presets
 
-Four presets vary the smoothing kernel and iso threshold; each is its own
-context-menu entry on the Tomography nav root.
+Each preset is a context-menu entry on the Tomography nav root.
 
-| Preset | Sigma | Radius | Iso | Halo | Feel |
-|---|---|---|---|---|---|
-| Balanced (default) | 0.9 | 2 | 0.34 | 3 | Soft curves; walls hug the cell edge. |
-| Soft | 0.9 | 2 | 0.25 | 3 | Original v1 -- curvy but walls bloom outward. |
-| Crisp | 0.65 | 1 | 0.40 | 2 | Tighter kernel; less curve, tighter walls. |
-| Sharp | 0.50 | 1 | 0.50 | 2 | Minimal smoothing; most cube-like. |
+| Preset | Mode | Purpose |
+|---|---|---|
+| Sharp (default) | VoxelCubes | Per-block stamp + rotation as tiny cubes. The only mode that renders blocks at full shape fidelity. |
+| Blocky | Blocky | One unit cube per kept block with neighbour face culling; ignores Shape. Coarse overview. |
+| Shape Gallery | Gallery | Diagnostic: arrays every baked stamp in a grid with hover labels. Shows what's baked and what's missing. |
+| Rotation Atlas | RotationAtlas | Diagnostic: 24 cells of an asymmetric marker stamp, one per rotation index, for calibrating the rotation table against Empyrion's IBlock.Rotation indexing. |
 
 ### Viewer
 

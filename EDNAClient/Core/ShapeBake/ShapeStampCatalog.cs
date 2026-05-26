@@ -6,8 +6,8 @@ namespace EDNAClient.Core.ShapeBake
 {
     // Singleton catalog of shape stamps loaded once at app startup from
     // shapes.bake (shipped next to EDNA.exe via the csproj Content include).
-    // TomographyScanner queries this during Build() to splat per-block
-    // sub-voxel occupancy into the DensityField.
+    // TomographyScanner queries this during Build() to resolve per-block
+    // sub-voxel occupancy for the Sharp (VoxelCubes) renderer.
     public static class ShapeStampCatalog
     {
         private static readonly Dictionary<string, BakedStamp> _byName =
