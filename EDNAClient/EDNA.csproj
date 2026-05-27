@@ -50,6 +50,14 @@
 
   <ItemGroup>
     <ProjectReference Include="..\ESB.Messaging\ESB.Messaging.csproj" />
+    <!-- ShapeBaker is a build-time tool, not a runtime dependency. The
+         ProjectReference forces it to build before EDNA, and ShapeBaker's
+         AfterTargets="Build" runs the bake. ReferenceOutputAssembly=false
+         keeps its .NET 8 console-app outputs out of EDNA's bin. -->
+    <ProjectReference Include="..\Tools\ShapeBaker\ShapeBaker.csproj">
+      <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
+      <Private>false</Private>
+    </ProjectReference>
   </ItemGroup>
 
   <Target Name="DeployEDNA" AfterTargets="Build">

@@ -144,6 +144,7 @@ namespace EDNAClient.Workspace
             };
 
             var menu = new ContextMenu();
+            MenuTheming.ApplyDarkTheme(menu);
             menu.Opened += OnDocumentContextMenuOpened;
             DockManager.DocumentContextMenu = menu;
 

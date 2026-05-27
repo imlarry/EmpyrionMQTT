@@ -100,6 +100,8 @@ namespace EDNAClient.Skills.Tomography
         {
             if (e.PropertyName == nameof(TomographyDocument.HullMesh) ||
                 e.PropertyName == nameof(TomographyDocument.WindowMesh) ||
+                e.PropertyName == nameof(TomographyDocument.DoorMesh) ||
+                e.PropertyName == nameof(TomographyDocument.WalkwayMesh) ||
                 e.PropertyName == nameof(TomographyDocument.RedTipMesh) ||
                 e.PropertyName == nameof(TomographyDocument.GreenTipMesh) ||
                 e.PropertyName == nameof(TomographyDocument.BlueTipMesh) ||
@@ -113,18 +115,23 @@ namespace EDNAClient.Skills.Tomography
         {
             var hullMesh     = _document.HullMesh;
             var windowMesh   = _document.WindowMesh;
+            var doorMesh     = _document.DoorMesh;
+            var walkwayMesh  = _document.WalkwayMesh;
             var redMesh      = _document.RedTipMesh;
             var greenMesh    = _document.GreenTipMesh;
             var blueMesh     = _document.BlueTipMesh;
             var fallbackMesh = _document.FallbackMesh;
             bool haveHull     = hullMesh     != null && hullMesh.Positions     != null && hullMesh.TriangleIndices.Count     > 0;
             bool haveWindow   = windowMesh   != null && windowMesh.Positions   != null && windowMesh.TriangleIndices.Count   > 0;
+            bool haveDoor     = doorMesh     != null && doorMesh.Positions     != null && doorMesh.TriangleIndices.Count     > 0;
+            bool haveWalkway  = walkwayMesh  != null && walkwayMesh.Positions  != null && walkwayMesh.TriangleIndices.Count  > 0;
             bool haveRed      = redMesh      != null && redMesh.Positions      != null && redMesh.TriangleIndices.Count      > 0;
             bool haveGreen    = greenMesh    != null && greenMesh.Positions    != null && greenMesh.TriangleIndices.Count    > 0;
             bool haveBlue     = blueMesh     != null && blueMesh.Positions     != null && blueMesh.TriangleIndices.Count     > 0;
             bool haveFallback = fallbackMesh != null && fallbackMesh.Positions != null && fallbackMesh.TriangleIndices.Count > 0;
 
-            if (!haveHull && !haveWindow && !haveRed && !haveGreen && !haveBlue && !haveFallback)
+            if (!haveHull && !haveWindow && !haveDoor && !haveWalkway &&
+                !haveRed && !haveGreen && !haveBlue && !haveFallback)
             {
                 MeshHost.Content = null;
                 return;
@@ -170,6 +177,42 @@ namespace EDNAClient.Skills.Tomography
                     Geometry     = windowMesh,
                     Material     = winMaterial,
                     BackMaterial = winDiffuse,
+                });
+            }
+
+            if (haveDoor)
+            {
+                // Dark slate -- opaque, no emissive, clearly differentiates doors
+                // from both the teal hull and the translucent windows.
+                var doorDiffuse  = new DiffuseMaterial(new SolidColorBrush(Color.FromRgb(0x40, 0x48, 0x58)));
+                var doorSpecular = new SpecularMaterial(new SolidColorBrush(Color.FromRgb(0x80, 0x88, 0x98)), 18);
+                var doorMaterial = new MaterialGroup();
+                doorMaterial.Children.Add(doorDiffuse);
+                doorMaterial.Children.Add(doorSpecular);
+
+                group.Children.Add(new GeometryModel3D
+                {
+                    Geometry     = doorMesh,
+                    Material     = doorMaterial,
+                    BackMaterial = doorDiffuse,
+                });
+            }
+
+            if (haveWalkway)
+            {
+                // Amber-brown opaque -- evocative of a metal grate / decking
+                // surface and distinct from both hull and door materials.
+                var walkDiffuse  = new DiffuseMaterial(new SolidColorBrush(Color.FromRgb(0xA8, 0x70, 0x30)));
+                var walkSpecular = new SpecularMaterial(new SolidColorBrush(Color.FromRgb(0xD0, 0xA0, 0x60)), 16);
+                var walkMaterial = new MaterialGroup();
+                walkMaterial.Children.Add(walkDiffuse);
+                walkMaterial.Children.Add(walkSpecular);
+
+                group.Children.Add(new GeometryModel3D
+                {
+                    Geometry     = walkwayMesh,
+                    Material     = walkMaterial,
+                    BackMaterial = walkDiffuse,
                 });
             }
 

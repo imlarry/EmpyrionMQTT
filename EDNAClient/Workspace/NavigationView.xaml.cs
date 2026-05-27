@@ -1,7 +1,7 @@
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media;
-using Color         = System.Windows.Media.Color;
+using EDNAClient.Helpers;
 using UserControl   = System.Windows.Controls.UserControl;
 using MenuItem      = System.Windows.Controls.MenuItem;
 using TreeViewItem  = System.Windows.Controls.TreeViewItem;
@@ -51,25 +51,36 @@ namespace EDNAClient.Workspace
             e.Handled = true;
             item.IsSelected = true;
 
-            var menu = new ContextMenu { Background = new SolidColorBrush(Color.FromRgb(0x2D, 0x2D, 0x2D)) };
+            var menu = new ContextMenu();
+            MenuTheming.ApplyDarkTheme(menu);
+
             foreach (var mi in node.ContextItems)
             {
-                if (mi.IsSeparator)
-                {
-                    menu.Items.Add(new Separator());
-                    continue;
-                }
-
-                var entry  = new MenuItem
-                {
-                    Header     = mi.Header,
-                    Foreground = System.Windows.Media.Brushes.LightGray,
-                };
-                var action = mi.Execute;
-                entry.Click += (_, _) => action();
-                menu.Items.Add(entry);
+                if (mi.IsSeparator) { menu.Items.Add(new Separator()); continue; }
+                menu.Items.Add(BuildMenuItem(mi));
             }
             menu.IsOpen = true;
+        }
+
+        private static MenuItem BuildMenuItem(NavMenuItem mi)
+        {
+            var entry = new MenuItem { Header = mi.Header };
+
+            if (mi.SubItems != null && mi.SubItems.Count > 0)
+            {
+                foreach (var child in mi.SubItems)
+                {
+                    if (child.IsSeparator) { entry.Items.Add(new Separator()); continue; }
+                    entry.Items.Add(BuildMenuItem(child));
+                }
+            }
+            else
+            {
+                var action = mi.Execute;
+                entry.Click += (_, _) => action();
+            }
+
+            return entry;
         }
     }
 }

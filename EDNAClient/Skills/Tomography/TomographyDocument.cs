@@ -52,11 +52,13 @@ namespace EDNAClient.Skills.Tomography
         // Indices is the legacy single-list field retained so saves written
         // before the hull/window split still load -- migrated to HullIndices
         // on first read.
-        public float[] Positions     { get; set; } = Array.Empty<float>();
-        public int[]   Indices       { get; set; } = Array.Empty<int>();
-        public int[]   HullIndices   { get; set; } = Array.Empty<int>();
-        public int[]   WindowIndices { get; set; } = Array.Empty<int>();
-        public float[] Normals       { get; set; } = Array.Empty<float>();
+        public float[] Positions       { get; set; } = Array.Empty<float>();
+        public int[]   Indices         { get; set; } = Array.Empty<int>();
+        public int[]   HullIndices     { get; set; } = Array.Empty<int>();
+        public int[]   WindowIndices   { get; set; } = Array.Empty<int>();
+        public int[]   DoorIndices     { get; set; } = Array.Empty<int>();
+        public int[]   WalkwayIndices  { get; set; } = Array.Empty<int>();
+        public float[] Normals         { get; set; } = Array.Empty<float>();
 
         // Tip-color index buffers for the RotationAtlas / Sharp calibration
         // marker. Each is a list of triangle indices into Positions, just like
@@ -78,16 +80,26 @@ namespace EDNAClient.Skills.Tomography
         // as Positions (pre-Center subtraction); the panel applies the offset.
         public List<TomographyLabel>? GalleryLabels { get; set; }
 
+        // Gallery-only: category identifier (used for tab DocumentId) and the
+        // human-readable title shown in the tab. Null/empty = unfiltered
+        // "Shape Gallery" (legacy single-tab behavior).
+        public string? GalleryKey   { get; set; }
+        public string? GalleryTitle { get; set; }
+
         // ── Runtime-only ──────────────────────────────────────────────────────
 
         [JsonIgnore] public bool IsGallery =>
             GalleryLabels != null && GalleryLabels.Count > 0;
 
         [JsonIgnore] public string DocumentId =>
-            IsGallery ? "tomo-gallery" : $"tomo-{EntityId}";
+            IsGallery
+                ? (string.IsNullOrEmpty(GalleryKey) ? "tomo-gallery" : $"tomo-gallery-{GalleryKey}")
+                : $"tomo-{EntityId}";
 
         [JsonIgnore] public string ShortTitle =>
-            IsGallery ? "Shape Gallery" : $"Entity {EntityId}";
+            IsGallery
+                ? (string.IsNullOrEmpty(GalleryTitle) ? "Shape Gallery" : GalleryTitle!)
+                : $"Entity {EntityId}";
 
         [JsonIgnore] private MeshGeometry3D? _hullMesh;
         [JsonIgnore] public MeshGeometry3D? HullMesh
@@ -101,6 +113,20 @@ namespace EDNAClient.Skills.Tomography
         {
             get => _windowMesh;
             private set { _windowMesh = value; OnPropertyChanged(); }
+        }
+
+        [JsonIgnore] private MeshGeometry3D? _doorMesh;
+        [JsonIgnore] public MeshGeometry3D? DoorMesh
+        {
+            get => _doorMesh;
+            private set { _doorMesh = value; OnPropertyChanged(); }
+        }
+
+        [JsonIgnore] private MeshGeometry3D? _walkwayMesh;
+        [JsonIgnore] public MeshGeometry3D? WalkwayMesh
+        {
+            get => _walkwayMesh;
+            private set { _walkwayMesh = value; OnPropertyChanged(); }
         }
 
         [JsonIgnore] private MeshGeometry3D? _redTipMesh;
@@ -163,18 +189,22 @@ namespace EDNAClient.Skills.Tomography
         public static TomographyDocument FromMesh(
             int entityId, string solarSystem, string playfield,
             int minX, int minY, int minZ, int maxX, int maxY, int maxZ, int halo,
-            float iso, float[] positions, int[] hullIndices, int[] windowIndices, float[] normals)
+            float iso, float[] positions,
+            int[] hullIndices, int[] windowIndices, int[] doorIndices, int[] walkwayIndices,
+            float[] normals)
         {
             return FromMesh(entityId, solarSystem, playfield,
                 minX, minY, minZ, maxX, maxY, maxZ, halo,
-                iso, positions, hullIndices, windowIndices, normals,
+                iso, positions, hullIndices, windowIndices, doorIndices, walkwayIndices, normals,
                 Array.Empty<int>(), Array.Empty<int>(), Array.Empty<int>(), Array.Empty<int>());
         }
 
         public static TomographyDocument FromMesh(
             int entityId, string solarSystem, string playfield,
             int minX, int minY, int minZ, int maxX, int maxY, int maxZ, int halo,
-            float iso, float[] positions, int[] hullIndices, int[] windowIndices, float[] normals,
+            float iso, float[] positions,
+            int[] hullIndices, int[] windowIndices, int[] doorIndices, int[] walkwayIndices,
+            float[] normals,
             int[] redTipIndices, int[] greenTipIndices, int[] blueTipIndices,
             int[] fallbackIndices)
         {
@@ -191,6 +221,8 @@ namespace EDNAClient.Skills.Tomography
                 Positions       = positions,
                 HullIndices     = hullIndices,
                 WindowIndices   = windowIndices,
+                DoorIndices     = doorIndices,
+                WalkwayIndices  = walkwayIndices,
                 Normals         = normals,
                 RedTipIndices   = redTipIndices,
                 GreenTipIndices = greenTipIndices,
@@ -216,12 +248,16 @@ namespace EDNAClient.Skills.Tomography
             Indices         = source.Indices;
             HullIndices     = source.HullIndices;
             WindowIndices   = source.WindowIndices;
+            DoorIndices     = source.DoorIndices;
+            WalkwayIndices  = source.WalkwayIndices;
             Normals         = source.Normals;
             RedTipIndices   = source.RedTipIndices;
             GreenTipIndices = source.GreenTipIndices;
             BlueTipIndices  = source.BlueTipIndices;
             FallbackIndices = source.FallbackIndices;
             GalleryLabels   = source.GalleryLabels;
+            GalleryKey      = source.GalleryKey;
+            GalleryTitle    = source.GalleryTitle;
             RebuildMesh();
         }
 
@@ -256,6 +292,8 @@ namespace EDNAClient.Skills.Tomography
                 Positions       = positions,
                 HullIndices     = hullIndices,
                 WindowIndices   = Array.Empty<int>(),
+                DoorIndices     = Array.Empty<int>(),
+                WalkwayIndices  = Array.Empty<int>(),
                 Normals         = normals,
                 RedTipIndices   = redTipIndices,
                 GreenTipIndices = greenTipIndices,
@@ -313,11 +351,14 @@ namespace EDNAClient.Skills.Tomography
 
             if (Positions == null || Positions.Length < 3 ||
                 (HullIndices.Length < 3 && WindowIndices.Length < 3 &&
+                 DoorIndices.Length < 3 && WalkwayIndices.Length < 3 &&
                  RedTipIndices.Length < 3 && GreenTipIndices.Length < 3 && BlueTipIndices.Length < 3 &&
                  FallbackIndices.Length < 3))
             {
                 HullMesh     = new MeshGeometry3D();
                 WindowMesh   = null;
+                DoorMesh     = null;
+                WalkwayMesh  = null;
                 RedTipMesh   = null;
                 GreenTipMesh = null;
                 BlueTipMesh  = null;
@@ -341,10 +382,10 @@ namespace EDNAClient.Skills.Tomography
                 normals.Freeze();
             }
 
-            HullMesh   = BuildSubMesh(points, normals, HullIndices);
-            WindowMesh = WindowIndices.Length >= 3
-                ? BuildSubMesh(points, normals, WindowIndices)
-                : null;
+            HullMesh    = BuildSubMesh(points, normals, HullIndices);
+            WindowMesh  = WindowIndices.Length  >= 3 ? BuildSubMesh(points, normals, WindowIndices)  : null;
+            DoorMesh    = DoorIndices.Length    >= 3 ? BuildSubMesh(points, normals, DoorIndices)    : null;
+            WalkwayMesh = WalkwayIndices.Length >= 3 ? BuildSubMesh(points, normals, WalkwayIndices) : null;
             RedTipMesh   = RedTipIndices.Length   >= 3 ? BuildSubMesh(points, normals, RedTipIndices)   : null;
             GreenTipMesh = GreenTipIndices.Length >= 3 ? BuildSubMesh(points, normals, GreenTipIndices) : null;
             BlueTipMesh  = BlueTipIndices.Length  >= 3 ? BuildSubMesh(points, normals, BlueTipIndices)  : null;

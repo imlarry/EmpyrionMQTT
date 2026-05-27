@@ -34,10 +34,20 @@ namespace EDNAClient.Skills.Tomography
         public string         Name { get; }
         public TomographyMode Mode { get; }
 
-        public TomographyPreset(string name, TomographyMode mode)
+        // Gallery-only: when set, BuildGallery emits only the stamps whose
+        // names appear in GalleryFilter. GalleryKey disambiguates DocumentId
+        // so each category opens in its own tab.
+        public HashSet<string>? GalleryFilter { get; }
+        public string?          GalleryKey    { get; }
+
+        public TomographyPreset(string name, TomographyMode mode,
+                                HashSet<string>? galleryFilter = null,
+                                string?          galleryKey    = null)
         {
-            Name = name;
-            Mode = mode;
+            Name          = name;
+            Mode          = mode;
+            GalleryFilter = galleryFilter;
+            GalleryKey    = galleryKey;
         }
     }
 
@@ -79,31 +89,76 @@ namespace EDNAClient.Skills.Tomography
         // surfaced by the Sharp fallback diagnostic log.
         private static readonly HashSet<int> SkippedTypeIds = new HashSet<int>
         {
-            806,                          // window variant
             1191, 1193, 1195, 1967,       // railings
         };
 
-        // (Type, Shape) -> baked stamp name. Consulted BEFORE
-        // BlocksConfig.ResolveShape so the override wins. Use to redirect a
-        // block whose ChildShapes entry is missing from the bake (or visually
-        // wrong) to a stamp we know works. The user's observation that a
-        // 1x1 window is geometrically a 1x1 thin cube belongs here: e.g.
-        // (770, 0) -> "Wall".
+        // (Type, Shape) -> baked stamp name. Consulted BEFORE class derivation
+        // and BlocksConfig.ResolveShape. Use for one-off remaps that the
+        // class-driven derivation gets wrong.
         private static readonly Dictionary<(int Type, int Shape), string> StampOverrides =
             new Dictionary<(int Type, int Shape), string>
         {
-            { (770, 0), "ConcreteThin" },
-            { (796, 0), "ConcreteThin" },
-            { (798, 0), "ConcreteThin" },
         };
 
-        // Block categories routed to the WindowIndices list in Blocky mode so
-        // the renderer can give them a glass material. Sharp does not currently
-        // differentiate; everything goes to the hull list.
-        private static readonly HashSet<BlockCategory> WindowCategories = new HashSet<BlockCategory>
+        // Class-driven stamp derivation for window/door/walkway blocks. Each
+        // block resolves to its actual prefab stamp (baked from the models
+        // bundle) via the BlocksConfig Model field. Multi-cell variants
+        // (Window_v1x2, etc.) substitute their 1x1 sibling's prefab so adjacent
+        // cells tile to one continuous mesh via cross-cell culling. If no
+        // prefab stamp is present in the catalog the fallback is the generic
+        // Wall slab (windows/doors) or CubeHalf horizontal plate (walkways).
+        private static string? ResolveClassStamp(int type)
         {
-            BlockCategory.Window,
-        };
+            var category = BlockClassifier.Classify(type);
+            if (category != BlockCategory.Window &&
+                category != BlockCategory.Door &&
+                category != BlockCategory.Walkway) return null;
+
+            var def = BlocksConfig.GetById(type);
+            if (def != null)
+            {
+                // For multi-cell variants, swap to the 1x1 sibling's Model
+                // (e.g. Window_v1x2 -> Window_v1x1) so all cells of the cluster
+                // stamp identical 1x1 prefab geometry and cross-cell tiling
+                // can hide the seams.
+                var siblingName = FindOneCellSiblingName(def.Name);
+                if (siblingName != null)
+                {
+                    var sibDef = BlocksConfig.GetByName(siblingName);
+                    if (sibDef != null && !string.IsNullOrEmpty(sibDef.Model))
+                        def = sibDef;
+                }
+
+                var prefabName = ExtractPrefabName(def.Model);
+                if (!string.IsNullOrEmpty(prefabName) &&
+                    ShapeStampCatalog.GetStamp(prefabName) != null)
+                    return prefabName;
+            }
+
+            // No prefab stamp available: generic per-class fallback.
+            return category == BlockCategory.Walkway ? "CubeHalf" : "Wall";
+        }
+
+        // Replace the first NxM size token in a block name with "1x1" so the
+        // caller can find the single-cell sibling block definition. Returns
+        // null if the name has no such token, or the token is already 1x1.
+        private static string? FindOneCellSiblingName(string name)
+        {
+            if (string.IsNullOrEmpty(name)) return null;
+            var match = System.Text.RegularExpressions.Regex.Match(name, @"\d+x\d+");
+            if (!match.Success || match.Value == "1x1") return null;
+            return name.Substring(0, match.Index) + "1x1" +
+                   name.Substring(match.Index + match.Length);
+        }
+
+        // Last path segment of a Model field like
+        // "@models/Blocks/Windows/Standard/Window_v1x1Prefab" -> "Window_v1x1Prefab".
+        private static string ExtractPrefabName(string model)
+        {
+            if (string.IsNullOrEmpty(model)) return "";
+            int slash = model.LastIndexOf('/');
+            return slash >= 0 ? model.Substring(slash + 1) : model;
+        }
 
         private static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(30);
 
@@ -266,7 +321,10 @@ namespace EDNAClient.Skills.Tomography
             if (preset.Mode == TomographyMode.Gallery)
             {
                 statusCallback($"[{preset.Name}] Building gallery from shapes.bake...");
-                var galleryDoc = await Task.Run(() => BuildGallery());
+                var filter = preset.GalleryFilter;
+                var key    = preset.GalleryKey;
+                var title  = preset.Name;
+                var galleryDoc = await Task.Run(() => BuildGallery(filter, key, title));
                 if (galleryDoc == null) statusCallback("Gallery: shapes.bake not loaded");
                 else statusCallback($"[{preset.Name}] {galleryDoc.GalleryLabels?.Count ?? 0} shapes; hover for name");
                 return galleryDoc;
@@ -351,10 +409,19 @@ namespace EDNAClient.Skills.Tomography
 
         // VoxelCubes reconstruction (Sharp). Per-block stamp + rotation, emitted
         // as one tiny axis-aligned cube per occupied voxel. Face culling is
-        // intra-stamp only -- each block stays visibly distinct from its
-        // neighbours. No smoothing, no marching cubes, no corner rounding: what
-        // you see is the raw subRes^3 occupancy after rotation, the sharpest
-        // possible rendering of the bake.
+        // intra-stamp plus same-(Type,Shape,Rotation) cross-cell, so multi-cell
+        // uniform surfaces (windows, hull plates) tile seamlessly. No smoothing,
+        // no marching cubes; raw subRes^3 occupancy after rotation.
+        private struct VoxelCell
+        {
+            public int Type;
+            public int Shape;
+            public int Rotation;
+            public BakedStamp Stamp;
+            public bool IsFallback;
+            public BlockCategory Category;
+        }
+
         private static TomographyDocument? BuildVoxelCubes(
             int entityId, string solarSystem, string playfield, JObject blocks)
         {
@@ -419,14 +486,17 @@ namespace EDNAClient.Skills.Tomography
             }
             if (kept.Count == 0) return null;
 
-            var positions = new List<float>();
-            var normals   = new List<float>();
-            var indices   = new List<int>();
-            var redIdx    = new List<int>();
-            var greenIdx  = new List<int>();
-            var blueIdx   = new List<int>();
-            var fbIdx     = new List<int>();
-            var labels    = new List<TomographyLabel>();
+            var positions      = new List<float>();
+            var normals        = new List<float>();
+            var indices        = new List<int>();
+            var windowIndices  = new List<int>();
+            var doorIndices    = new List<int>();
+            var walkwayIndices = new List<int>();
+            var redIdx         = new List<int>();
+            var greenIdx       = new List<int>();
+            var blueIdx        = new List<int>();
+            var fbIdx          = new List<int>();
+            var labels         = new List<TomographyLabel>();
 
             // Built lazily so non-calibration scans skip the cost.
             CalibrationMarker? baseMarker = null;
@@ -443,6 +513,10 @@ namespace EDNAClient.Skills.Tomography
             var missingStamps         = new HashSet<string>();
             var remapKeysHit          = new HashSet<(int Type, int Shape)>();
 
+            // Pass 1: resolve stamps with diagnostics and stage cells into a
+            // map keyed by world coords. Rotation indicators emit immediately
+            // since their colored markers are intentionally per-cell.
+            var cellMap = new Dictionary<(int X, int Y, int Z), VoxelCell>(kept.Count);
             foreach (var b in kept)
             {
                 float cx = b.X - minX;
@@ -475,6 +549,7 @@ namespace EDNAClient.Skills.Tomography
                     continue;
                 }
 
+                var category = BlockClassifier.Classify(b.Type);
                 BakedStamp? stamp = null;
                 string? shapeName;
                 if (StampOverrides.TryGetValue((b.Type, b.Shape), out var ovr))
@@ -485,7 +560,16 @@ namespace EDNAClient.Skills.Tomography
                 }
                 else
                 {
-                    shapeName = BlocksConfig.ResolveShape(b.Type, b.Shape);
+                    shapeName = ResolveClassStamp(b.Type);
+                    if (shapeName != null)
+                    {
+                        remapsApplied++;
+                        remapKeysHit.Add((b.Type, b.Shape));
+                    }
+                    else
+                    {
+                        shapeName = BlocksConfig.ResolveShape(b.Type, b.Shape);
+                    }
                 }
                 if (string.IsNullOrEmpty(shapeName))
                 {
@@ -500,15 +584,46 @@ namespace EDNAClient.Skills.Tomography
                 if (isFallback)
                 {
                     fellBackToCube++;
-                    var cat = BlockClassifier.Classify(b.Type);
-                    fallbacksByCategory.TryGetValue(cat, out int n);
-                    fallbacksByCategory[cat] = n + 1;
+                    fallbacksByCategory.TryGetValue(category, out int n);
+                    fallbacksByCategory[category] = n + 1;
                 }
                 stampedBlocks++;
 
                 var rotated = RotateStamp(stamp ?? cubeStamp, b.Rotation, subRes);
-                var dstIdx = isFallback ? fbIdx : indices;
-                EmitStampVoxelCubes(rotated, subRes, voxSize, cx, cy, cz, positions, normals, dstIdx);
+                cellMap[(b.X, b.Y, b.Z)] = new VoxelCell
+                {
+                    Type       = b.Type,
+                    Shape      = b.Shape,
+                    Rotation   = b.Rotation,
+                    Stamp      = rotated,
+                    IsFallback = isFallback,
+                    Category   = category,
+                };
+            }
+
+            // Pass 2: emit each staged cell with cross-cell face culling. Faces
+            // on a cell boundary are hidden if the adjacent cell carries the
+            // same (Type, Shape, Rotation) and its mirrored-edge voxel is set.
+            // Non-fallback cells route to a per-class bucket (window/door/walkway/
+            // hull) so the renderer can apply a distinct material.
+            foreach (var kv in cellMap)
+            {
+                int wx = kv.Key.X;
+                int wy = kv.Key.Y;
+                int wz = kv.Key.Z;
+                var c = kv.Value;
+                float cx = wx - minX;
+                float cy = wy - minY;
+                float cz = wz - minZ;
+                List<int> dst;
+                if (c.IsFallback)                              dst = fbIdx;
+                else if (c.Category == BlockCategory.Window)   dst = windowIndices;
+                else if (c.Category == BlockCategory.Door)     dst = doorIndices;
+                else if (c.Category == BlockCategory.Walkway)  dst = walkwayIndices;
+                else                                           dst = indices;
+                EmitStampVoxelCubes(c.Stamp, subRes, voxSize, cx, cy, cz,
+                    wx, wy, wz, c.Type, c.Shape, c.Rotation, cellMap,
+                    positions, normals, dst);
             }
 
             if (fellBackToCube > 0 || remapsApplied > 0)
@@ -544,7 +659,10 @@ namespace EDNAClient.Skills.Tomography
             var doc = TomographyDocument.FromMesh(
                 entityId, solarSystem, playfield,
                 minX, minY, minZ, maxX, maxY, maxZ, 0,
-                0f, positions.ToArray(), indices.ToArray(), Array.Empty<int>(), normals.ToArray(),
+                0f, positions.ToArray(),
+                indices.ToArray(), windowIndices.ToArray(),
+                doorIndices.ToArray(), walkwayIndices.ToArray(),
+                normals.ToArray(),
                 redIdx.ToArray(), greenIdx.ToArray(), blueIdx.ToArray(),
                 fbIdx.ToArray());
             if (doc != null && labels.Count > 0) doc.GalleryLabels = labels;
@@ -561,19 +679,28 @@ namespace EDNAClient.Skills.Tomography
             return (z - 2) / 2;
         }
 
-        // Like EmitStampCubes but parameterized by block CENTER (cx, cy, cz)
-        // in mesh-local block units rather than a flat-on-Y cell origin. Each
-        // voxel of the stamp lands at world coord cx + (sx+0.5)*voxSize - 0.5
-        // (same shift on all 3 axes -- stamp X/Z are already centered while
-        // bottom-pivot Y gets the same shift so the stamp's bottom row aligns
-        // with the block's lower face).
+        // Voxel cube emit with intra-stamp + same-(Type,Shape,Rotation) cross-
+        // cell face culling. The six per-cell neighbour lookups happen once at
+        // the top so the per-voxel inner loop only does a bool/IsSet check.
         private static void EmitStampVoxelCubes(
             BakedStamp stamp, int subRes, float voxSize,
             float cx, float cy, float cz,
+            int wx, int wy, int wz,
+            int matchType, int matchShape, int matchRotation,
+            Dictionary<(int X, int Y, int Z), VoxelCell> cellMap,
             List<float> positions, List<float> normals, List<int> indices)
         {
+            BakedStamp? nPX = null, nNX = null, nPY = null, nNY = null, nPZ = null, nNZ = null;
+            if (cellMap.TryGetValue((wx + 1, wy, wz), out var cPX) && cPX.Type == matchType && cPX.Shape == matchShape && cPX.Rotation == matchRotation) nPX = cPX.Stamp;
+            if (cellMap.TryGetValue((wx - 1, wy, wz), out var cNX) && cNX.Type == matchType && cNX.Shape == matchShape && cNX.Rotation == matchRotation) nNX = cNX.Stamp;
+            if (cellMap.TryGetValue((wx, wy + 1, wz), out var cPY) && cPY.Type == matchType && cPY.Shape == matchShape && cPY.Rotation == matchRotation) nPY = cPY.Stamp;
+            if (cellMap.TryGetValue((wx, wy - 1, wz), out var cNY) && cNY.Type == matchType && cNY.Shape == matchShape && cNY.Rotation == matchRotation) nNY = cNY.Stamp;
+            if (cellMap.TryGetValue((wx, wy, wz + 1), out var cPZ) && cPZ.Type == matchType && cPZ.Shape == matchShape && cPZ.Rotation == matchRotation) nPZ = cPZ.Stamp;
+            if (cellMap.TryGetValue((wx, wy, wz - 1), out var cNZ) && cNZ.Type == matchType && cNZ.Shape == matchShape && cNZ.Rotation == matchRotation) nNZ = cNZ.Stamp;
+
             float h = voxSize * 0.5f;
             const float half = 0.5f;
+            int last = subRes - 1;
             for (int sx = 0; sx < subRes; sx++)
             for (int sy = 0; sy < subRes; sy++)
             for (int sz = 0; sz < subRes; sz++)
@@ -583,12 +710,12 @@ namespace EDNAClient.Skills.Tomography
                 float vy = cy + (sy + 0.5f) * voxSize - half;
                 float vz = cz + (sz + 0.5f) * voxSize - half;
 
-                bool pX = sx + 1 < subRes && stamp.IsSet(sx + 1, sy, sz);
-                bool nX = sx - 1 >= 0     && stamp.IsSet(sx - 1, sy, sz);
-                bool pY = sy + 1 < subRes && stamp.IsSet(sx, sy + 1, sz);
-                bool nY = sy - 1 >= 0     && stamp.IsSet(sx, sy - 1, sz);
-                bool pZ = sz + 1 < subRes && stamp.IsSet(sx, sy, sz + 1);
-                bool nZ = sz - 1 >= 0     && stamp.IsSet(sx, sy, sz - 1);
+                bool pX = sx < last ? stamp.IsSet(sx + 1, sy, sz) : (nPX != null && nPX.IsSet(0,    sy, sz));
+                bool nX = sx > 0    ? stamp.IsSet(sx - 1, sy, sz) : (nNX != null && nNX.IsSet(last, sy, sz));
+                bool pY = sy < last ? stamp.IsSet(sx, sy + 1, sz) : (nPY != null && nPY.IsSet(sx, 0,    sz));
+                bool nY = sy > 0    ? stamp.IsSet(sx, sy - 1, sz) : (nNY != null && nNY.IsSet(sx, last, sz));
+                bool pZ = sz < last ? stamp.IsSet(sx, sy, sz + 1) : (nPZ != null && nPZ.IsSet(sx, sy, 0   ));
+                bool nZ = sz > 0    ? stamp.IsSet(sx, sy, sz - 1) : (nNZ != null && nNZ.IsSet(sx, sy, last));
 
                 if (!pX) AddQuad(vx+h, vy-h, vz+h,  vx+h, vy-h, vz-h,  vx+h, vy+h, vz-h,  vx+h, vy+h, vz+h,
                                   1f, 0f, 0f, positions, normals, indices);
@@ -630,7 +757,7 @@ namespace EDNAClient.Skills.Tomography
             int minX = int.MaxValue, minY = int.MaxValue, minZ = int.MaxValue;
             int maxX = int.MinValue, maxY = int.MinValue, maxZ = int.MinValue;
 
-            var kept = new List<(int X, int Y, int Z, bool IsWindow)>();
+            var kept = new List<(int X, int Y, int Z, BlockCategory Category)>();
             var occupied = new HashSet<(int X, int Y, int Z)>();
 
             foreach (JToken row in rows)
@@ -653,26 +780,35 @@ namespace EDNAClient.Skills.Tomography
                 if (y < minY) minY = y; if (y > maxY) maxY = y;
                 if (z < minZ) minZ = z; if (z > maxZ) maxZ = z;
 
-                kept.Add((x, y, z, WindowCategories.Contains(category)));
+                kept.Add((x, y, z, category));
                 occupied.Add((x, y, z));
             }
             if (kept.Count == 0) return null;
 
-            var positions     = new List<float>();
-            var normals       = new List<float>();
-            var hullIndices   = new List<int>();
-            var windowIndices = new List<int>();
+            var positions      = new List<float>();
+            var normals        = new List<float>();
+            var hullIndices    = new List<int>();
+            var windowIndices  = new List<int>();
+            var doorIndices    = new List<int>();
+            var walkwayIndices = new List<int>();
 
             foreach (var b in kept)
             {
-                var dst = b.IsWindow ? windowIndices : hullIndices;
+                List<int> dst;
+                if      (b.Category == BlockCategory.Window)  dst = windowIndices;
+                else if (b.Category == BlockCategory.Door)    dst = doorIndices;
+                else if (b.Category == BlockCategory.Walkway) dst = walkwayIndices;
+                else                                          dst = hullIndices;
                 EmitVisibleFaces(b.X, b.Y, b.Z, minX, minY, minZ, occupied, positions, normals, dst);
             }
 
             return TomographyDocument.FromMesh(
                 entityId, solarSystem, playfield,
                 minX, minY, minZ, maxX, maxY, maxZ, 0,
-                0f, positions.ToArray(), hullIndices.ToArray(), windowIndices.ToArray(), normals.ToArray());
+                0f, positions.ToArray(),
+                hullIndices.ToArray(), windowIndices.ToArray(),
+                doorIndices.ToArray(), walkwayIndices.ToArray(),
+                normals.ToArray());
         }
 
         // Lay out every baked stamp in a sqrt(N) x sqrt(N) grid, emitting one
@@ -684,7 +820,11 @@ namespace EDNAClient.Skills.Tomography
         // [0, 1] around each grid origin (gx*pitch, 0, gz*pitch). Cells are
         // 2 block-units apart so the gap reads visually as "negative space"
         // around each shape.
-        public static TomographyDocument? BuildGallery()
+        public static TomographyDocument? BuildGallery() =>
+            BuildGallery(null, null, "Shape Gallery");
+
+        public static TomographyDocument? BuildGallery(
+            HashSet<string>? filter, string? galleryKey, string title)
         {
             if (!ShapeStampCatalog.IsLoaded)
             {
@@ -694,7 +834,9 @@ namespace EDNAClient.Skills.Tomography
             int subRes = ShapeStampCatalog.Resolution;
             if (subRes <= 0) return null;
 
-            var stamps = ShapeStampCatalog.All.OrderBy(s => s.Name, StringComparer.Ordinal).ToList();
+            IEnumerable<BakedStamp> source = ShapeStampCatalog.All;
+            if (filter != null) source = source.Where(s => filter.Contains(s.Name));
+            var stamps = source.OrderBy(s => s.Name, StringComparer.Ordinal).ToList();
             if (stamps.Count == 0) return null;
 
             const float CellPitch = 2f;          // 1-unit shape + 1-unit gap
@@ -738,10 +880,13 @@ namespace EDNAClient.Skills.Tomography
             int minY = 0, maxY = 1;
             int minZ = 0, maxZ = (int)Math.Round((rows - 1) * CellPitch);
 
-            return TomographyDocument.FromGallery(
+            var doc = TomographyDocument.FromGallery(
                 minX, minY, minZ, maxX, maxY, maxZ,
                 positions.ToArray(), indices.ToArray(), normals.ToArray(),
                 labels);
+            doc.GalleryKey   = galleryKey;
+            doc.GalleryTitle = title;
+            return doc;
         }
 
         // Build a linear atlas that mirrors the in-game calibration rig:

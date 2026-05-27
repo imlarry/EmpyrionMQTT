@@ -10,9 +10,10 @@ namespace EDNAClient.Workspace
 
     public class NavMenuItem
     {
-        public string Header      { get; set; } = "";
-        public Action Execute     { get; set; } = () => { };
-        public bool   IsSeparator { get; set; }
+        public string             Header      { get; set; } = "";
+        public Action             Execute     { get; set; } = () => { };
+        public bool               IsSeparator { get; set; }
+        public List<NavMenuItem>? SubItems    { get; set; }
 
         public static NavMenuItem Separator() => new NavMenuItem { IsSeparator = true };
     }

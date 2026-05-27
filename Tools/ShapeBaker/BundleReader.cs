@@ -42,6 +42,27 @@ internal sealed class BundleReader : IDisposable
             _manager.LoadClassDatabaseFromPackage(_assets.file.Metadata.UnityVersion);
     }
 
+    // Yield every GameObject root name in the bundle. Diagnostic helper for
+    // --list-bundle-roots so we can compare BlocksConfig prefab names against
+    // what's actually present (door / walkway investigation, etc.). Skips
+    // GameObjects whose m_Name fails to read or is empty.
+    public IEnumerable<string> EnumerateRootNames()
+    {
+        foreach (var rootInfo in _assets.file.GetAssetsOfType(AssetClassID.GameObject))
+        {
+            AssetTypeValueField? rootField;
+            try { rootField = _manager.GetBaseField(_assets, rootInfo); }
+            catch { continue; }
+            if (rootField == null) continue;
+
+            string name;
+            try { name = rootField["m_Name"].AsString ?? ""; }
+            catch { continue; }
+            if (name.Length == 0) continue;
+            yield return name;
+        }
+    }
+
     public IEnumerable<RawMesh> EnumerateMeshes(HashSet<string>? nameFilter = null)
     {
         int goCount = 0;
@@ -95,7 +116,12 @@ internal sealed class BundleReader : IDisposable
                     if (compAsset.info == null) continue;
 
                     int cls = compAsset.info.TypeId;
-                    if (cls == (int)AssetClassID.MeshFilter)
+                    // MeshFilter is the static-mesh case; SkinnedMeshRenderer
+                    // is the animated-mesh case (doors, etc.) and stores its
+                    // mesh under the same m_Mesh field, so the downstream
+                    // ResolveMeshFromMeshFilter path works for both.
+                    if (cls == (int)AssetClassID.MeshFilter ||
+                        cls == (int)AssetClassID.SkinnedMeshRenderer)
                         meshFilters.Add(compAsset);
                     else if (cls == (int)AssetClassID.Transform || cls == (int)AssetClassID.RectTransform)
                         transformPtr = compPtr;

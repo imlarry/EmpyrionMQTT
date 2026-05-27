@@ -15,4 +15,18 @@
     <PackageReference Include="AssetsTools.NET" Version="3.0.0" />
   </ItemGroup>
 
+  <!-- Auto-run the bake after the tool is built so EDNA always picks up a
+       fresh shapes.bake. Skipped if Empyrion is not installed at the default
+       Steam path; in that case the existing shapes.bake (if any) is used.
+       Incremental: only re-runs when ShapeBaker's own output is newer than
+       shapes.bake. Delete shapes.bake manually to force a fresh bake. -->
+  <Target Name="RunShapeBaker"
+          AfterTargets="Build"
+          Inputs="$(TargetPath)"
+          Outputs="$(MSBuildProjectDirectory)\shapes.bake"
+          Condition="Exists('C:\Program Files (x86)\Steam\steamapps\common\Empyrion - Galactic Survival\Content\Bundles\shapes')">
+    <Message Importance="High" Text="ShapeBaker: baking shapes.bake -> $(MSBuildProjectDirectory)\shapes.bake" />
+    <Exec Command="&quot;$(TargetDir)$(AssemblyName).exe&quot; --output &quot;$(MSBuildProjectDirectory)\shapes.bake&quot;" />
+  </Target>
+
 </Project>

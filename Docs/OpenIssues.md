@@ -64,6 +64,23 @@ Supersedes Docs/Plans/. Plans directory can be removed once this document is rev
 
 ---
 
+## Shape Baker
+
+- [ ] **CylinderCubeHalfConnector voxelizes to a full cube.** Surfaced by `Tools/ShapeBaker/find-dupes.ps1` against the current `shapes.bake`: this shape and `Cube` both end up at 512/512 fill (100%), placing them in the same duplicate group. Source mesh has 835 vertices / 987 triangles vs. Cube's 215v/248t, and its AABB is a clean unit cube -- suggests submesh merge is concatenating LOD chains or inner-fill submeshes for this asset, so every voxel ends up inside at least one triangle during `Voxelizer.Voxelize`. Investigate `BundleReader.EnumerateMeshes` (LOD groups, multi-renderer prefabs) and `Program.MergeSubmeshes`; consider filtering submeshes by GameObject owner name (LODn suffixes) or by `MeshRenderer.enabled`. Verification: rerun `find-dupes.ps1` and confirm CylinderCubeHalfConnector drops out of the 100%-fill duplicate group.
+
+- [ ] ** Dups in door baked shape set.**
+
+First call shows every *Prefab root in the models bundle (deduped). The second tells us if door geometry might live in a separate bundle file (we already know about models and models2; there may be more).
+
+What we're testing: the Window_*Prefab family appeared in the models bundle and baked fine, but the same path scheme @models/Blocks/Mothership/DoorNewMSPrefab from BlocksConfig produced no match. Either doors use a non-*Prefab-suffixed root name, they live in a different physical bundle, or BlocksConfig's @models/ prefix is a logical pointer that resolves to a sibling bundle at runtime.
+
+dotnet run --project Tools\ShapeBaker -- --list-bundle-roots models Prefab
+dir "C:\Program Files (x86)\Steam\steamapps\common\Empyrion - Galactic Survival\Content\Bundles"
+
+To collect analysis data.
+
+---
+
 ## Architecture Decisions
 
 - [ ] **V1 GameApi exposure.** Decide which, if any, ModBase (V1) API methods to expose via ESB. ModBase and ModApi (V2) are both active; some V1 calls have no V2 equivalent. Document the decision and implement any chosen handlers.

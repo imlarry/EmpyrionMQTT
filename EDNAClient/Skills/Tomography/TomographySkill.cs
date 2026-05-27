@@ -6,6 +6,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
 using EDNAClient.Core;
+using EDNAClient.Core.ShapeBake;
 using EDNAClient.Helpers;
 using EDNAClient.Workspace;
 
@@ -103,42 +104,114 @@ namespace EDNAClient.Skills.Tomography
 
         // ── Scan trigger ──────────────────────────────────────────────────────
 
-        // Invoked from a Tomography nav root context-menu entry. Hotkeys were
-        // attempted but Empyrion's raw-input capture swallows global Win32 hotkeys
-        // before EDNA sees them, so the context menu is the only reliable trigger.
-        // One menu entry per preset (see TomographyScanner.Presets) lets the user
-        // rescan the same structure with different smoothing/iso settings to compare.
-        // One context-menu entry per reconstruction preset.  TomographyScanner.Presets[0]
-        // is the default and is labeled accordingly; the rest are listed in declaration order.
+        // Top-level scan presets, then a Debug submenu for diagnostic synthetic
+        // scans and the in-game rotation-atlas calibration action.
         private List<NavMenuItem> BuildScanMenu()
         {
-            var items = new List<NavMenuItem>();
-            for (int i = 0; i < TomographyScanner.Presets.Length; i++)
+            return new List<NavMenuItem>
             {
-                var p = TomographyScanner.Presets[i];
-                string label = i == 0
-                    ? $"Scan Current Structure  ({p.Name})"
-                    : $"Scan Current Structure  ({p.Name})";
-                items.Add(new NavMenuItem
+                ScanItem("Scan Blocky", TomographyScanner.Blocky),
+                ScanItem("Scan Sharp",  TomographyScanner.Sharp),
+                NavMenuItem.Separator(),
+                new NavMenuItem
                 {
-                    Header  = label,
-                    Execute = () =>
+                    Header   = "Debug",
+                    SubItems = new List<NavMenuItem>
                     {
-                        EdnaLogger.Log($"[Tomography] context menu click preset={p.Name}");
-                        UI.Invoke(() => StartScan(p));
+                        BuildShapeGalleryMenu(),
+                        ScanItem("Rotation Atlas", TomographyScanner.Atlas),
+                        new NavMenuItem
+                        {
+                            Header  = "Calibrate Rotation Model",
+                            Execute = () =>
+                            {
+                                EdnaLogger.Log("[Tomography] context menu click SetRotationAtlas");
+                                UI.Invoke(StartSetRotationAtlas);
+                            },
+                        },
                     },
-                });
-            }
-            items.Add(new NavMenuItem
+                },
+            };
+        }
+
+        // Shape Gallery becomes a submenu of TabGroup-derived categories from
+        // BlockShapesWindow.ecf, followed by class-derived synthetic categories
+        // (Windows, Doors, Walkways) whose stamps are prefab bakes rather than
+        // shape-list entries and therefore aren't represented in the ECF.
+        // If neither source produces anything we fall back to the legacy single
+        // full-bake entry.
+        private NavMenuItem BuildShapeGalleryMenu()
+        {
+            var subItems = new List<NavMenuItem>();
+
+            if (BlockShapeCategories.IsLoaded)
             {
-                Header  = "Calibrate: Set Rotation Atlas (in-game)",
+                foreach (var cat in BlockShapeCategories.All)
+                {
+                    var filter = new HashSet<string>(cat.ShapeNames, StringComparer.Ordinal);
+                    var preset = new TomographyPreset(
+                        name:          cat.Name,
+                        mode:          TomographyMode.Gallery,
+                        galleryFilter: filter,
+                        galleryKey:    "cat-" + cat.Id);
+                    subItems.Add(ScanItem(cat.Name, preset));
+                }
+            }
+
+            AddClassStampCategory(subItems, BlockCategory.Window,  "Windows",  "win");
+            AddClassStampCategory(subItems, BlockCategory.Door,    "Doors",    "door");
+            AddClassStampCategory(subItems, BlockCategory.Walkway, "Walkways", "walk");
+
+            if (subItems.Count == 0)
+                return ScanItem("Shape Gallery", TomographyScanner.Gallery);
+
+            return new NavMenuItem { Header = "Shape Gallery", SubItems = subItems };
+        }
+
+        // Collects every baked prefab stamp referenced by blocks classified
+        // into `category` and adds a gallery submenu entry for them. Prefab
+        // name is the last path segment of BlocksConfig.Model (e.g.
+        // "@models/Blocks/Windows/Standard/Window_v1x1Prefab" ->
+        // "Window_v1x1Prefab"); only stamps actually present in the bake are
+        // included. No-op if nothing baked, so the menu stays clean on
+        // categories the user hasn't generated stamps for yet.
+        private void AddClassStampCategory(
+            List<NavMenuItem> subItems, BlockCategory category, string label, string keyPrefix)
+        {
+            if (!ShapeStampCatalog.IsLoaded) return;
+
+            var names = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var typeId in BlockClassifier.TypeIdsFor(category))
+            {
+                var def = BlocksConfig.GetById(typeId);
+                if (def == null || string.IsNullOrEmpty(def.Model)) continue;
+                int slash = def.Model.LastIndexOf('/');
+                var prefab = slash >= 0 ? def.Model.Substring(slash + 1) : def.Model;
+                if (prefab.Length == 0) continue;
+                if (ShapeStampCatalog.GetStamp(prefab) == null) continue;
+                names.Add(prefab);
+            }
+            if (names.Count == 0) return;
+
+            var preset = new TomographyPreset(
+                name:          label,
+                mode:          TomographyMode.Gallery,
+                galleryFilter: names,
+                galleryKey:    keyPrefix + "-class");
+            subItems.Add(ScanItem(label, preset));
+        }
+
+        private NavMenuItem ScanItem(string header, TomographyPreset preset)
+        {
+            return new NavMenuItem
+            {
+                Header  = header,
                 Execute = () =>
                 {
-                    EdnaLogger.Log("[Tomography] context menu click SetRotationAtlas");
-                    UI.Invoke(StartSetRotationAtlas);
+                    EdnaLogger.Log($"[Tomography] context menu click preset={preset.Name}");
+                    UI.Invoke(() => StartScan(preset));
                 },
-            });
-            return items;
+            };
         }
 
         private void StartSetRotationAtlas()

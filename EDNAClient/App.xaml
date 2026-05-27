@@ -6,5 +6,104 @@
         <!-- Colours -->
         <SolidColorBrush x:Key="ThreatAmber" Color="#FFFFA500"/>
 
+        <!-- Dark context-menu palette. Used by NavigationView when it builds
+             right-click menus in code. Replaces the system-default white menu
+             chrome (including the light-shaded icon gutter that appears in
+             front of every entry) with a flat dark surface. -->
+        <SolidColorBrush x:Key="DarkMenu.Bg"        Color="#2D2D2D"/>
+        <SolidColorBrush x:Key="DarkMenu.Hover"     Color="#3D5060"/>
+        <SolidColorBrush x:Key="DarkMenu.Fg"        Color="#D0D0D0"/>
+        <SolidColorBrush x:Key="DarkMenu.SubArrow"  Color="#A0A0A0"/>
+        <SolidColorBrush x:Key="DarkMenu.Separator" Color="#4A4A4A"/>
+
+        <Style x:Key="DarkMenuItemStyle" TargetType="{x:Type MenuItem}">
+            <Setter Property="Background"      Value="{StaticResource DarkMenu.Bg}"/>
+            <Setter Property="Foreground"      Value="{StaticResource DarkMenu.Fg}"/>
+            <Setter Property="BorderBrush"     Value="{StaticResource DarkMenu.Bg}"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding"         Value="6,3"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type MenuItem}">
+                        <Grid Background="{TemplateBinding Background}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto" SharedSizeGroup="Arrow"/>
+                            </Grid.ColumnDefinitions>
+                            <ContentPresenter Grid.Column="0"
+                                              ContentSource="Header"
+                                              RecognizesAccessKey="True"
+                                              Margin="{TemplateBinding Padding}"
+                                              VerticalAlignment="Center"/>
+                            <Path x:Name="SubArrow"
+                                  Grid.Column="1"
+                                  Margin="8,0,8,0"
+                                  VerticalAlignment="Center"
+                                  Data="M 0,0 L 4,4 L 0,8 Z"
+                                  Fill="{StaticResource DarkMenu.SubArrow}"
+                                  Visibility="Collapsed"/>
+                            <Popup x:Name="PART_Popup"
+                                   AllowsTransparency="True"
+                                   Focusable="False"
+                                   IsOpen="{Binding IsSubmenuOpen, RelativeSource={RelativeSource TemplatedParent}}"
+                                   Placement="Right"
+                                   PopupAnimation="None">
+                                <Border Background="{StaticResource DarkMenu.Bg}"
+                                        BorderBrush="{StaticResource DarkMenu.Separator}"
+                                        BorderThickness="1"
+                                        Padding="0">
+                                    <Grid>
+                                        <ItemsPresenter Grid.IsSharedSizeScope="True"/>
+                                    </Grid>
+                                </Border>
+                            </Popup>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="Role" Value="SubmenuHeader">
+                                <Setter TargetName="SubArrow" Property="Visibility" Value="Visible"/>
+                            </Trigger>
+                            <Trigger Property="IsHighlighted" Value="True">
+                                <Setter Property="Background" Value="{StaticResource DarkMenu.Hover}"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Foreground" Value="#808080"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="DarkSeparatorStyle" TargetType="{x:Type Separator}">
+            <Setter Property="Margin"     Value="0,2"/>
+            <Setter Property="Background" Value="{StaticResource DarkMenu.Separator}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type Separator}">
+                        <Border Height="1" Background="{TemplateBinding Background}"/>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="DarkContextMenuStyle" TargetType="{x:Type ContextMenu}">
+            <Setter Property="Background"      Value="{StaticResource DarkMenu.Bg}"/>
+            <Setter Property="Foreground"      Value="{StaticResource DarkMenu.Fg}"/>
+            <Setter Property="BorderBrush"     Value="{StaticResource DarkMenu.Separator}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding"         Value="0"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type ContextMenu}">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}">
+                            <ItemsPresenter Grid.IsSharedSizeScope="True"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
     </Application.Resources>
 </Application>
