@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using EDNAClient.Core;
 using EDNAClient.Core.ShapeBake;
+using EDNAClient.Services;
 using ESB.Messaging;
 using Newtonsoft.Json.Linq;
 
@@ -317,6 +318,9 @@ namespace EDNAClient.Skills.Tomography
             if (_bus == null) throw new InvalidOperationException("TomographyScanner not started");
             if (preset == null) preset = Default;
 
+            // AudioService smoke test: play a preset-specific cue on scan kickoff.
+            PlayScanStartCue(preset);
+
             // Gallery is purely synthetic -- no bus traffic, no structure required.
             if (preset.Mode == TomographyMode.Gallery)
             {
@@ -391,6 +395,32 @@ namespace EDNAClient.Skills.Tomography
                 statusCallback($"Error: {ex.Message}");
                 EdnaLogger.Error("TomographyScanner.ScanAsync failed", ex);
                 return null;
+            }
+        }
+
+        // AudioService smoke test. Filenames live in Resources/Audio/.
+        // Sharp   -> manual-drop clock-tick (only present in deployed folder)
+        // Blocky  -> bundled hover-engine (ships with EDNA)
+        // Gallery -> TTS intro line, spoken once per process (any category counts).
+        private static bool _galleryAnnounced;
+        private const string GalleryIntroText =
+            "Commander, in conferring with Ida, I've come to suspect I can utilize "
+            + "the basic operation of the repair bay to create a tomographic scanner "
+            + "that you could employ before entering various structures. "
+            + "Would you be interested in researching this technology.";
+
+        private static void PlayScanStartCue(TomographyPreset preset)
+        {
+            var audio = AudioService.Instance;
+            if (audio == null) return;
+            if (preset.Mode == TomographyMode.VoxelCubes)
+                audio.PlayAlert("freesound_community-labratory-clock-tick-science-fiction-alien-80353");
+            else if (preset.Mode == TomographyMode.Blocky)
+                audio.PlayAlert("freesound_community-hover-engine-6391");
+            else if (preset.Mode == TomographyMode.Gallery && !_galleryAnnounced)
+            {
+                _galleryAnnounced = true;
+                audio.Speak(GalleryIntroText);
             }
         }
 

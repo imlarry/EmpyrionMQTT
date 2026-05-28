@@ -38,6 +38,19 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Audio assets consumed by Services/AudioService. Glob is empty until
+         assets are committed (see OpenIssues "Audio asset provisioning"). -->
+    <Content Include="Resources\Audio\*.wav">
+      <Link>Resources\Audio\%(Filename)%(Extension)</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Resources\Audio\*.mp3">
+      <Link>Resources\Audio\%(Filename)%(Extension)</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
+  <ItemGroup>
 <PackageReference Include="AvalonEdit" Version="6.3.0.90" />
     <PackageReference Include="Dirkster.AvalonDock" Version="4.72.1" />
     <PackageReference Include="Dirkster.AvalonDock.Themes.VS2013" Version="4.72.1" />
@@ -45,6 +58,7 @@
     <PackageReference Include="Microsoft.Data.Sqlite" Version="8.0.0" />
     <PackageReference Include="MoonSharp" Version="2.0.0" />
     <PackageReference Include="SkiaSharp.Views.WPF" Version="2.88.8" />
+    <PackageReference Include="System.Speech" Version="8.0.0" />
     <PackageReference Include="YamlDotNet" Version="15.1.0" />
   </ItemGroup>
 
@@ -64,6 +78,13 @@
     <ItemGroup>
       <_DeployFiles   Include="$(TargetDir)*.exe;$(TargetDir)*.dll;$(TargetDir)*.yaml;$(TargetDir)*.json;$(TargetDir)*.runtimeconfig.json;$(TargetDir)*.bake" />
       <_DeployScripts Include="$(TargetDir)scripts\*.lua" />
+      <_DeployAudio   Include="$(TargetDir)Resources\Audio\*.wav;$(TargetDir)Resources\Audio\*.mp3" />
+      <!-- RID-specific runtime assets (managed impls + native libs). System.Speech's
+           actual implementation lives under runtimes\win\lib\net8.0\; without this
+           copy step EDNA crashes on start with FileNotFoundException at the
+           deployed location. Same applies to SkiaSharp/Sqlite native deps if they
+           are ever exercised post-deploy. -->
+      <_DeployRuntimes Include="$(TargetDir)runtimes\**\*.*" />
     </ItemGroup>
     <Message Importance="High" Text="EDNA deploy -> Empyrion client: @(_DeployFiles->'%(Filename)%(Extension)', ', ')"
              Condition="Exists('C:\Program Files (x86)\Steam\steamapps\common\Empyrion - Galactic Survival\Content\Mods\ESB')" />
@@ -77,6 +98,16 @@
           SkipUnchangedFiles="false"
           ContinueOnError="WarnAndContinue"
           Condition="Exists('C:\Program Files (x86)\Steam\steamapps\common\Empyrion - Galactic Survival\Content\Mods\ESB')" />
+    <Copy SourceFiles="@(_DeployAudio)"
+          DestinationFiles="@(_DeployAudio->'C:\Program Files (x86)\Steam\steamapps\common\Empyrion - Galactic Survival\Content\Mods\ESB\EDNA\Resources\Audio\%(Filename)%(Extension)')"
+          SkipUnchangedFiles="false"
+          ContinueOnError="WarnAndContinue"
+          Condition="Exists('C:\Program Files (x86)\Steam\steamapps\common\Empyrion - Galactic Survival\Content\Mods\ESB')" />
+    <Copy SourceFiles="@(_DeployRuntimes)"
+          DestinationFiles="@(_DeployRuntimes->'C:\Program Files (x86)\Steam\steamapps\common\Empyrion - Galactic Survival\Content\Mods\ESB\EDNA\runtimes\%(RecursiveDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="false"
+          ContinueOnError="WarnAndContinue"
+          Condition="Exists('C:\Program Files (x86)\Steam\steamapps\common\Empyrion - Galactic Survival\Content\Mods\ESB')" />
     <Message Importance="High" Text="EDNA deploy -> Dedicated Server: @(_DeployFiles->'%(Filename)%(Extension)', ', ')"
              Condition="Exists('C:\Program Files (x86)\Steam\steamapps\common\Empyrion - Dedicated Server\Content\Mods\ESB')" />
     <Copy SourceFiles="@(_DeployFiles)"
@@ -86,6 +117,16 @@
           Condition="Exists('C:\Program Files (x86)\Steam\steamapps\common\Empyrion - Dedicated Server\Content\Mods\ESB')" />
     <Copy SourceFiles="@(_DeployScripts)"
           DestinationFiles="@(_DeployScripts->'C:\Program Files (x86)\Steam\steamapps\common\Empyrion - Dedicated Server\Content\Mods\ESB\EDNA\scripts\%(Filename)%(Extension)')"
+          SkipUnchangedFiles="false"
+          ContinueOnError="WarnAndContinue"
+          Condition="Exists('C:\Program Files (x86)\Steam\steamapps\common\Empyrion - Dedicated Server\Content\Mods\ESB')" />
+    <Copy SourceFiles="@(_DeployAudio)"
+          DestinationFiles="@(_DeployAudio->'C:\Program Files (x86)\Steam\steamapps\common\Empyrion - Dedicated Server\Content\Mods\ESB\EDNA\Resources\Audio\%(Filename)%(Extension)')"
+          SkipUnchangedFiles="false"
+          ContinueOnError="WarnAndContinue"
+          Condition="Exists('C:\Program Files (x86)\Steam\steamapps\common\Empyrion - Dedicated Server\Content\Mods\ESB')" />
+    <Copy SourceFiles="@(_DeployRuntimes)"
+          DestinationFiles="@(_DeployRuntimes->'C:\Program Files (x86)\Steam\steamapps\common\Empyrion - Dedicated Server\Content\Mods\ESB\EDNA\runtimes\%(RecursiveDir)%(Filename)%(Extension)')"
           SkipUnchangedFiles="false"
           ContinueOnError="WarnAndContinue"
           Condition="Exists('C:\Program Files (x86)\Steam\steamapps\common\Empyrion - Dedicated Server\Content\Mods\ESB')" />

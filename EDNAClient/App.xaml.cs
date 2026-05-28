@@ -4,6 +4,7 @@ using WinFormsApp = System.Windows.Forms.Application;
 using EDNAClient.Configuration;
 using EDNAClient.Core;
 using EDNAClient.Core.ShapeBake;
+using EDNAClient.Services;
 using EDNAClient.Skills.FloorMap;
 using EDNAClient.Skills.Scripting.ScriptEditor;
 using EDNAClient.Skills.GalaxyMap;
@@ -63,6 +64,9 @@ namespace EDNAClient
 
             ShutdownMode = ShutdownMode.OnExplicitShutdown;
             WinFormsApp.EnableVisualStyles();
+
+            try { AudioService.Initialize(); }
+            catch (Exception ex) { EdnaLogger.Warn($"AudioService init failed; audio disabled. {ex.GetType().Name}: {ex.Message}"); }
 
             _tray      = new TrayIconManager();
             _workspace = new WorkspaceWindow(EdnaSettings.Load());
@@ -145,6 +149,7 @@ namespace EDNAClient
                 await _service.StopAsync();
             _workspace?.ForceClose();
             _tray?.Dispose();
+            AudioService.Instance?.Dispose();
             _instanceMutex?.ReleaseMutex();
             _instanceMutex?.Dispose();
             EdnaLogger.Close();

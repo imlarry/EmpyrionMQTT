@@ -81,6 +81,14 @@ To collect analysis data.
 
 ---
 
+## Audio
+
+- [ ] **Lua audio API.** Expose `EDNAClient/Services/AudioService` to scripts via a new `LuaAudioApi` (mirror `LuaMqttApi` / `LuaLogApi` under `Skills/Scripting/Api/`). Surface at minimum `audio.play_alert(name)`, `audio.play_sfx(path)`, and `audio.speak(text, priority)`. Register through `LuaScriptHost` alongside the existing APIs. Decide how host-side path resolution should work for `play_sfx` (sandbox under `Resources/Audio/` only, or allow absolute paths from trusted scripts).
+
+- [ ] **Audio asset provisioning.** `AudioService` reads from `EDNAClient/Resources/Audio/` (deployed to `<ESB>/EDNA/Resources/Audio/`). No assets are committed yet; `PlayAlert` falls back to `SystemSounds.Asterisk` when a named file is missing. Source or commission a starter set: `ping` (scanner/radar), `alert` (warning), `error`, and a generic confirmation. Decide on licensing (CC0 / public-domain pack vs. commissioned), final format (16-bit WAV vs. MP3), and naming convention so skills can reference alerts by short name with confidence they exist.
+
+---
+
 ## Architecture Decisions
 
 - [ ] **V1 GameApi exposure.** Decide which, if any, ModBase (V1) API methods to expose via ESB. ModBase and ModApi (V2) are both active; some V1 calls have no V2 equivalent. Document the decision and implement any chosen handlers.
