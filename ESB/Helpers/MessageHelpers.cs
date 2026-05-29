@@ -51,6 +51,7 @@ namespace ESB.Helpers
 
         internal static Vector3    ParseVec3    (JToken t) => new Vector3   (t["X"].Value<float>(), t["Y"].Value<float>(), t["Z"].Value<float>());
         internal static VectorInt3 ParseVecInt3 (JToken t) => new VectorInt3(t["X"].Value<int>(),   t["Y"].Value<int>(),   t["Z"].Value<int>());
+        internal static Quaternion ParseQuat    (JToken t) => new Quaternion((float)t["X"], (float)t["Y"], (float)t["Z"], (float)t["W"]);
 
         // --- Tabular array helper ---
 

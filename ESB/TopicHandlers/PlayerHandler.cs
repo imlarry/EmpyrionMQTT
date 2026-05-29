@@ -1,7 +1,6 @@
 using Eleon.Modding;
 using ESB.Helpers;
 using ESB.Messaging;
-using ESB.Payloads;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using System;
@@ -16,13 +15,10 @@ namespace ESB.TopicHandlers
 
         public PlayerHandler(ContextData ctx) { _ctx = ctx; }
 
-        static JObject FD(FactionData fd) => new JObject(new JProperty("Group", fd.Group.ToString()), new JProperty("Id", fd.Id));
-
         public void Register()
         {
             _ctx.Bus.OnRequest("Player", "GetProperties", Properties);
             _ctx.Bus.OnRequest("Player", "Teleport",      Teleport);
-            _ctx.Bus.OnRequest("Player", "DamageEntity",  DamageEntity);
         }
 
         // =========================================================================
@@ -98,8 +94,8 @@ namespace ESB.TopicHandlers
                     obj["BelongsTo"]       = S(() => player.BelongsTo);
                     obj["DockedTo"]        = S(() => player.DockedTo);
                     obj["Type"]            = S(() => player.Type.ToString());
-                    obj["FactionData"]     = S(() => FD(player.FactionData));
-                    obj["Faction"]         = S(() => FD(player.Faction));
+                    obj["FactionData"]     = S(() => HandlerHelper.FactionDataJson(player.FactionData));
+                    obj["Faction"]         = S(() => HandlerHelper.FactionDataJson(player.Faction));
                     obj["FactionRole"]     = S(() => player.FactionRole.ToString());
                     obj["CurrentStructure"] = player.CurrentStructure != null
                         ? (JToken)new JObject(
@@ -160,30 +156,5 @@ namespace ESB.TopicHandlers
             }
         }
 
-        // =========================================================================
-        // Player/DamageEntity -- { "DamageAmount": float, "DamageType": int }
-        // Applies damage from LocalPlayer; dispatched on the main thread.
-        // Returns: { "ok": true }
-        // =========================================================================
-        public async Task<string> DamageEntity(MessageEnvelope env)
-        {
-            try
-            {
-                var lp = _ctx.ModApi.Application.LocalPlayer;
-                if (lp == null)
-                    return MessageHelpers.ErrorJson("LocalPlayer is null -- no active player in this game mode");
-
-                var req = env.PayloadAs<DamageEntityRequest>();
-                return await _ctx.MainThreadRunner.RunOnMainThread(() =>
-                {
-                    lp.DamageEntity(req.DamageAmount, req.DamageType);
-                    return new JObject(new JProperty("ok", true)).ToString(Formatting.None);
-                });
-            }
-            catch (Exception ex)
-            {
-                return MessageHelpers.ExceptionJson(ex);
-            }
-        }
     }
 }

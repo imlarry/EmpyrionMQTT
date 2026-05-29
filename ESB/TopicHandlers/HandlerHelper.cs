@@ -12,6 +12,11 @@ namespace ESB.TopicHandlers
         // Shared serialization helpers (used across multiple handlers)
         // -------------------------------------------------------------------------
 
+        internal static JObject FactionDataJson(FactionData fd) =>
+            new JObject(
+                new JProperty("Group", fd.Group.ToString()),
+                new JProperty("Id",    fd.Id));
+
         internal static JObject BuildStructureJson(GlobalStructureInfo s) =>
             new JObject(
                 new JProperty("Id",             s.id),

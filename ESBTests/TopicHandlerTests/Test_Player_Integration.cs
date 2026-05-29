@@ -206,19 +206,4 @@ public class Test_Player_Integration
         Assert.Contains("Rot argument is required", (string)payload["Error"] ?? "");
     }
 
-    // =========================================================================
-    // Player/DamageEntity
-    // =========================================================================
-
-    [Fact]
-    public async Task DamageEntity_ZeroDamage_ReturnsOkOrError()
-    {
-        await using var mqtt = await SBTestClient.ConnectAsync();
-        var payload = await mqtt.RequestAsync("Player", "DamageEntity",
-            "{\"DamageAmount\":0,\"DamageType\":0}");
-
-        // R: {ok:true}   X: {Error:...}  -- either is acceptable (dedicated server has no LocalPlayer)
-        Assert.True(payload["ok"] != null || payload["Error"] != null,
-            "Expected either ok or Error in response");
-    }
 }

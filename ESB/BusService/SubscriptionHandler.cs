@@ -16,6 +16,7 @@ namespace ESB
         {
             new AppHandler(_ctx).Register();
             new PlayerHandler(_ctx).Register();
+            new EntityHandler(_ctx).Register();
             new StructureHandler(_ctx).Register();
             new PlayfieldHandler(_ctx).Register();
             return Task.CompletedTask;
