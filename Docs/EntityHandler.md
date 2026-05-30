@@ -1,5 +1,20 @@
 # EntityHandler -- Implementation Plan
 
+## Status
+
+Implemented in commit 4e45406 ("Add EntityHandler; move DamageEntity off
+PlayerHandler"). Sections 1-6 below are complete. Section 7 (verification) is
+user-driven and still open: build/test are user-triggered, and the live
+smoke-check has not been run.
+
+Note on threading: as written, the handler methods run synchronously and return
+`Task.FromResult(...)` without hopping through
+`_ctx.MainThreadRunner.RunOnMainThread`. That is now considered a bug. Per the
+project rule, ModApi/game-state calls default to the main thread (Unity thread
+affinity), so each of these handlers needs a main-thread hop around its API call
+and state access. The section 3 wording ("on the main thread") stands. This
+hop is pending the cleanup pass over ESB.
+
 ## Context
 
 EmpyrionMQTT exposes the Empyrion modding API over MQTT via topic handlers under
@@ -56,13 +71,13 @@ Structure scope with the same EntityId).
 
 ### 1. Shared helpers
 
-- [ ] Add `internal static Quaternion ParseQuat(JToken t)` to
+- [x] Add `internal static Quaternion ParseQuat(JToken t)` to
       [../ESB/Helpers/MessageHelpers.cs](../ESB/Helpers/MessageHelpers.cs)
       immediately after `ParseVecInt3`. Expects `{X,Y,Z,W}`; symmetric to the
       existing `Vec(Quaternion)` emitter. Use direct cast `(float)t["X"]` per
       the project JToken rule -- no `.Value<float>()`.
 
-- [ ] Move the FactionData serializer out of PlayerHandler so it can be reused.
+- [x] Move the FactionData serializer out of PlayerHandler so it can be reused.
       Today it lives as `static JObject FD(FactionData fd)` at
       [../ESB/TopicHandlers/PlayerHandler.cs:19](../ESB/TopicHandlers/PlayerHandler.cs).
       Promote it to `internal static JObject FactionDataJson(FactionData)` in
@@ -77,17 +92,17 @@ Create `ESB/Payloads/EntityPayloads.cs` following the
 [../ESB/Payloads/StructurePayloads.cs](../ESB/Payloads/StructurePayloads.cs)
 and [../ESB/Payloads/PlayerPayloads.cs](../ESB/Payloads/PlayerPayloads.cs):
 
-- [ ] `QuatPayload { float X, Y, Z, W; }` -- symmetric to the existing
+- [x] `QuatPayload { float X, Y, Z, W; }` -- symmetric to the existing
       `Vec3Payload`.
-- [ ] `SetEntityPositionRequest { int EntityId; Vec3Payload Pos; }`
-- [ ] `SetEntityRotationRequest { int EntityId; QuatPayload Rot; }`
-- [ ] `MoveEntityRequest { int EntityId; Vec3Payload Direction; }`
-- [ ] `MoveForwardRequest { int EntityId; float Speed; }`
-- [ ] Move `DamageEntityRequest` from
+- [x] `SetEntityPositionRequest { int EntityId; Vec3Payload Pos; }`
+- [x] `SetEntityRotationRequest { int EntityId; QuatPayload Rot; }`
+- [x] `MoveEntityRequest { int EntityId; Vec3Payload Direction; }`
+- [x] `MoveForwardRequest { int EntityId; float Speed; }`
+- [x] Move `DamageEntityRequest` from
       [../ESB/Payloads/PlayerPayloads.cs](../ESB/Payloads/PlayerPayloads.cs)
       into the new file and add `int EntityId` to it (was implicitly LocalPlayer
       before).
-- [ ] Reuse the existing `EntityIdRequest` from
+- [x] Reuse the existing `EntityIdRequest` from
       [../ESB/Payloads/StructurePayloads.cs](../ESB/Payloads/StructurePayloads.cs)
       for `MoveStop` and as the base for read ops -- do not duplicate.
 
@@ -98,59 +113,59 @@ mirroring the conventions of
 [../ESB/TopicHandlers/PlayerHandler.cs](../ESB/TopicHandlers/PlayerHandler.cs)
 and [../ESB/TopicHandlers/StructureHandler.cs](../ESB/TopicHandlers/StructureHandler.cs):
 
-- [ ] `public class EntityHandler` with `readonly ContextData _ctx` and a
+- [x] `public class EntityHandler` with `readonly ContextData _ctx` and a
       `public EntityHandler(ContextData ctx)` ctor.
-- [ ] `Register()` calls `_ctx.Bus.OnRequest("Entity", "<Op>", method)` once
+- [x] `Register()` calls `_ctx.Bus.OnRequest("Entity", "<Op>", method)` once
       per op listed in Scope.
-- [ ] Private helper `IEntity GetEntity(int id)` modeled on
+- [x] Private helper `IEntity GetEntity(int id)` modeled on
       `StructureHandler.GetStructureForEntity`: resolves
       `_ctx.GameManager.CurrentPlayfield ?? _ctx.ModApi.ClientPlayfield`, then
       `pf.Entities.TryGetValue(id, out entity)`. Throws
       `InvalidOperationException` with the standard message when not found.
-- [ ] `GetProperties` follows `PlayerHandler.Properties`: look up entity,
+- [x] `GetProperties` follows `PlayerHandler.Properties`: look up entity,
       dispatch via `_ctx.MainThreadRunner.RunOnMainThread`, use the local
       `JToken S(Func<object>)` safe-getter wrapper, build a `JObject` with
       `Id, Name, Type (ToString), Position (Vec), Forward (Vec), Rotation (Vec),
       IsLocal, IsProxy, IsPoi, Faction (FactionDataJson), BelongsTo, DockedTo,
       HasStructure (entity.Structure != null)`.
-- [ ] `List` iterates `pf.Entities` and emits
+- [x] `List` iterates `pf.Entities` and emits
       `MessageHelpers.Tabular(columns, rows)`. Columns:
       `{ EntityId, Name, Type, FactionId, FactionGroup, BelongsTo, DockedTo, X, Y, Z, IsPoi }`.
       Skip null entries with the same defensive `if (e == null) continue` used
       in PlayfieldHandler.
-- [ ] `SetPosition` parses with `env.PayloadAs<SetEntityPositionRequest>()`,
+- [x] `SetPosition` parses with `env.PayloadAs<SetEntityPositionRequest>()`,
       runs on main thread, sets
       `entity.Position = new Vector3(req.Pos.X, req.Pos.Y, req.Pos.Z)`, returns
       `{ "ok": true }`.
-- [ ] `SetRotation` parses with `env.PayloadAs<SetEntityRotationRequest>()`,
+- [x] `SetRotation` parses with `env.PayloadAs<SetEntityRotationRequest>()`,
       assigns `entity.Rotation = new Quaternion(req.Rot.X, ...)`, returns
       `{ ok }`. (`MessageHelpers.ParseQuat` is the JToken-path equivalent for
       callers that prefer raw JObject parsing.)
-- [ ] `DamageEntity` parses `DamageEntityRequest`, looks up the entity by
+- [x] `DamageEntity` parses `DamageEntityRequest`, looks up the entity by
       `req.EntityId`, calls `entity.DamageEntity(req.DamageAmount, req.DamageType)`
       on the main thread. This corrects the pre-existing behavior in
       `PlayerHandler.DamageEntity` which damages LocalPlayer regardless of
       payload.
-- [ ] `Move` / `MoveForward` / `MoveStop` parse their respective payloads,
+- [x] `Move` / `MoveForward` / `MoveStop` parse their respective payloads,
       look up the entity, dispatch on the main thread, call the corresponding
       IEntity method, return `{ "ok": true }`.
-- [ ] Every handler method is `async Task<string>` (or `Task<string>` when no
+- [x] Every handler method is `async Task<string>` (or `Task<string>` when no
       main-thread hop is needed) and wraps its body in `try { ... } catch
       (Exception ex) { return MessageHelpers.ExceptionJson(ex); }`.
-- [ ] Input parsing uses direct casts `(int)payload["EntityId"]` per the
+- [x] Input parsing uses direct casts `(int)payload["EntityId"]` per the
       project rule; never `.Value<T>()`.
 
 ### 4. Remove Player/DamageEntity
 
-- [ ] Delete the `OnRequest("Player", "DamageEntity", ...)` registration in
+- [x] Delete the `OnRequest("Player", "DamageEntity", ...)` registration in
       `PlayerHandler.Register`.
-- [ ] Delete the `DamageEntity` method body from PlayerHandler.
-- [ ] Remove the `DamageEntityRequest` class from `PlayerPayloads.cs` (moved
+- [x] Delete the `DamageEntity` method body from PlayerHandler.
+- [x] Remove the `DamageEntityRequest` class from `PlayerPayloads.cs` (moved
       to EntityPayloads in step 2).
 
 ### 5. Bus registration
 
-- [ ] Add `new EntityHandler(_ctx).Register();` to
+- [x] Add `new EntityHandler(_ctx).Register();` to
       [../ESB/BusService/SubscriptionHandler.cs](../ESB/BusService/SubscriptionHandler.cs)
       in `SubscribeAll`, between PlayerHandler and StructureHandler so the
       registration ordering is Player -> Entity -> Structure -> Playfield.
@@ -160,24 +175,24 @@ and [../ESB/TopicHandlers/StructureHandler.cs](../ESB/TopicHandlers/StructureHan
 Create `ESBTests/TopicHandlerTests/Test_Entity_Integration.cs` mirroring
 [../ESBTests/TopicHandlerTests/Test_Player_Integration.cs](../ESBTests/TopicHandlerTests/Test_Player_Integration.cs):
 
-- [ ] `[Trait("Category", "Integration")]` class scaffold;
+- [x] `[Trait("Category", "Integration")]` class scaffold;
       `SBTestClient.ConnectAsync()` per test; tolerate the dedicated-server
       "no LocalPlayer" Error path the same way Player tests do
       (`if (payload["Error"] == null) ... else Assert.NotNull(Error)`).
-- [ ] `Properties_KnownEntity_ReturnsCoreFields` -- uses
+- [x] `Properties_KnownEntity_ReturnsCoreFields` -- uses
       `KnownState.BaseEntityId`; asserts non-null
       `Id, Name, Type, Position.X, Faction.Id, HasStructure`.
-- [ ] `Properties_MissingEntityId_ReturnsError`.
-- [ ] `Properties_UnknownEntity_ReturnsError` -- send `EntityId: 999999`.
-- [ ] `List_ReturnsTabularEntities` -- assert
+- [x] `Properties_MissingEntityId_ReturnsError`.
+- [x] `Properties_UnknownEntity_ReturnsError` -- send `EntityId: 999999`.
+- [x] `List_ReturnsTabularEntities` -- assert
       `payload["Entities"]["Columns"]` and `Rows` exist; column header includes
       `BelongsTo` and `FactionId`.
-- [ ] `SetPosition_SamePos_ReturnsOk` -- read current Position then write it
+- [x] `SetPosition_SamePos_ReturnsOk` -- read current Position then write it
       back; assert `ok` is true.
-- [ ] `SetRotation_Identity_ReturnsOk` -- send `{X:0,Y:0,Z:0,W:1}`.
-- [ ] `DamageEntity_ZeroDamage_ReturnsOkOrError` -- replaces the Player-scope
+- [x] `SetRotation_Identity_ReturnsOk` -- send `{X:0,Y:0,Z:0,W:1}`.
+- [x] `DamageEntity_ZeroDamage_ReturnsOkOrError` -- replaces the Player-scope
       test currently in `Test_Player_Integration.cs`; delete that one.
-- [ ] `Move_ZeroVector_ReturnsOk`, `MoveForward_ZeroSpeed_ReturnsOk`,
+- [x] `Move_ZeroVector_ReturnsOk`, `MoveForward_ZeroSpeed_ReturnsOk`,
       `MoveStop_ReturnsOk` -- exercise each method op once.
 
 ### 7. Verification
