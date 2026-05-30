@@ -11,31 +11,29 @@ using System.Threading.Tasks;
 
 namespace ESB.TopicHandlers
 {
-    public class AppHandler
+    public class AppHandler : TopicHandlerBase
     {
-        private readonly ContextData _ctx;
-
-        public AppHandler(ContextData ctx) { _ctx = ctx; }
+        public AppHandler(ContextData ctx) : base(ctx) { }
 
         private static readonly string[] PlayfieldInfoColumns = { "PlayfieldName", "PlayfieldType", "IsInstance" };
 
         public void Register()
         {
-            _ctx.Bus.OnRequest("App", "GetProperties",       GetProperties);
-            _ctx.Bus.OnRequest("App", "GameTicks",           GameTicks);
-            _ctx.Bus.OnRequest("App", "Mode",                Mode);
-            _ctx.Bus.OnRequest("App", "State",               State);
-            _ctx.Bus.OnRequest("App", "ModApiProperties",    ModApiProperties);
-            _ctx.Bus.OnRequest("App", "GetAllPlayfields",    GetAllPlayfields);
-            _ctx.Bus.OnRequest("App", "PfServerInfos",       GetPfServerInfos);
-            _ctx.Bus.OnRequest("App", "PlayerEntityIds",     GetPlayerEntityIds);
-            _ctx.Bus.OnRequest("App", "BlockAndItemMapping", GetBlockAndItemMapping);
-            _ctx.Bus.OnRequest("App", "GetPathFor",          GetPathFor);
-            _ctx.Bus.OnRequest("App", "GetPlayerDataFor",    GetPlayerDataFor);
-            _ctx.Bus.OnRequest("App", "GetStructure",        GetStructureAsync);
-            _ctx.Bus.OnRequest("App", "GetStructures",       GetStructuresAsync);
-            _ctx.Bus.OnRequest("App", "SendChatMessage",     SendChatMessage);
-            _ctx.Bus.OnRequest("App", "ShowDialogBox",       ShowDialogBox);
+            _ctx.Bus.OnRequest("App", "GetProperties",       OnMain(GetProperties));
+            _ctx.Bus.OnRequest("App", "GameTicks",           OnMain(GameTicks));
+            _ctx.Bus.OnRequest("App", "Mode",                OnMain(Mode));
+            _ctx.Bus.OnRequest("App", "State",               OnMain(State));
+            _ctx.Bus.OnRequest("App", "ModApiProperties",    OnMain(ModApiProperties));
+            _ctx.Bus.OnRequest("App", "GetAllPlayfields",    OnMain(GetAllPlayfields));
+            _ctx.Bus.OnRequest("App", "PfServerInfos",       OnMain(GetPfServerInfos));
+            _ctx.Bus.OnRequest("App", "PlayerEntityIds",     OnMain(GetPlayerEntityIds));
+            _ctx.Bus.OnRequest("App", "BlockAndItemMapping", OnMain(GetBlockAndItemMapping));
+            _ctx.Bus.OnRequest("App", "GetPathFor",          OnMain(GetPathFor));
+            _ctx.Bus.OnRequest("App", "GetPlayerDataFor",    OnMain(GetPlayerDataFor));
+            _ctx.Bus.OnRequest("App", "GetStructure",        OnMain(GetStructureAsync));
+            _ctx.Bus.OnRequest("App", "GetStructures",       OnMain(GetStructuresAsync));
+            _ctx.Bus.OnRequest("App", "SendChatMessage",     OnMain(SendChatMessage));
+            _ctx.Bus.OnRequest("App", "ShowDialogBox",       OnMain(ShowDialogBox));
         }
 
         // =========================================================================
@@ -323,7 +321,7 @@ namespace ESB.TopicHandlers
         // Dispatched on the main thread.
         // Returns: { "ok": true }
         // =========================================================================
-        private async Task<string> SendChatMessage(MessageEnvelope env)
+        private Task<string> SendChatMessage(MessageEnvelope env)
         {
             try
             {
@@ -343,15 +341,12 @@ namespace ESB.TopicHandlers
                 if (req.Arg1 != null)               msg.Arg1               = req.Arg1;
                 if (req.Arg2 != null)               msg.Arg2               = req.Arg2;
 
-                return await _ctx.MainThreadRunner.RunOnMainThread(() =>
-                {
-                    _ctx.ModApi.Application.SendChatMessage(msg);
-                    return new JObject(new JProperty("ok", true)).ToString(Formatting.None);
-                });
+                _ctx.ModApi.Application.SendChatMessage(msg);
+                return Task.FromResult(new JObject(new JProperty("ok", true)).ToString(Formatting.None));
             }
             catch (Exception ex)
             {
-                return MessageHelpers.ExceptionJson(ex);
+                return Task.FromResult(MessageHelpers.ExceptionJson(ex));
             }
         }
 
@@ -365,7 +360,7 @@ namespace ESB.TopicHandlers
         //   { PlayerEntityId, ButtonIdx, LinkId, InputContent, CustomValue }
         // Returns: { "ok": true } on display, error JSON on failure.
         // =========================================================================
-        private async Task<string> ShowDialogBox(MessageEnvelope env)
+        private Task<string> ShowDialogBox(MessageEnvelope env)
         {
             try
             {
@@ -400,16 +395,15 @@ namespace ESB.TopicHandlers
                     _ = _ctx.Bus.PublishEventAsync(dlgRcId, "App", "DialogResponse", evt);
                 }
 
-                bool displayed = await _ctx.MainThreadRunner.RunOnMainThread(() =>
-                    _ctx.ModApi.Application.ShowDialogBox(playerEntityId, config, DialogCallback, customValue));
+                bool displayed = _ctx.ModApi.Application.ShowDialogBox(playerEntityId, config, DialogCallback, customValue);
 
-                return displayed
+                return Task.FromResult(displayed
                     ? new JObject(new JProperty("ok", true)).ToString(Formatting.None)
-                    : MessageHelpers.ErrorJson("Failed to display dialog - invalid player entity ID");
+                    : MessageHelpers.ErrorJson("Failed to display dialog - invalid player entity ID"));
             }
             catch (Exception ex)
             {
-                return MessageHelpers.ExceptionJson(ex);
+                return Task.FromResult(MessageHelpers.ExceptionJson(ex));
             }
         }
     }

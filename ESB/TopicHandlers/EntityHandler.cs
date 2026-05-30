@@ -10,22 +10,20 @@ using UnityEngine;
 
 namespace ESB.TopicHandlers
 {
-    public class EntityHandler
+    public class EntityHandler : TopicHandlerBase
     {
-        private readonly ContextData _ctx;
-
-        public EntityHandler(ContextData ctx) { _ctx = ctx; }
+        public EntityHandler(ContextData ctx) : base(ctx) { }
 
         public void Register()
         {
-            _ctx.Bus.OnRequest("Entity", "GetProperties", GetProperties);
-            _ctx.Bus.OnRequest("Entity", "List",          List);
-            _ctx.Bus.OnRequest("Entity", "SetPosition",   SetPosition);
-            _ctx.Bus.OnRequest("Entity", "SetRotation",   SetRotation);
-            _ctx.Bus.OnRequest("Entity", "DamageEntity",  DamageEntity);
-            _ctx.Bus.OnRequest("Entity", "Move",          Move);
-            _ctx.Bus.OnRequest("Entity", "MoveForward",   MoveForward);
-            _ctx.Bus.OnRequest("Entity", "MoveStop",      MoveStop);
+            _ctx.Bus.OnRequest("Entity", "GetProperties", OnMain(GetProperties));
+            _ctx.Bus.OnRequest("Entity", "List",          OnMain(List));
+            _ctx.Bus.OnRequest("Entity", "SetPosition",   OnMain(SetPosition));
+            _ctx.Bus.OnRequest("Entity", "SetRotation",   OnMain(SetRotation));
+            _ctx.Bus.OnRequest("Entity", "DamageEntity",  OnMain(DamageEntity));
+            _ctx.Bus.OnRequest("Entity", "Move",          OnMain(Move));
+            _ctx.Bus.OnRequest("Entity", "MoveForward",   OnMain(MoveForward));
+            _ctx.Bus.OnRequest("Entity", "MoveStop",      OnMain(MoveStop));
         }
 
         private static readonly string[] ListColumns =

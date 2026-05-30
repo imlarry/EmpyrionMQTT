@@ -10,36 +10,34 @@ using UnityEngine;
 
 namespace ESB.TopicHandlers
 {
-    public class PlayfieldHandler
+    public class PlayfieldHandler : TopicHandlerBase
     {
-        private readonly ContextData _ctx;
-
-        public PlayfieldHandler(ContextData ctx) { _ctx = ctx; }
+        public PlayfieldHandler(ContextData ctx) : base(ctx) { }
 
         public void Register()
         {
-            _ctx.Bus.OnRequest("Playfield", "GetProperties",          GetProperties);
-            _ctx.Bus.OnRequest("Playfield", "Name",                   GetName);
-            _ctx.Bus.OnRequest("Playfield", "PlayfieldType",          GetPlayfieldType);
-            _ctx.Bus.OnRequest("Playfield", "PlanetType",             GetPlanetType);
-            _ctx.Bus.OnRequest("Playfield", "PlanetClass",            GetPlanetClass);
-            _ctx.Bus.OnRequest("Playfield", "SolarSystemName",        GetSolarSystemName);
-            _ctx.Bus.OnRequest("Playfield", "SolarSystemCoordinates", GetSolarSystemCoordinates);
-            _ctx.Bus.OnRequest("Playfield", "IsPvP",                  GetIsPvP);
-            _ctx.Bus.OnRequest("Playfield", "GetEntities",            GetEntities);
-            _ctx.Bus.OnRequest("Playfield", "GetPlayers",             GetPlayers);
-            _ctx.Bus.OnRequest("Playfield", "GetTerrainHeight",       GetTerrainHeight);
-            _ctx.Bus.OnRequest("Playfield", "SpawnEntity",            SpawnEntity);
-            _ctx.Bus.OnRequest("Playfield", "SpawnPrefab",            SpawnPrefab);
-            _ctx.Bus.OnRequest("Playfield", "RemoveEntity",           RemoveEntity);
-            _ctx.Bus.OnRequest("Playfield", "SpawnTestPlayer",        SpawnTestPlayer);
-            _ctx.Bus.OnRequest("Playfield", "RemoveTestPlayer",       RemoveTestPlayer);
-            _ctx.Bus.OnRequest("Playfield", "LockStructureDevice",    LockStructureDevice);
-            _ctx.Bus.OnRequest("Playfield", "IsStructureDeviceLocked",IsStructureDeviceLocked);
-            _ctx.Bus.OnRequest("Playfield", "GetStructureDevices",    GetStructureDevices);
-            _ctx.Bus.OnRequest("Playfield", "AddVoxelArea",           AddVoxelArea);
-            _ctx.Bus.OnRequest("Playfield", "MoveVoxelArea",          MoveVoxelArea);
-            _ctx.Bus.OnRequest("Playfield", "RemoveVoxelArea",        RemoveVoxelArea);
+            _ctx.Bus.OnRequest("Playfield", "GetProperties",          OnMain(GetProperties));
+            _ctx.Bus.OnRequest("Playfield", "Name",                   OnMain(GetName));
+            _ctx.Bus.OnRequest("Playfield", "PlayfieldType",          OnMain(GetPlayfieldType));
+            _ctx.Bus.OnRequest("Playfield", "PlanetType",             OnMain(GetPlanetType));
+            _ctx.Bus.OnRequest("Playfield", "PlanetClass",            OnMain(GetPlanetClass));
+            _ctx.Bus.OnRequest("Playfield", "SolarSystemName",        OnMain(GetSolarSystemName));
+            _ctx.Bus.OnRequest("Playfield", "SolarSystemCoordinates", OnMain(GetSolarSystemCoordinates));
+            _ctx.Bus.OnRequest("Playfield", "IsPvP",                  OnMain(GetIsPvP));
+            _ctx.Bus.OnRequest("Playfield", "GetEntities",            OnMain(GetEntities));
+            _ctx.Bus.OnRequest("Playfield", "GetPlayers",             OnMain(GetPlayers));
+            _ctx.Bus.OnRequest("Playfield", "GetTerrainHeight",       OnMain(GetTerrainHeight));
+            _ctx.Bus.OnRequest("Playfield", "SpawnEntity",            OnMain(SpawnEntity));
+            _ctx.Bus.OnRequest("Playfield", "SpawnPrefab",            OnMain(SpawnPrefab));
+            _ctx.Bus.OnRequest("Playfield", "RemoveEntity",           OnMain(RemoveEntity));
+            _ctx.Bus.OnRequest("Playfield", "SpawnTestPlayer",        OnMain(SpawnTestPlayer));
+            _ctx.Bus.OnRequest("Playfield", "RemoveTestPlayer",       OnMain(RemoveTestPlayer));
+            _ctx.Bus.OnRequest("Playfield", "LockStructureDevice",    OnMain(LockStructureDevice));
+            _ctx.Bus.OnRequest("Playfield", "IsStructureDeviceLocked",OnMain(IsStructureDeviceLocked));
+            _ctx.Bus.OnRequest("Playfield", "GetStructureDevices",    OnMain(GetStructureDevices));
+            _ctx.Bus.OnRequest("Playfield", "AddVoxelArea",           OnMain(AddVoxelArea));
+            _ctx.Bus.OnRequest("Playfield", "MoveVoxelArea",          OnMain(MoveVoxelArea));
+            _ctx.Bus.OnRequest("Playfield", "RemoveVoxelArea",        OnMain(RemoveVoxelArea));
         }
 
         private IPlayfield CurrentPlayfield =>
@@ -376,13 +374,12 @@ namespace ESB.TopicHandlers
                     return MessageHelpers.ErrorJson("No active playfield");
                 var pos = new VectorInt3((int)req.PosInStruct.X, (int)req.PosInStruct.Y, (int)req.PosInStruct.Z);
                 var tcs = new TaskCompletionSource<string>();
-                bool queued = await _ctx.MainThreadRunner.RunOnMainThread<bool>(() =>
-                    pf.LockStructureDevice(req.StructureId, pos, req.DoLock,
-                        (structureId, posResult, success) =>
-                            tcs.SetResult(new JObject(
-                                new JProperty("StructureId",  structureId),
-                                new JProperty("PosInStruct",  MessageHelpers.Vec(posResult)),
-                                new JProperty("Success",      success)).ToString(Formatting.None))));
+                bool queued = pf.LockStructureDevice(req.StructureId, pos, req.DoLock,
+                    (structureId, posResult, success) =>
+                        tcs.SetResult(new JObject(
+                            new JProperty("StructureId",  structureId),
+                            new JProperty("PosInStruct",  MessageHelpers.Vec(posResult)),
+                            new JProperty("Success",      success)).ToString(Formatting.None)));
                 if (!queued)
                     return MessageHelpers.ErrorJson("LockStructureDevice request failed");
                 return await tcs.Task;

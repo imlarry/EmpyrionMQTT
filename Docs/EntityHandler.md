@@ -7,13 +7,12 @@ PlayerHandler"). Sections 1-6 below are complete. Section 7 (verification) is
 user-driven and still open: build/test are user-triggered, and the live
 smoke-check has not been run.
 
-Note on threading: as written, the handler methods run synchronously and return
-`Task.FromResult(...)` without hopping through
-`_ctx.MainThreadRunner.RunOnMainThread`. That is now considered a bug. Per the
-project rule, ModApi/game-state calls default to the main thread (Unity thread
-affinity), so each of these handlers needs a main-thread hop around its API call
-and state access. The section 3 wording ("on the main thread") stands. This
-hop is pending the cleanup pass over ESB.
+Note on threading: the handler methods now hop through
+`_ctx.MainThreadRunner.RunOnMainThread` for the entity lookup and the ModApi
+call, per the project rule (ModApi/game-state on the main thread, Unity thread
+affinity). Payload parse/validation stays off the hop; List reads scalar rows
+in the hop and builds the Tabular/ToString off it. Done as the first handler in
+the ESB main-thread pass (see Docs/MainThreadAudit.md).
 
 ## Context
 

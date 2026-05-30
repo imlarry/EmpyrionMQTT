@@ -9,55 +9,53 @@ using UnityEngine;
 
 namespace ESB.TopicHandlers
 {
-    public class StructureHandler
+    public class StructureHandler : TopicHandlerBase
     {
-        private readonly ContextData _ctx;
-
-        public StructureHandler(ContextData ctx) { _ctx = ctx; }
+        public StructureHandler(ContextData ctx) : base(ctx) { }
 
         public void Register()
         {
-            _ctx.Bus.OnRequest("Structure", "Info",                    Info);
-            _ctx.Bus.OnRequest("Structure", "Tanks",                   Tanks);
-            _ctx.Bus.OnRequest("Structure", "GetAllCustomDeviceNames", GetAllCustomDeviceNames);
-            _ctx.Bus.OnRequest("Structure", "GetDevicePositions",      GetDevicePositions);
-            _ctx.Bus.OnRequest("Structure", "GetDockedVessels",        GetDockedVessels);
-            _ctx.Bus.OnRequest("Structure", "GetPassengers",           GetPassengers);
-            _ctx.Bus.OnRequest("Structure", "GetBlockSignals",         GetBlockSignals);
-            _ctx.Bus.OnRequest("Structure", "GetControlPanelSignals",  GetControlPanelSignals);
-            _ctx.Bus.OnRequest("Structure", "GetSignalState",          GetSignalState);
-            _ctx.Bus.OnRequest("Structure", "GetSignalReceivers",      GetSignalReceivers);
-            _ctx.Bus.OnRequest("Structure", "GetSendSignalName",       GetSendSignalName);
-            _ctx.Bus.OnRequest("Structure", "AddTankContent",          AddTankContent);
-            _ctx.Bus.OnRequest("Structure", "SetFaction",              SetFaction);
-            _ctx.Bus.OnRequest("Structure", "StructToGlobalPos",       StructToGlobalPos);
-            _ctx.Bus.OnRequest("Structure", "GlobalToStructPos",       GlobalToStructPos);
-            _ctx.Bus.OnRequest("Structure", "ScanFloor",               ScanFloor);
-            _ctx.Bus.OnRequest("Structure", "GetAllBlocks",            GetAllBlocks);
-            _ctx.Bus.OnRequest("Structure", "SetRotationAtlas",        SetRotationAtlas);
+            _ctx.Bus.OnRequest("Structure", "Info",                    OnMain(Info));
+            _ctx.Bus.OnRequest("Structure", "Tanks",                   OnMain(Tanks));
+            _ctx.Bus.OnRequest("Structure", "GetAllCustomDeviceNames", OnMain(GetAllCustomDeviceNames));
+            _ctx.Bus.OnRequest("Structure", "GetDevicePositions",      OnMain(GetDevicePositions));
+            _ctx.Bus.OnRequest("Structure", "GetDockedVessels",        OnMain(GetDockedVessels));
+            _ctx.Bus.OnRequest("Structure", "GetPassengers",           OnMain(GetPassengers));
+            _ctx.Bus.OnRequest("Structure", "GetBlockSignals",         OnMain(GetBlockSignals));
+            _ctx.Bus.OnRequest("Structure", "GetControlPanelSignals",  OnMain(GetControlPanelSignals));
+            _ctx.Bus.OnRequest("Structure", "GetSignalState",          OnMain(GetSignalState));
+            _ctx.Bus.OnRequest("Structure", "GetSignalReceivers",      OnMain(GetSignalReceivers));
+            _ctx.Bus.OnRequest("Structure", "GetSendSignalName",       OnMain(GetSendSignalName));
+            _ctx.Bus.OnRequest("Structure", "AddTankContent",          OnMain(AddTankContent));
+            _ctx.Bus.OnRequest("Structure", "SetFaction",              OnMain(SetFaction));
+            _ctx.Bus.OnRequest("Structure", "StructToGlobalPos",       OnMain(StructToGlobalPos));
+            _ctx.Bus.OnRequest("Structure", "GlobalToStructPos",       OnMain(GlobalToStructPos));
+            _ctx.Bus.OnRequest("Structure", "ScanFloor",               OnMain(ScanFloor));
+            _ctx.Bus.OnRequest("Structure", "GetAllBlocks",            OnMain(GetAllBlocks));
+            _ctx.Bus.OnRequest("Structure", "SetRotationAtlas",        OnMain(SetRotationAtlas));
             // LCD
-            _ctx.Bus.OnRequest("Structure", "GetLcd",                  GetLcd);
-            _ctx.Bus.OnRequest("Structure", "SetLcdText",              SetLcdText);
-            _ctx.Bus.OnRequest("Structure", "SetLcdColors",            SetLcdColors);
-            _ctx.Bus.OnRequest("Structure", "SetLcdFontSize",          SetLcdFontSize);
+            _ctx.Bus.OnRequest("Structure", "GetLcd",                  OnMain(GetLcd));
+            _ctx.Bus.OnRequest("Structure", "SetLcdText",              OnMain(SetLcdText));
+            _ctx.Bus.OnRequest("Structure", "SetLcdColors",            OnMain(SetLcdColors));
+            _ctx.Bus.OnRequest("Structure", "SetLcdFontSize",          OnMain(SetLcdFontSize));
             // Container
-            _ctx.Bus.OnRequest("Structure", "GetContainer",            GetContainer);
-            _ctx.Bus.OnRequest("Structure", "SetContainer",            SetContainer);
-            _ctx.Bus.OnRequest("Structure", "AddItems",                AddItems);
-            _ctx.Bus.OnRequest("Structure", "RemoveItems",             RemoveItems);
+            _ctx.Bus.OnRequest("Structure", "GetContainer",            OnMain(GetContainer));
+            _ctx.Bus.OnRequest("Structure", "SetContainer",            OnMain(SetContainer));
+            _ctx.Bus.OnRequest("Structure", "AddItems",                OnMain(AddItems));
+            _ctx.Bus.OnRequest("Structure", "RemoveItems",             OnMain(RemoveItems));
             // Block
-            _ctx.Bus.OnRequest("Structure", "GetBlock",                GetBlock);
-            _ctx.Bus.OnRequest("Structure", "SetBlock",                SetBlock);
-            _ctx.Bus.OnRequest("Structure", "SetBlockSwitchState",     SetBlockSwitchState);
+            _ctx.Bus.OnRequest("Structure", "GetBlock",                OnMain(GetBlock));
+            _ctx.Bus.OnRequest("Structure", "SetBlock",                OnMain(SetBlock));
+            _ctx.Bus.OnRequest("Structure", "SetBlockSwitchState",     OnMain(SetBlockSwitchState));
             // Light
-            _ctx.Bus.OnRequest("Structure", "GetLight",                GetLight);
-            _ctx.Bus.OnRequest("Structure", "SetLightColor",           SetLightColor);
-            _ctx.Bus.OnRequest("Structure", "SetLightIntensity",       SetLightIntensity);
-            _ctx.Bus.OnRequest("Structure", "SetLightRange",           SetLightRange);
-            _ctx.Bus.OnRequest("Structure", "SetLightBlink",           SetLightBlink);
+            _ctx.Bus.OnRequest("Structure", "GetLight",                OnMain(GetLight));
+            _ctx.Bus.OnRequest("Structure", "SetLightColor",           OnMain(SetLightColor));
+            _ctx.Bus.OnRequest("Structure", "SetLightIntensity",       OnMain(SetLightIntensity));
+            _ctx.Bus.OnRequest("Structure", "SetLightRange",           OnMain(SetLightRange));
+            _ctx.Bus.OnRequest("Structure", "SetLightBlink",           OnMain(SetLightBlink));
             // Teleporter
-            _ctx.Bus.OnRequest("Structure", "GetTeleporter",           GetTeleporter);
-            _ctx.Bus.OnRequest("Structure", "SetTeleporter",           SetTeleporter);
+            _ctx.Bus.OnRequest("Structure", "GetTeleporter",           OnMain(GetTeleporter));
+            _ctx.Bus.OnRequest("Structure", "SetTeleporter",           OnMain(SetTeleporter));
         }
 
         // Shared structure lookup -- returns null when entity not on this playfield.
